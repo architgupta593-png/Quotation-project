@@ -1,0 +1,38 @@
+# Dependencies (installed fresh in container)
+node_modules
+
+# Next.js build output (rebuilt in container)
+.next
+
+# Git
+.git
+.gitignore
+
+# Environment files (injected at runtime, never baked in)
+.env
+.env.*
+!.env.example
+
+# IDE / Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Misc
+README.md
+CLAUDE.md
+AGENTS.md
+*.md
+LICENSE
+coverage
+.vercel
