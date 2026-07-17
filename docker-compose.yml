@@ -12,8 +12,8 @@ services:
       - .env.local
     environment:
       - NODE_ENV=production
-      # Override MONGODB_URI to point to the mongo container
-      - MONGODB_URI=mongodb://mongo:27017/archit-project
+      # Override MONGODB_URI to point to the mongo container (with auth)
+      - MONGODB_URI=mongodb://admin:admin123@mongo:27017/archit-project?authSource=admin
     depends_on:
       mongo:
         condition: service_healthy
@@ -26,6 +26,9 @@ services:
     image: mongo:7
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
     volumes:
       - mongo-data:/data/db
     healthcheck:
