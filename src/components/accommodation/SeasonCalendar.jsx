@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Utensils } from "lucide-react";
 
-// ── Rich palette — vibrant but readable ──────────────────────────────────────
+// ── Rich palette ──────────────────────────────────────────────────────────────
 const PALETTE = [
   { id: "amber",   strip: "#f59e0b", light: "#fef3c7", text: "#78350f", ring: "#fbbf24", grad: "linear-gradient(135deg,#fbbf24,#f59e0b)" },
   { id: "blue",    strip: "#3b82f6", light: "#dbeafe", text: "#1e3a8a", ring: "#60a5fa", grad: "linear-gradient(135deg,#60a5fa,#3b82f6)" },
@@ -13,6 +13,7 @@ const PALETTE = [
   { id: "teal",    strip: "#14b8a6", light: "#ccfbf1", text: "#134e4a", ring: "#2dd4bf", grad: "linear-gradient(135deg,#2dd4bf,#14b8a6)" },
 ];
 
+const MEAL_LABELS = { EP: "Room Only", CP: "Bed & Breakfast", MAP: "Breakfast + Dinner", AP: "All Meals" };
 const MON_S = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MON_F = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WDAY  = ["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -45,11 +46,18 @@ function fmtDMY(dateIn) {
   return `${String(d.getUTCDate()).padStart(2,"0")}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${d.getUTCFullYear()}`;
 }
 
+/** Get the EP price (cheapest) for a season, or 0 if not set */
+function getEpPrice(season) {
+  if (!season?.meals?.length) return null;
+  const ep = season.meals.find(m => m.plan === "EP");
+  return ep ? Number(ep.price) : Number(season.meals[0].price);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 /**
  * SeasonCalendar
  * Props:
- *   seasonalPricing  [{label, pricePerNight, dateRanges:[{startDate,endDate}]}]
+ *   seasonalPricing  [{label, dateRanges:[{startDate,endDate}], meals:[{plan,price}]}]
  *   roomType         string  optional label shown in price panel
  *   compact          bool    smaller header, used inside form preview
  */
@@ -62,7 +70,7 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
   const [viewYear,  setViewYear]  = useState(todayDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(todayDate.getMonth());
   const [selected,  setSelected]  = useState(null);
-  const [hovered,   setHovered]   = useState(null); // {day, idx, pal}
+  const [hovered,   setHovered]   = useState(null);
 
   function prev() {
     if (viewMonth === 0) { setViewYear(y => y-1); setViewMonth(11); }
@@ -92,12 +100,16 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
   const selInfo = useMemo(() => {
     if (!selected) return null;
     const idx = getSeasonIdx(selected, seasonalPricing);
-    if (idx < 0) return { label: "No rate configured", price: null, pal: null };
+    if (idx < 0) return { label: "No rate configured", meals: [], pal: null };
     const s = seasonalPricing[idx];
-    return { label: s.label || `Season ${idx+1}`, price: Number(s.pricePerNight)||0, pal: PALETTE[idx%PALETTE.length] };
+    return {
+      label: s.label || `Season ${idx+1}`,
+      meals: s.meals || [],
+      pal:   PALETTE[idx % PALETTE.length],
+    };
   }, [selected, seasonalPricing]);
 
-  // Active season for the current view month (for nav header accent)
+  // Active season for the current view month
   const viewMonthSeasonIdx = getSeasonIdx(new Date(Date.UTC(viewYear, viewMonth, 15)), seasonalPricing);
   const viewMonthPal = viewMonthSeasonIdx >= 0 ? PALETTE[viewMonthSeasonIdx % PALETTE.length] : null;
 
@@ -122,12 +134,14 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
         <div className="flex rounded-xl overflow-hidden" style={{ height: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
           {strip.map(({ idx, pal }, mi) => {
             const isCur = mi === viewMonth;
+            const epPrice = idx >= 0 ? getEpPrice(seasonalPricing[idx]) : null;
+            const tooltip = idx >= 0
+              ? `${MON_S[mi]}: ${seasonalPricing[idx].label || "Season"}${epPrice !== null ? ` · from ₹${epPrice.toLocaleString("en-IN")}` : ""}`
+              : `${MON_S[mi]}: No rate`;
             return (
               <div
                 key={mi}
-                title={idx >= 0
-                  ? `${MON_S[mi]}: ${seasonalPricing[idx].label||"Season"} · ₹${Number(seasonalPricing[idx].pricePerNight).toLocaleString()}`
-                  : `${MON_S[mi]}: No rate`}
+                title={tooltip}
                 style={{
                   flex: 1,
                   background: pal ? pal.grad : "linear-gradient(135deg,#e5e7eb,#d1d5db)",
@@ -155,28 +169,49 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
           })}
         </div>
 
-        {/* Legend chips */}
+        {/* Legend chips — each season shows date ranges + meal prices */}
         {seasonalPricing.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 mt-2.5">
+          <div className="flex flex-col gap-2 mt-2.5">
             {seasonalPricing.map((s, i) => {
-              const pal = PALETTE[i % PALETTE.length];
-              const ranges = (s.dateRanges||[])
+              const pal    = PALETTE[i % PALETTE.length];
+              const ranges = (s.dateRanges || [])
                 .map(r => `${fmtDMY(r.startDate)} – ${fmtDMY(r.endDate)}`)
                 .filter(Boolean);
+              const meals  = s.meals || [];
               return (
-                <div key={i}
-                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                  style={{ background: pal.light, color: pal.text, border: `1px solid ${pal.strip}30` }}>
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pal.grad }} />
-                  <span>{s.label || `Season ${i+1}`}</span>
-                  <span className="font-black">₹{Number(s.pricePerNight).toLocaleString()}</span>
-                  {ranges.length > 0 && (
-                    <span className="opacity-70 font-normal text-[9px]">· {ranges.join(" & ")}</span>
+                <div key={i} className="rounded-xl overflow-hidden border"
+                  style={{ borderColor: pal.strip + "30", background: pal.light }}>
+                  {/* Season header */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: pal.grad }} />
+                    <span className="text-[11px] font-bold" style={{ color: pal.text }}>
+                      {s.label || `Season ${i+1}`}
+                    </span>
+                    {ranges.length > 0 && (
+                      <span className="text-[10px] opacity-60 font-normal ml-1" style={{ color: pal.text }}>
+                        {ranges.join("  &  ")}
+                      </span>
+                    )}
+                  </div>
+                  {/* Meal price grid */}
+                  {meals.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/30 border-t"
+                      style={{ borderColor: pal.strip + "20" }}>
+                      {meals.map(m => (
+                        <div key={m.plan} className="flex flex-col items-center py-1.5 px-2 bg-white/60">
+                          <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: pal.strip }}>{m.plan}</span>
+                          <span className="text-[10px] font-normal opacity-60" style={{ color: pal.text }}>{MEAL_LABELS[m.plan] || m.plan}</span>
+                          <span className="text-[13px] font-black mt-0.5" style={{ color: pal.text }}>
+                            ₹{Number(m.price).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               );
             })}
-            <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] text-gray-400 bg-gray-100/80 border border-gray-200">
+            <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] text-gray-400 bg-gray-100/80 border border-gray-200 w-fit">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
               No rate
             </div>
@@ -239,7 +274,13 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
             const idx = past ? -1 : getSeasonIdx(date, seasonalPricing);
             const pal = idx >= 0 ? PALETTE[idx % PALETTE.length] : null;
 
-            // Background logic
+            // Tooltip: show season + EP (from) price
+            const epPrice = idx >= 0 ? getEpPrice(seasonalPricing[idx]) : null;
+            const dayTitle = past ? "Past"
+              : idx >= 0
+                ? `${seasonalPricing[idx].label || "Season"}${epPrice !== null ? ` · from ₹${epPrice.toLocaleString("en-IN")}` : ""}`
+                : "No rate";
+
             let bg, fg, shadow = "none";
             if (sel) {
               bg = pal ? pal.grad : "linear-gradient(135deg,#818cf8,#6366f1)";
@@ -261,9 +302,7 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
                 key={day}
                 type="button"
                 disabled={past}
-                title={past ? "Past" : idx >= 0
-                  ? `${seasonalPricing[idx].label||"Season"} · ₹${Number(seasonalPricing[idx].pricePerNight).toLocaleString()}/night`
-                  : "No rate"}
+                title={dayTitle}
                 onClick={() => !past && setSelected(sel ? null : date)}
                 onMouseEnter={() => !past && setHovered(day)}
                 onMouseLeave={() => setHovered(null)}
@@ -307,26 +346,27 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
         </div>
       </div>
 
-      {/* ── Selected date price card ─────────────────────────────────────── */}
+      {/* ── Selected date — meal plan price table ────────────────────────── */}
       {selInfo && selected && (
         <div className="mx-3 mb-3 rounded-xl overflow-hidden"
           style={{
             background: selInfo.pal
-              ? `linear-gradient(135deg, ${selInfo.pal.strip}12, ${selInfo.pal.strip}06)`
+              ? `linear-gradient(135deg, ${selInfo.pal.strip}10, ${selInfo.pal.strip}05)`
               : "linear-gradient(135deg,#f8fafc,#f1f5f9)",
             border: `1px solid ${selInfo.pal ? selInfo.pal.strip+"30" : "#e2e8f0"}`,
             boxShadow: selInfo.pal ? `0 4px 16px ${selInfo.pal.strip}18` : "0 2px 8px rgba(0,0,0,0.05)",
           }}>
-          {/* Gradient accent bar */}
+          {/* Accent bar */}
           <div style={{ height: 3, background: selInfo.pal ? selInfo.pal.grad : "linear-gradient(135deg,#818cf8,#6366f1)" }} />
 
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
+          {/* Date + season label */}
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] text-gray-500 font-medium mb-0.5 truncate">
+              <p className="text-[10px] text-gray-500 font-medium truncate">
                 {selected.toLocaleDateString("en-IN", { weekday:"long", day:"2-digit", month:"long", year:"numeric" })}
                 {roomType && <span className="ml-1.5 text-gray-400 font-normal">· {roomType}</span>}
               </p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ background: selInfo.pal ? selInfo.pal.grad : "linear-gradient(135deg,#818cf8,#6366f1)" }} />
                 <p className="text-[13px] font-bold" style={{ color: selInfo.pal ? selInfo.pal.strip : "#6366f1" }}>
@@ -334,28 +374,40 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
                 </p>
               </div>
             </div>
-
-            {selInfo.price !== null ? (
-              <div className="flex-shrink-0 text-right">
-                <div className="flex items-baseline gap-0.5 justify-end">
-                  <span className="text-[12px] font-semibold text-gray-500">₹</span>
-                  <span className="text-[28px] font-black leading-none text-gray-900">
-                    {selInfo.price.toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-[9px] text-gray-400 text-right">/night</p>
-              </div>
-            ) : (
-              <span className="text-[12px] text-gray-400 italic flex-shrink-0">Rate not set</span>
-            )}
+            <Utensils className="w-4 h-4 flex-shrink-0" style={{ color: selInfo.pal ? selInfo.pal.strip : "#6366f1", opacity: 0.6 }} />
           </div>
+
+          {/* Meal plan price grid */}
+          {selInfo.meals.length > 0 ? (
+            <div className="grid grid-cols-2 gap-px mx-3 mb-3 rounded-xl overflow-hidden border"
+              style={{ borderColor: selInfo.pal ? selInfo.pal.strip+"25" : "#e2e8f0" }}>
+              {selInfo.meals.map((m, mi) => (
+                <div key={m.plan}
+                  className="flex flex-col items-center py-3 px-2"
+                  style={{ background: mi % 2 === 0 ? "white" : "#fafbff" }}>
+                  <span className="text-[9px] font-black uppercase tracking-widest mb-0.5"
+                    style={{ color: selInfo.pal ? selInfo.pal.strip : "#6366f1" }}>{m.plan}</span>
+                  <span className="text-[9px] text-gray-400 text-center leading-tight mb-1">{MEAL_LABELS[m.plan] || m.plan}</span>
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-500">₹</span>
+                    <span className="text-[20px] font-black leading-none text-gray-900">
+                      {Number(m.price).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="text-[8px] text-gray-400 mt-0.5">/night</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-[11px] text-gray-400 italic pb-3 px-4">No meal plans configured for this season.</p>
+          )}
         </div>
       )}
 
       {/* Hint when nothing selected */}
       {!selInfo && seasonalPricing.length > 0 && (
         <p className="text-center text-[10px] text-gray-400 pb-3" style={{ fontStyle: "italic" }}>
-          ✦ Tap any coloured date to reveal its rate
+          ✦ Tap any coloured date to see meal plan prices
         </p>
       )}
     </div>

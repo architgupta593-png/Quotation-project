@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Hotel from "@/models/Hotel";
+import Room  from "@/models/Room";
 
 // ── GET /api/accommodation/hotels/[hotelId] ───────────────────────────────────
 export async function GET(request, { params }) {
@@ -86,7 +87,11 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ message: "Hotel deleted" });
+    // ── Cascade: delete all rooms that belong to this hotel ──────────────────
+    const { deletedCount } = await Room.deleteMany({ hotel: hotelId });
+    console.log(`[DELETE hotel ${hotelId}] Cascade-deleted ${deletedCount} room(s).`);
+
+    return NextResponse.json({ message: "Hotel and its rooms deleted", roomsDeleted: deletedCount });
   } catch (err) {
     console.error("[DELETE /api/accommodation/hotels/[hotelId]]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

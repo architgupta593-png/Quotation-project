@@ -8,8 +8,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/lib/validations";
 import { Input } from "@/components/ui/input";
-import { Compass, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,13 +53,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white flex flex-col">
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-gray-900 rounded-lg flex items-center justify-center">
-            <Compass className="w-[15px] h-[15px] text-white" strokeWidth={2.5} />
-          </div>
-          <span className="text-[14px] font-semibold text-gray-900 tracking-tight">
-            TourCraft
-          </span>
+        <div className="flex items-center">
+          <Image
+            src="/logo (2).png"
+            alt="TourCraft Logo"
+            width={200}
+            height={60}
+            className="h-20 w-auto object-contain"
+            priority
+          />
         </div>
         <Link
           href="/signup"

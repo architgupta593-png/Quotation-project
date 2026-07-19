@@ -81,6 +81,28 @@ const HotelSchema = new mongoose.Schema(
       type: [ImageSchema],
       default: [],
     },
+    // Hotel-level season definitions (shared across all rooms)
+    // Each season has a label + one or more date ranges
+    seasonDefinitions: {
+      type: [
+        new mongoose.Schema(
+          {
+            label: { type: String, trim: true, default: "" },
+            dateRanges: {
+              type: [
+                new mongoose.Schema(
+                  { startDate: { type: Date }, endDate: { type: Date } },
+                  { _id: false }
+                ),
+              ],
+              default: [],
+            },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

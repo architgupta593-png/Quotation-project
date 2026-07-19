@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Compass, LogOut, Package, Plus, Hotel, Route } from "lucide-react";
+import { LogOut, Package, Plus, Hotel, Route } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export const metadata = {
   title: "Dashboard",
@@ -69,14 +70,16 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <Compass className="w-[15px] h-[15px] text-white" strokeWidth={2.5} />
+        <div className="flex items-center">
+            <Image
+              src="/logo (2).png"
+              alt="TourCraft Logo"
+              width={220}
+              height={60}
+              className="h-24 w-auto object-contain"
+              priority
+            />
           </div>
-          <span className="text-[15px] font-bold text-gray-900 tracking-tight">
-            TourCraft
-          </span>
-        </div>
         <div className="flex items-center gap-4">
           <span className="text-[13px] text-gray-500 hidden sm:block">
             {session.user.name}

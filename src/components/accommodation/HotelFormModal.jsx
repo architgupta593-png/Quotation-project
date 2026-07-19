@@ -7,7 +7,6 @@ import {
   Sparkles, ImageIcon, Tag, Users,
 } from "lucide-react";
 import AccommodationImageUploader from "@/components/accommodation/AccommodationImageUploader";
-import SeasonCalendar from "@/components/accommodation/SeasonCalendar";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HOTEL_TYPES = ["hotel","resort","hostel","guesthouse","villa","apartment","other"];
@@ -18,19 +17,20 @@ const MEAL_PLANS  = [
   { value: "AP",  label: "AP — All Meals",           desc: "American Plan"         },
 ];
 const SEASON_COLORS = [
-  { id: "amber",   label: "Peak",    strip: "#f59e0b", light: "#fef3c7", text: "#78350f" },
-  { id: "blue",    label: "Summer",  strip: "#3b82f6", light: "#dbeafe", text: "#1e3a8a" },
-  { id: "emerald", label: "Season",  strip: "#10b981", light: "#d1fae5", text: "#064e3b" },
-  { id: "rose",    label: "Special", strip: "#f43f5e", light: "#ffe4e6", text: "#881337" },
-  { id: "violet",  label: "Off",     strip: "#8b5cf6", light: "#ede9fe", text: "#3b0764" },
-  { id: "teal",    label: "Monsoon", strip: "#14b8a6", light: "#ccfbf1", text: "#134e4a" },
+  { label: "Peak",    strip: "#f59e0b", light: "#fef3c7", text: "#78350f" },
+  { label: "Summer",  strip: "#3b82f6", light: "#dbeafe", text: "#1e3a8a" },
+  { label: "Season",  strip: "#10b981", light: "#d1fae5", text: "#064e3b" },
+  { label: "Special", strip: "#f43f5e", light: "#ffe4e6", text: "#881337" },
+  { label: "Off",     strip: "#8b5cf6", light: "#ede9fe", text: "#3b0764" },
+  { label: "Monsoon", strip: "#14b8a6", light: "#ccfbf1", text: "#134e4a" },
 ];
 
-const DEFAULT_HOTEL = { name:"", type:"hotel", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
-const DEFAULT_ROOM  = { roomType:"", maxOccupancy:2, features:[], seasonalPricing:[], images:[] };
-const TODAY_STR     = new Date().toISOString().split("T")[0];
+const DEFAULT_HOTEL  = { name:"", type:"hotel", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
+const DEFAULT_ROOM   = { roomType:"", maxOccupancy:2, features:[], mealPrices:{}, images:[] };
+const DEFAULT_SEASON = { label:"", dateRanges:[{ startDate:"", endDate:"" }] };
+const TODAY_STR      = new Date().toISOString().split("T")[0];
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function toInputDate(v) {
   if (!v) return "";
   const d = v instanceof Date ? v : new Date(v);
@@ -42,29 +42,32 @@ function toDisplayDate(iso) {
   const [y,m,d] = iso.split("-");
   return `${d}-${m}-${y}`;
 }
-function normaliseSeasons(raw = []) {
-  return raw.map(s => {
-    const meals = Array.isArray(s.meals) ? s.meals.map(m => ({ plan: m.plan, price: m.price ?? "" })) : [];
-    if (Array.isArray(s.dateRanges)) return {
-      label: s.label||"",
-      dateRanges: s.dateRanges.map(r => ({ startDate:toInputDate(r.startDate), endDate:toInputDate(r.endDate) })),
-      meals,
-    };
-    if (s.startDate||s.endDate) return {
-      label: s.label||"",
-      dateRanges: [{ startDate:toInputDate(s.startDate), endDate:toInputDate(s.endDate) }],
-      meals,
-    };
-    return { label:s.label||"", dateRanges:[], meals };
+function normaliseSeasonDefs(raw = []) {
+  return (raw||[]).map(s => ({
+    label: s.label || "",
+    dateRanges: (s.dateRanges || []).map(r => ({
+      startDate: toInputDate(r.startDate),
+      endDate:   toInputDate(r.endDate),
+    })),
+  }));
+}
+function buildMealPricesFromRooms(seasonalPricing = []) {
+  const mp = {};
+  seasonalPricing.forEach(s => {
+    if (s.label) {
+      mp[s.label] = {};
+      (s.meals||[]).forEach(m => { mp[s.label][m.plan] = String(m.price ?? ""); });
+    }
   });
+  return mp;
 }
 
-// ── Section header ─────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 function SectionHead({ icon: Icon, color, title, subtitle, action }) {
   return (
     <div className="flex items-center justify-between mb-2">
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background:`${color}18` }}>
           <Icon className="w-3.5 h-3.5" style={{ color }} />
         </div>
         <div>
@@ -77,95 +80,50 @@ function SectionHead({ icon: Icon, color, title, subtitle, action }) {
   );
 }
 
-// ── Meal row ───────────────────────────────────────────────────────────────────
-function MealRow({ meal, onUpdate, onRemove }) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
-      style={{ background:"linear-gradient(135deg,#f0fdf4,#ecfdf5)", borderColor:"#bbf7d0" }}>
-      <Utensils className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-      <select value={meal.plan} onChange={e => onUpdate({ plan:e.target.value })}
-        className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-emerald-200 text-[12px] bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all">
-        {MEAL_PLANS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-      </select>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[11px] text-emerald-700 font-semibold">+₹</span>
-        <input type="number" min={0} value={meal.price}
-          onChange={e => onUpdate({ price:e.target.value })}
-          placeholder="0"
-          className="w-20 px-2 py-1 rounded-lg border border-emerald-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all" />
-        <span className="text-[10px] text-gray-400">/pax</span>
-      </div>
-      <button type="button" onClick={onRemove}
-        className="p-1 rounded-lg text-emerald-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-}
-
-// ── Room Form ──────────────────────────────────────────────────────────────────
-function RoomInlineForm({ room, index, onChange, onRemove }) {
+// ── Room Inline Form (meal prices only — dates come from hotel seasons) ────────
+function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
   const [newFeat,   setNewFeat]   = useState("");
   const [imageOpen, setImageOpen] = useState(false);
-  const [calOpen,   setCalOpen]   = useState(false);
 
   function update(p) { onChange({ ...room, ...p }); }
 
   function addFeat() {
     const f = newFeat.trim();
-    if (!f || room.features.includes(f)) return;
-    update({ features:[...room.features, f] }); setNewFeat("");
-  }
-  function addSeason() {
-    update({ seasonalPricing:[...room.seasonalPricing,
-      { label:"", dateRanges:[{ startDate:"", endDate:"" }], meals:[] }] });
-  }
-  function updSeason(si, p) {
-    update({ seasonalPricing: room.seasonalPricing.map((s,i) => i===si ? {...s,...p} : s) });
-  }
-  function rmSeason(si) {
-    update({ seasonalPricing: room.seasonalPricing.filter((_,i) => i!==si) });
-  }
-  // ── Per-season meal helpers ────────────────────────────────────────────────
-  function addSeasonMeal(si) {
-    const s = room.seasonalPricing[si];
-    const used = (s.meals||[]).map(m => m.plan);
-    const next = MEAL_PLANS.find(p => !used.includes(p.value));
-    if (!next) return;
-    updSeason(si, { meals:[...(s.meals||[]), { plan:next.value, price:"" }] });
-  }
-  function updSeasonMeal(si, mi, patch) {
-    const s = room.seasonalPricing[si];
-    updSeason(si, { meals: s.meals.map((m,j) => j===mi ? {...m,...patch} : m) });
-  }
-  function rmSeasonMeal(si, mi) {
-    const s = room.seasonalPricing[si];
-    updSeason(si, { meals: s.meals.filter((_,j) => j!==mi) });
-  }
-  function addRange(si) {
-    update({ seasonalPricing: room.seasonalPricing.map((s,i) =>
-      i!==si ? s : {...s, dateRanges:[...(s.dateRanges||[]), { startDate:"", endDate:"" }]}
-    )});
-  }
-  function updRange(si, ri, p) {
-    update({ seasonalPricing: room.seasonalPricing.map((s,i) =>
-      i!==si ? s : {...s, dateRanges: s.dateRanges.map((r,j) => j===ri ? {...r,...p} : r)}
-    )});
-  }
-  function rmRange(si, ri) {
-    update({ seasonalPricing: room.seasonalPricing.map((s,i) =>
-      i!==si ? s : {...s, dateRanges: s.dateRanges.filter((_,j) => j!==ri)}
-    )});
+    if (!f || (room.features||[]).includes(f)) return;
+    update({ features:[...(room.features||[]), f] }); setNewFeat("");
   }
 
-  const totalRanges = room.seasonalPricing.reduce((a,s) => a+(s.dateRanges?.length||0), 0);
+  function setMealPrice(seasonLabel, plan, price) {
+    const mp = { ...(room.mealPrices||{}) };
+    if (!mp[seasonLabel]) mp[seasonLabel] = {};
+    mp[seasonLabel] = { ...mp[seasonLabel], [plan]: price };
+    update({ mealPrices: mp });
+  }
+
+  function addMealPlan(seasonLabel, plan) {
+    const mp = { ...(room.mealPrices||{}) };
+    if (!mp[seasonLabel]) mp[seasonLabel] = {};
+    if (mp[seasonLabel][plan] !== undefined) return; // already added
+    mp[seasonLabel] = { ...mp[seasonLabel], [plan]: "" };
+    update({ mealPrices: mp });
+  }
+
+  function removeMealPlan(seasonLabel, plan) {
+    const mp = { ...(room.mealPrices||{}) };
+    if (!mp[seasonLabel]) return;
+    const copy = { ...mp[seasonLabel] };
+    delete copy[plan];
+    mp[seasonLabel] = copy;
+    update({ mealPrices: mp });
+  }
+
   const ic = "w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all";
 
   return (
     <div className="rounded-2xl overflow-hidden border border-violet-200/80 shadow-sm"
-      style={{ background:"linear-gradient(160deg, #faf5ff 0%, #f5f3ff 50%, #fafafa 100%)" }}>
+      style={{ background:"linear-gradient(160deg,#faf5ff 0%,#f5f3ff 50%,#fafafa 100%)" }}>
 
-      {/* ── Card header ───────────────────────────────────────────────── */}
+      {/* Card header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-violet-200/60"
         style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)" }}>
         <div className="flex items-center gap-2.5 min-w-0">
@@ -176,11 +134,9 @@ function RoomInlineForm({ room, index, onChange, onRemove }) {
             <p className="text-[13px] font-bold text-violet-900 truncate">
               {room.roomType || `Room Type ${index+1}`}
             </p>
-            {(room.seasonalPricing.length>0 || totalRanges>0) && (
-              <p className="text-[10px] text-violet-500 leading-none mt-0.5">
-                {room.seasonalPricing.length} season{room.seasonalPricing.length!==1?"s":""} · {totalRanges} date range{totalRanges!==1?"s":""}
-              </p>
-            )}
+            <p className="text-[10px] text-violet-500 leading-none mt-0.5">
+              {hotelSeasons.length} season{hotelSeasons.length!==1?"s":""} · price per meal plan
+            </p>
           </div>
         </div>
         <button type="button" onClick={() => onRemove(index)} aria-label="Remove room"
@@ -189,13 +145,13 @@ function RoomInlineForm({ room, index, onChange, onRemove }) {
         </button>
       </div>
 
-      <div className="p-4 space-y-5">
+      <div className="p-4 space-y-4">
 
-        {/* ── Type + Occupancy ──────────────────────────────────────────── */}
+        {/* 1. Type + Occupancy */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Room Type *</label>
-            <input type="text" required value={room.roomType}
+            <input type="text" required value={room.roomType||""}
               onChange={e => update({ roomType:e.target.value })}
               placeholder="e.g. Deluxe Double" className={ic} />
           </div>
@@ -203,193 +159,22 @@ function RoomInlineForm({ room, index, onChange, onRemove }) {
             <label className="block text-[11px] font-bold text-gray-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
               <Users className="w-3 h-3" /> Max Guests
             </label>
-            <input type="number" min={1} max={20} value={room.maxOccupancy}
+            <input type="number" min={1} max={20} value={room.maxOccupancy||2}
               onChange={e => update({ maxOccupancy:e.target.value })} className={ic} />
           </div>
         </div>
 
-        {/* ── Seasonal Pricing ──────────────────────────────────────────── */}
-        <div>
-          <SectionHead icon={CalendarDays} color="#f59e0b" title="Seasonal Pricing"
-            subtitle="Each season can span multiple date windows"
-            action={
-              <button type="button" onClick={addSeason}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-amber-700 transition-all"
-                style={{ background:"linear-gradient(135deg,#fef3c7,#fde68a)", border:"1px solid #fbbf2450" }}>
-                <Plus className="w-3.5 h-3.5" /> Add Season
-              </button>
-            } />
-
-          {room.seasonalPricing.length === 0 && (
-            <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/50">
-              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <p className="text-[11px] text-amber-700">
-                No seasons yet. Pricing is <strong>entirely seasonal</strong> — add at least one.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-3 mt-2">
-            {room.seasonalPricing.map((s, si) => {
-              const pal = SEASON_COLORS[si % SEASON_COLORS.length];
-              const usedMealPlans = (s.meals||[]).map(m => m.plan);
-              const canAddMeal = usedMealPlans.length < MEAL_PLANS.length;
-              return (
-                <div key={si} className="rounded-2xl overflow-hidden border"
-                  style={{ borderColor:`${pal.strip}40`, background:"white",
-                    boxShadow:`0 2px 12px ${pal.strip}12` }}>
-
-                  {/* Season header — label + remove */}
-                  <div className="px-3 py-2.5 flex items-center gap-2.5"
-                    style={{ background:`linear-gradient(135deg,${pal.light},${pal.strip}15)` }}>
-                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background:pal.strip }} />
-                    <input type="text" value={s.label}
-                      onChange={e => updSeason(si, { label:e.target.value })}
-                      placeholder={`${pal.label} Season`}
-                      className="flex-1 min-w-0 bg-transparent text-[13px] font-bold placeholder:font-normal focus:outline-none"
-                      style={{ color:pal.text }} />
-                    <button type="button" onClick={() => rmSeason(si)}
-                      className="p-1 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
-                      style={{ color:pal.strip }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Date ranges */}
-                  <div className="px-3 py-2.5 space-y-2">
-                    {(s.dateRanges||[]).map((r, ri) => (
-                      <div key={ri} className="grid gap-2"
-                        style={{ gridTemplateColumns:"1fr auto 1fr auto" }}>
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color:pal.strip }}>From</label>
-                          <div className="relative">
-                            <input type="date" value={r.startDate||""} min={TODAY_STR}
-                              onChange={e => updRange(si, ri, { startDate:e.target.value })}
-                              className="w-full px-2 py-1.5 rounded-lg text-[11px] bg-white focus:outline-none focus:ring-2 transition-all"
-                              style={{ border:`1.5px solid ${pal.strip}30`, color:"#374151" }} />
-                            {r.startDate && (
-                              <p className="text-[9px] mt-0.5 font-semibold" style={{ color:pal.strip }}>
-                                {toDisplayDate(r.startDate)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-start pt-4">
-                          <span className="text-[12px] font-bold text-gray-400 px-1">→</span>
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color:pal.strip }}>To</label>
-                          <input type="date" value={r.endDate||""} min={r.startDate||TODAY_STR}
-                            onChange={e => updRange(si, ri, { endDate:e.target.value })}
-                            className="w-full px-2 py-1.5 rounded-lg text-[11px] bg-white focus:outline-none focus:ring-2 transition-all"
-                            style={{ border:`1.5px solid ${pal.strip}30`, color:"#374151" }} />
-                          {r.endDate && (
-                            <p className="text-[9px] mt-0.5 font-semibold" style={{ color:pal.strip }}>
-                              {toDisplayDate(r.endDate)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-start pt-4">
-                          {(s.dateRanges||[]).length > 1 ? (
-                            <button type="button" onClick={() => rmRange(si, ri)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                              <X className="w-3 h-3" />
-                            </button>
-                          ) : <div className="w-6" />}
-                        </div>
-                      </div>
-                    ))}
-
-                    <button type="button" onClick={() => addRange(si)}
-                      className="flex items-center gap-1.5 text-[11px] font-semibold mt-1 px-2 py-1 rounded-lg transition-all hover:bg-opacity-80"
-                      style={{ color:pal.strip, background:`${pal.light}`, border:`1px solid ${pal.strip}20` }}>
-                      <Plus className="w-3 h-3" />
-                      Add another date range
-                    </button>
-                  </div>
-
-                  {/* ── Meal plans for this season ─────────────────────────── */}
-                  <div className="px-3 pb-3 space-y-1.5">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1" style={{ color:pal.strip }}>
-                        <Utensils className="w-3 h-3" /> Meal Plans & Rates
-                      </p>
-                      <button type="button" onClick={() => addSeasonMeal(si)} disabled={!canAddMeal}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all disabled:opacity-40"
-                        style={{ background:pal.light, color:pal.text, border:`1px solid ${pal.strip}30` }}>
-                        <Plus className="w-2.5 h-2.5" /> Add Meal
-                      </button>
-                    </div>
-                    {(s.meals||[]).length === 0 && (
-                      <p className="text-[10px] text-gray-400 italic">No meal plans — price shown on booking based on plan selected.</p>
-                    )}
-                    {(s.meals||[]).map((m, mi) => (
-                      <div key={mi} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border"
-                        style={{ background:`${pal.light}80`, borderColor:`${pal.strip}20` }}>
-                        <Utensils className="w-3 h-3 flex-shrink-0" style={{ color:pal.strip }} />
-                        <select value={m.plan} onChange={e => updSeasonMeal(si, mi, { plan:e.target.value })}
-                          className="flex-1 min-w-0 px-1.5 py-1 rounded-md border text-[11px] bg-white focus:outline-none focus:ring-1 transition-all"
-                          style={{ borderColor:`${pal.strip}30`, color:"#374151" }}>
-                          {MEAL_PLANS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                        </select>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <span className="text-[11px] font-bold" style={{ color:pal.strip }}>₹</span>
-                          <input type="number" min={0} value={m.price}
-                            onChange={e => updSeasonMeal(si, mi, { price:e.target.value })}
-                            placeholder="0"
-                            className="w-20 px-1.5 py-1 rounded-md text-[11px] font-bold bg-white focus:outline-none focus:ring-1 transition-all"
-                            style={{ border:`1px solid ${pal.strip}30`, color:pal.strip }} />
-                          <span className="text-[9px] text-gray-400">/pax</span>
-                        </div>
-                        <button type="button" onClick={() => rmSeasonMeal(si, mi)}
-                          className="p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Live calendar preview toggle */}
-          {room.seasonalPricing.length > 0 && (
-            <div className="mt-3">
-              <button type="button" onClick={() => setCalOpen(o => !o)}
-                className="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl text-[12px] font-semibold transition-all border"
-                style={{
-                  background: calOpen
-                    ? "linear-gradient(135deg,#4f46e5,#6366f1)"
-                    : "linear-gradient(135deg,#eef2ff,#e0e7ff)",
-                  color: calOpen ? "white" : "#4338ca",
-                  borderColor: "#c7d2fe",
-                  boxShadow: calOpen ? "0 4px 12px #6366f130" : "none",
-                }}>
-                <CalendarDays className="w-4 h-4" />
-                {calOpen ? "Hide" : "Preview"} Price Calendar
-                <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-300 ${calOpen ? "rotate-180" : ""}`} />
-              </button>
-              {calOpen && (
-                <div className="mt-2">
-                  <SeasonCalendar seasonalPricing={room.seasonalPricing} roomType={room.roomType||"Room"} compact />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Room Features ─────────────────────────────────────────────── */}
+        {/* 2. Room Features */}
         <div>
           <SectionHead icon={Tag} color="#8b5cf6" title="Room Features" />
-          {room.features.length > 0 && (
+          {(room.features||[]).length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {room.features.map((f,i) => (
+              {(room.features||[]).map((f,i) => (
                 <span key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                   style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", color:"#5b21b6", border:"1px solid #c4b5fd50" }}>
                   {f}
                   <button type="button"
-                    onClick={() => update({ features:room.features.filter((_,idx) => idx!==i) })}
+                    onClick={() => update({ features:(room.features||[]).filter((_,idx) => idx!==i) })}
                     className="ml-0.5 text-violet-400 hover:text-red-500 transition-colors">×</button>
                 </span>
               ))}
@@ -409,19 +194,119 @@ function RoomInlineForm({ room, index, onChange, onRemove }) {
           </div>
         </div>
 
-        {/* ── Room Images ───────────────────────────────────────────────── */}
-        <div>
+        {/* 3. Room Images (optional, collapsible) */}
+        <div className="rounded-2xl border border-gray-100 overflow-hidden">
           <button type="button" onClick={() => setImageOpen(o => !o)}
-            className="flex items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-1.5">
-            <ImageIcon className="w-3.5 h-3.5" />
-            Room Images ({room.images?.length||0})
-            <ChevronDown className={`w-3 h-3 transition-transform ${imageOpen?"rotate-180":""}`} />
+            className="w-full flex items-center gap-2 px-4 py-3 text-[12px] font-semibold transition-all"
+            style={{
+              background: imageOpen ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "linear-gradient(135deg,#eef2ff,#e0e7ff)",
+              color: imageOpen ? "white" : "#4338ca",
+            }}>
+            <ImageIcon className="w-3.5 h-3.5 flex-shrink-0" />
+            Room Images ({(room.images||[]).length})
+            <span className="text-[10px] font-normal ml-1 opacity-70">(optional)</span>
+            <ChevronDown className={`w-3.5 h-3.5 ml-auto transition-transform ${imageOpen?"rotate-180":""}`} />
           </button>
           {imageOpen && (
-            <AccommodationImageUploader images={room.images||[]}
-              onChange={imgs => update({ images:imgs })} maxImages={4} label="" />
+            <div className="px-3 py-3 bg-white">
+              <AccommodationImageUploader images={room.images||[]}
+                onChange={imgs => update({ images:imgs })} maxImages={4} label="" />
+            </div>
           )}
         </div>
+
+        {/* 4. Season Prices — meal plan grid per hotel season */}
+        <div>
+          <SectionHead icon={CalendarDays} color="#f59e0b" title="Season Prices"
+            subtitle="Set meal plan prices for each hotel season" />
+
+          {hotelSeasons.length === 0 ? (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/50">
+              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <p className="text-[11px] text-amber-700">
+                No seasons defined yet — go to the <strong>Seasons</strong> tab to create them first.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {hotelSeasons.map((season, si) => {
+                const pal = SEASON_COLORS[si % SEASON_COLORS.length];
+                const mp  = (room.mealPrices||{})[season.label] || {};
+                return (
+                  <div key={si} className="rounded-2xl overflow-hidden border"
+                    style={{ borderColor:`${pal.strip}40`, background:"white", boxShadow:`0 2px 12px ${pal.strip}12` }}>
+
+                    <div className="px-3 py-2 flex items-center gap-2"
+                      style={{ background:`linear-gradient(135deg,${pal.light},${pal.strip}12)` }}>
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background:pal.strip }} />
+                      <p className="text-[12px] font-black" style={{ color:pal.text }}>
+                        {season.label || `Season ${si+1}`}
+                      </p>
+                      {(season.dateRanges||[]).length > 0 && (
+                        <span className="text-[10px] opacity-60 ml-auto" style={{ color:pal.text }}>
+                          {season.dateRanges.length} date range{season.dateRanges.length!==1?"s":""}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Added meal plans list */}
+                    <div className="px-3 pb-3 space-y-2">
+                      {Object.keys(mp).length === 0 && (
+                        <p className="text-[10px] text-gray-400 italic px-1 py-1">
+                          No meal plans added — use the button below to add one.
+                        </p>
+                      )}
+                      {MEAL_PLANS.filter(p => mp[p.value] !== undefined).map(plan => (
+                        <div key={plan.value}
+                          className="flex items-center gap-2 rounded-xl px-3 py-2 border"
+                          style={{ borderColor:`${pal.strip}25`, background:`${pal.light}60` }}>
+                          {/* Plan badge */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[90px]">
+                            <Utensils className="w-3 h-3" style={{ color:pal.strip }} />
+                            <span className="text-[11px] font-black" style={{ color:pal.strip }}>{plan.value}</span>
+                            <span className="text-[9px] text-gray-400 hidden sm:inline">{plan.desc}</span>
+                          </div>
+                          {/* Price input */}
+                          <div className="flex items-center gap-1 flex-1 min-w-0">
+                            <span className="text-[12px] font-bold flex-shrink-0" style={{ color:pal.strip }}>₹</span>
+                            <input type="number" min={0} value={mp[plan.value]??""}
+                              onChange={e => setMealPrice(season.label, plan.value, e.target.value)}
+                              placeholder="0"
+                              className="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[13px] font-bold bg-white focus:outline-none focus:ring-2 transition-all"
+                              style={{ border:`1.5px solid ${pal.strip}30`, color:pal.strip }} />
+                            <span className="text-[9px] text-gray-400 flex-shrink-0">/night</span>
+                          </div>
+                          {/* Remove */}
+                          <button type="button" onClick={() => removeMealPlan(season.label, plan.value)}
+                            className="p-1 rounded-lg flex-shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add meal plan row */}
+                      {MEAL_PLANS.filter(p => mp[p.value] === undefined).length > 0 && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <select
+                            className="flex-1 px-2.5 py-1.5 rounded-xl text-[11px] bg-white focus:outline-none focus:ring-2 transition-all"
+                            style={{ border:`1.5px solid ${pal.strip}30`, color:pal.text }}
+                            defaultValue=""
+                            onChange={e => { if (e.target.value) { addMealPlan(season.label, e.target.value); e.target.value=""; } }}>
+                            <option value="">+ Add meal plan…</option>
+                            {MEAL_PLANS.filter(p => mp[p.value] === undefined).map(p => (
+                              <option key={p.value} value={p.value}>{p.value} — {p.label.split("—")[1]?.trim() || p.desc}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
@@ -432,6 +317,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
   const isEdit = Boolean(hotel);
   const [tab,        setTab]        = useState("details");
   const [form,       setForm]       = useState(DEFAULT_HOTEL);
+  const [seasonDefs, setSeasonDefs] = useState([]);
   const [newFeature, setNewFeature] = useState("");
   const [rooms,      setRooms]      = useState([]);
   const [saving,     setSaving]     = useState(false);
@@ -439,59 +325,90 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
 
   useEffect(() => {
     if (hotel) {
-      setForm({ name:hotel.name||"", type:hotel.type||"hotel", starRating:hotel.starRating??null,
+      setForm({
+        name:hotel.name||"", type:hotel.type||"hotel", starRating:hotel.starRating??null,
         email:hotel.email||"", contactNo:hotel.contactNo||"", address:hotel.address||"",
-        features:hotel.features||[], activities:hotel.activities||[], images:hotel.images||[] });
-    } else { setForm(DEFAULT_HOTEL); }
+        features:hotel.features||[], activities:hotel.activities||[], images:hotel.images||[],
+      });
+      setSeasonDefs(normaliseSeasonDefs(hotel.seasonDefinitions||[]));
+    } else {
+      setForm(DEFAULT_HOTEL);
+      setSeasonDefs([]);
+    }
     setRooms((initialRooms||[]).map(r => ({
-      _id:r._id, roomType:r.roomType||"", maxOccupancy:r.maxOccupancy??2,
-      features:r.features||[],
-      seasonalPricing:normaliseSeasons(r.seasonalPricing), images:r.images||[],
+      _id: r._id,
+      roomType: r.roomType||"",
+      maxOccupancy: r.maxOccupancy??2,
+      features: r.features||[],
+      mealPrices: buildMealPricesFromRooms(r.seasonalPricing),
+      images: r.images||[],
     })));
   }, [hotel, initialRooms]);
 
-  const updateForm = p => setForm(prev => ({ ...prev, ...p }));
-  const addFeature = () => {
+  const updateForm  = p => setForm(prev => ({ ...prev, ...p }));
+  const addFeature  = () => {
     const f = newFeature.trim();
     if (!f || form.features.includes(f)) return;
     updateForm({ features:[...form.features, f] }); setNewFeature("");
   };
-  const addActivity  = () => updateForm({ activities:[...form.activities, { name:"", price:"" }] });
-  const updActivity  = (i,p) => updateForm({ activities:form.activities.map((a,idx) => idx===i ? {...a,...p} : a) });
-  const addRoom      = () => { setRooms(p => [...p, {...DEFAULT_ROOM}]); setTab("rooms"); };
-  const updateRoom   = (i,u) => setRooms(p => p.map((r,idx) => idx===i ? u : r));
-  const removeRoom   = async i => {
+  const addActivity = () => updateForm({ activities:[...form.activities, { name:"", price:"" }] });
+  const updActivity = (i,p) => updateForm({ activities:form.activities.map((a,idx) => idx===i ? {...a,...p} : a) });
+  const addRoom     = () => { setRooms(p => [...p, {...DEFAULT_ROOM}]); setTab("rooms"); };
+  const updateRoom  = (i,u) => setRooms(p => p.map((r,idx) => idx===i ? u : r));
+  const removeRoom  = async i => {
     const r = rooms[i];
     if (r._id) try { await fetch(`/api/accommodation/rooms/${r._id}`, { method:"DELETE" }); } catch {}
     setRooms(p => p.filter((_,idx) => idx!==i));
   };
+
+  // Season-definition helpers
+  const addSeasonDef   = ()        => setSeasonDefs(p => [...p, { ...DEFAULT_SEASON, label:"", dateRanges:[{ startDate:"", endDate:"" }] }]);
+  const rmSeasonDef    = i         => setSeasonDefs(p => p.filter((_,idx) => idx!==i));
+  const updSeasonDef   = (i,patch) => setSeasonDefs(p => p.map((s,idx) => idx===i ? {...s,...patch} : s));
+  const addSeasonRange = i         => setSeasonDefs(p => p.map((s,idx) => idx!==i ? s :
+    {...s, dateRanges:[...(s.dateRanges||[]), { startDate:"", endDate:"" }]}));
+  const rmSeasonRange  = (si,ri)   => setSeasonDefs(p => p.map((s,idx) => idx!==si ? s :
+    {...s, dateRanges:s.dateRanges.filter((_,j) => j!==ri)}));
+  const updSeasonRange = (si,ri,patch) => setSeasonDefs(p => p.map((s,idx) => idx!==si ? s :
+    {...s, dateRanges:s.dateRanges.map((r,j) => j===ri ? {...r,...patch} : r)}));
 
   async function handleSubmit() {
     setError("");
     if (!form.contactNo.trim()) { setTab("details"); setError("Contact number is required."); return; }
     setSaving(true);
     try {
-      const hotelPayload = { ...form, city:cityId,
-        activities:form.activities.filter(a=>a.name.trim()).map(a=>({ name:a.name.trim(), price:parseFloat(a.price)||0 })) };
+      const hotelPayload = {
+        ...form, city:cityId,
+        activities: form.activities.filter(a=>a.name.trim()).map(a=>({ name:a.name.trim(), price:parseFloat(a.price)||0 })),
+        seasonDefinitions: seasonDefs
+          .filter(s => s.label.trim())
+          .map(s => ({
+            label: s.label.trim(),
+            dateRanges: (s.dateRanges||[]).filter(r=>r.startDate&&r.endDate)
+              .map(r=>({ startDate:r.startDate, endDate:r.endDate })),
+          })),
+      };
       const hRes  = await fetch(isEdit ? `/api/accommodation/hotels/${hotel._id}` : "/api/accommodation/hotels",
         { method:isEdit?"PUT":"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(hotelPayload) });
       const hData = await hRes.json();
       if (!hRes.ok) throw new Error(hData.error||"Failed to save hotel");
       const hotelId = hData.hotel._id;
+
       for (const room of rooms) {
         if (!room.roomType.trim()) continue;
+        const seasonalPricing = seasonDefs
+          .filter(s => s.label.trim())
+          .map(s => ({
+            label: s.label.trim(),
+            dateRanges: (s.dateRanges||[]).filter(r=>r.startDate&&r.endDate)
+              .map(r=>({ startDate:r.startDate, endDate:r.endDate })),
+            meals: MEAL_PLANS
+              .map(p => ({ plan:p.value, price: parseFloat((room.mealPrices||{})[s.label]?.[p.value])||0 }))
+              .filter(m => m.price > 0),
+          }));
         const rPayload = {
           hotel:hotelId, roomType:room.roomType, maxOccupancy:parseInt(room.maxOccupancy,10)||2,
-          features:room.features,
-          seasonalPricing:room.seasonalPricing
-            .filter(s => (s.dateRanges||[]).some(r=>r.startDate&&r.endDate))
-            .map(s => ({
-              label:s.label||"",
-              dateRanges:(s.dateRanges||[]).filter(r=>r.startDate&&r.endDate)
-                .map(r=>({ startDate:r.startDate, endDate:r.endDate })),
-              meals:(s.meals||[]).filter(m=>m.plan).map(m=>({ plan:m.plan, price:parseFloat(m.price)||0 })),
-            })),
-          images:room.images,
+          features:room.features, seasonalPricing, images:room.images,
         };
         const rRes  = await fetch(room._id ? `/api/accommodation/rooms/${room._id}` : "/api/accommodation/rooms",
           { method:room._id?"PUT":"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(rPayload) });
@@ -503,14 +420,15 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
     finally { setSaving(false); }
   }
 
-  // Input / label classes
   const ic = "w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-[13px] placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all";
   const lc = "block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5";
+  const totalRanges = seasonDefs.reduce((a,s) => a+(s.dateRanges?.length||0), 0);
 
   const TABS = [
-    { id:"details", label:"Details",                      dot:false },
-    { id:"images",  label:`Images (${form.images.length})`, dot:false },
-    { id:"rooms",   label:`Rooms (${rooms.length})`,        dot:false },
+    { id:"details", label:"Details"                              },
+    { id:"images",  label:`Images (${form.images.length})`      },
+    { id:"seasons", label:`Seasons (${seasonDefs.length})`, dot: seasonDefs.length===0 },
+    { id:"rooms",   label:`Rooms (${rooms.length})`             },
   ];
 
   return (
@@ -519,14 +437,14 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
       onClick={e => e.target===e.currentTarget && onClose()}>
 
       <div className="relative w-full sm:max-w-2xl bg-white flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
-        style={{ maxHeight:"92dvh", boxShadow:"0 32px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.15)" }}>
+        style={{ maxHeight:"92dvh", boxShadow:"0 32px 80px rgba(0,0,0,0.35),0 8px 24px rgba(0,0,0,0.15)" }}>
 
-        {/* ── Gradient header ─────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
           style={{ background:"linear-gradient(135deg,#4f46e5 0%,#6366f1 50%,#818cf8 100%)" }}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-sm">
-              <Building2 className="w-4.5 h-4.5 text-white" />
+              <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-[16px] font-black text-white tracking-tight">
@@ -543,12 +461,12 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
           </button>
         </div>
 
-        {/* ── Pill tabs ───────────────────────────────────────────────── */}
-        <div className="flex gap-1.5 px-6 py-3 border-b border-gray-100/80 flex-shrink-0"
+        {/* Tabs */}
+        <div className="flex gap-1.5 px-6 py-3 border-b border-gray-100/80 flex-shrink-0 overflow-x-auto"
           style={{ background:"linear-gradient(180deg,#f8faff,#ffffff)" }}>
           {TABS.map(t => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold transition-all whitespace-nowrap"
               style={tab===t.id ? {
                 background:"linear-gradient(135deg,#4f46e5,#6366f1)",
                 color:"white", boxShadow:"0 4px 12px #6366f140",
@@ -559,17 +477,17 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
           ))}
         </div>
 
-        {/* ── Error ───────────────────────────────────────────────────── */}
+        {/* Error */}
         {error && (
           <div className="mx-5 mt-3 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[12px] flex-shrink-0">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
           </div>
         )}
 
-        {/* ── Body ────────────────────────────────────────────────────── */}
+        {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-5">
 
-          {/* ═══ DETAILS ══════════════════════════════════════════════ */}
+          {/* ═══ DETAILS */}
           {tab==="details" && (
             <div className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -588,7 +506,6 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 </div>
               </div>
 
-              {/* Star rating */}
               <div>
                 <label className={lc}>Star Rating</label>
                 <div className="flex gap-1.5 items-center">
@@ -605,7 +522,6 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 </div>
               </div>
 
-              {/* Contact */}
               <div>
                 <label htmlFor="hotel-contact" className={lc}>
                   <span className="flex items-center gap-1.5">
@@ -624,7 +540,6 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 )}
               </div>
 
-              {/* Email + Address */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="hotel-email" className={lc}>Email</label>
@@ -640,7 +555,6 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 </div>
               </div>
 
-              {/* Hotel features */}
               <div>
                 <label className={lc}>Hotel Features / Amenities</label>
                 {form.features.length > 0 && (
@@ -670,7 +584,6 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 </div>
               </div>
 
-              {/* Activities */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className={`${lc} mb-0 flex items-center gap-1.5`}>
@@ -711,7 +624,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
             </div>
           )}
 
-          {/* ═══ IMAGES ═══════════════════════════════════════════════ */}
+          {/* ═══ IMAGES */}
           {tab==="images" && (
             <div className="space-y-4">
               <AccommodationImageUploader images={form.images}
@@ -719,14 +632,130 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
             </div>
           )}
 
-          {/* ═══ ROOMS ════════════════════════════════════════════════ */}
+          {/* ═══ SEASONS — hotel-level season definitions */}
+          {tab==="seasons" && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[14px] font-black text-gray-900">Season Definitions</p>
+                  <p className="text-[12px] text-gray-400">
+                    {seasonDefs.length} season{seasonDefs.length!==1?"s":""} · {totalRanges} date range{totalRanges!==1?"s":""}
+                  </p>
+                </div>
+                <button type="button" id="add-season-btn" onClick={addSeasonDef}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-amber-800 text-[12px] font-bold transition-all"
+                  style={{ background:"linear-gradient(135deg,#fef3c7,#fde68a)", border:"1px solid #fbbf2450", boxShadow:"0 2px 8px #f59e0b20" }}>
+                  <Plus className="w-4 h-4" />Add Season
+                </button>
+              </div>
+
+              {seasonDefs.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-14 border-2 border-dashed border-amber-200 rounded-2xl text-center"
+                  style={{ background:"linear-gradient(135deg,#fffbeb,#fef3c7)" }}>
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-3">
+                    <CalendarDays className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <p className="text-[14px] font-bold text-gray-700">No seasons yet</p>
+                  <p className="text-[12px] text-gray-400 mt-1">Define Peak, Off-season, Monsoon etc. with date ranges.</p>
+                  <p className="text-[11px] text-amber-700 mt-2 font-medium">Room prices are set per season in the Rooms tab.</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {seasonDefs.map((s, si) => {
+                  const pal = SEASON_COLORS[si % SEASON_COLORS.length];
+                  return (
+                    <div key={si} className="rounded-2xl overflow-hidden border"
+                      style={{ borderColor:`${pal.strip}40`, background:"white", boxShadow:`0 2px 16px ${pal.strip}12` }}>
+
+                      {/* Season name */}
+                      <div className="flex items-center gap-2.5 px-4 py-3"
+                        style={{ background:`linear-gradient(135deg,${pal.light},${pal.strip}15)` }}>
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background:pal.strip }} />
+                        <input type="text" value={s.label}
+                          onChange={e => updSeasonDef(si, { label:e.target.value })}
+                          placeholder={`${pal.label} Season (e.g. Peak, Off-season…)`}
+                          className="flex-1 min-w-0 bg-transparent text-[14px] font-black placeholder:font-normal focus:outline-none"
+                          style={{ color:pal.text }} />
+                        <button type="button" onClick={() => rmSeasonDef(si)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
+                          style={{ color:pal.strip }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Date ranges */}
+                      <div className="px-4 py-3 space-y-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"
+                            style={{ color:pal.strip }}>
+                            <CalendarDays className="w-3 h-3" /> Date Ranges
+                          </p>
+                          <button type="button" onClick={() => addSeasonRange(si)}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all"
+                            style={{ background:pal.light, color:pal.text, border:`1px solid ${pal.strip}30` }}>
+                            <Plus className="w-2.5 h-2.5" /> Add range
+                          </button>
+                        </div>
+
+                        {(s.dateRanges||[]).map((r, ri) => (
+                          <div key={ri} className="rounded-xl border p-3"
+                            style={{ borderColor:`${pal.strip}20`, background:`${pal.light}60` }}>
+                            <div className="grid gap-2" style={{ gridTemplateColumns:"1fr auto 1fr auto" }}>
+                              <div>
+                                <label className="block text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color:pal.strip }}>From</label>
+                                <input type="date" value={r.startDate||""} min={TODAY_STR}
+                                  onChange={e => updSeasonRange(si, ri, { startDate:e.target.value })}
+                                  className="w-full px-2 py-1.5 rounded-lg text-[11px] bg-white focus:outline-none focus:ring-2 transition-all"
+                                  style={{ border:`1.5px solid ${pal.strip}30`, color:"#374151" }} />
+                                {r.startDate && (
+                                  <p className="text-[9px] mt-0.5 font-semibold" style={{ color:pal.strip }}>
+                                    {toDisplayDate(r.startDate)}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-start pt-5">
+                                <span className="text-[14px] font-bold text-gray-300 px-1">→</span>
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color:pal.strip }}>To</label>
+                                <input type="date" value={r.endDate||""} min={r.startDate||TODAY_STR}
+                                  onChange={e => updSeasonRange(si, ri, { endDate:e.target.value })}
+                                  className="w-full px-2 py-1.5 rounded-lg text-[11px] bg-white focus:outline-none focus:ring-2 transition-all"
+                                  style={{ border:`1.5px solid ${pal.strip}30`, color:"#374151" }} />
+                                {r.endDate && (
+                                  <p className="text-[9px] mt-0.5 font-semibold" style={{ color:pal.strip }}>
+                                    {toDisplayDate(r.endDate)}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-start pt-5">
+                                {(s.dateRanges||[]).length > 1 ? (
+                                  <button type="button" onClick={() => rmSeasonRange(si, ri)}
+                                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                ) : <div className="w-6" />}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ═══ ROOMS */}
           {tab==="rooms" && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[14px] font-black text-gray-900">Room Types</p>
                   <p className="text-[12px] text-gray-400">
-                    {rooms.length} configured · seasons support multiple date ranges
+                    {rooms.length} configured · prices set per hotel season &amp; meal plan
                   </p>
                 </div>
                 <button type="button" id="add-room-inline-btn" onClick={addRoom}
@@ -743,13 +772,14 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                     <BedDouble className="w-6 h-6 text-violet-400" />
                   </div>
                   <p className="text-[14px] font-bold text-gray-600">No room types yet</p>
-                  <p className="text-[12px] text-gray-400 mt-1">Add room types with seasonal pricing and amenities.</p>
+                  <p className="text-[12px] text-gray-400 mt-1">Add room types and set meal plan prices per season.</p>
                 </div>
               )}
 
               <div className="space-y-5">
                 {rooms.map((room,i) => (
                   <RoomInlineForm key={i} room={room} index={i}
+                    hotelSeasons={seasonDefs}
                     onChange={u => updateRoom(i,u)} onRemove={removeRoom} />
                 ))}
               </div>
@@ -757,7 +787,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
           )}
         </div>
 
-        {/* ── Footer ──────────────────────────────────────────────────── */}
+        {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 flex-shrink-0"
           style={{ background:"linear-gradient(180deg,#ffffff,#f8faff)" }}>
           <div className="text-[11px]">

@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 export const metadata = {
   // Title template: "Page Name | App Name"
   title: {
-    default: "Archit Project",
-    template: "%s | Archit Project",
+    default: "mandeholidays",
+    template: "%s | mandeholidays",
   },
   description:
     "A modern full-stack web application built with Next.js, MongoDB, and Cloudinary.",
@@ -29,11 +29,12 @@ export const metadata = {
     process.env.NEXTAUTH_URL || "http://localhost:3000"
   ),
   openGraph: {
-    title: "Archit Project",
+    title: "mandeholidays",
     description:
       "A modern full-stack web application built with Next.js, MongoDB, and Cloudinary.",
     type: "website",
     locale: "en_US",
+    
   },
   robots: {
     index: true,

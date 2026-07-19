@@ -83,14 +83,24 @@ function RoomPreviewCard({ room, isActive, onClick }) {
         </p>
       </div>
       {room.seasonalPricing?.length > 0 && (() => {
-        const prices = room.seasonalPricing.map((s) => Number(s.pricePerNight)).filter(Boolean);
-        if (!prices.length) return null;
-        const min = Math.min(...prices);
-        const max = Math.max(...prices);
+        // Collect all EP (or first meal) prices across seasons
+        const prices = room.seasonalPricing
+          .flatMap(s => s.meals || [])
+          .filter(m => m.plan === "EP" || true)
+          .reduce((acc, m) => {
+            if (m.plan === "EP") acc.push(Number(m.price));
+            return acc;
+          }, []);
+        // Fallback: any meal price if no EP
+        const allPrices = prices.length
+          ? prices
+          : room.seasonalPricing.flatMap(s => (s.meals||[]).map(m => Number(m.price))).filter(Boolean);
+        if (!allPrices.length) return null;
+        const min = Math.min(...allPrices);
         return (
           <p className="text-[11px] text-emerald-700 font-bold flex items-center gap-0.5">
             <IndianRupee className="w-3 h-3" />
-            {min === max ? min.toLocaleString() : `${min.toLocaleString()} – ${max.toLocaleString()}`}
+            from {min.toLocaleString()}
             <span className="text-gray-400 font-normal">/night</span>
           </p>
         );
@@ -283,20 +293,25 @@ export default function HotelPreviewModal({
                     </div>
                   )}
 
-                  {/* Room info row — show seasonal price range */}
+                  {/* Room info row — show EP price range across seasons */}
                   <div className="flex items-center gap-4 flex-wrap">
                     {activeRoom.seasonalPricing?.length > 0 && (() => {
-                      const prices = activeRoom.seasonalPricing.map((s) => Number(s.pricePerNight)).filter((p) => p > 0);
-                      if (prices.length === 0) return null;
-                      const min = Math.min(...prices);
-                      const max = Math.max(...prices);
+                      const epPrices = activeRoom.seasonalPricing
+                        .flatMap(s => (s.meals||[]).filter(m => m.plan === "EP").map(m => Number(m.price)))
+                        .filter(p => p > 0);
+                      const allPrices = epPrices.length
+                        ? epPrices
+                        : activeRoom.seasonalPricing.flatMap(s => (s.meals||[]).map(m => Number(m.price))).filter(p => p > 0);
+                      if (!allPrices.length) return null;
+                      const min = Math.min(...allPrices);
+                      const max = Math.max(...allPrices);
                       return (
                         <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
                           <IndianRupee className="w-4 h-4 text-emerald-600" />
+                          <span className="text-[11px] text-emerald-600 font-semibold">from</span>
                           <span className="text-[17px] font-black text-emerald-800">
-                            {min === max
-                              ? min.toLocaleString()
-                              : `${min.toLocaleString()} – ${max.toLocaleString()}`}
+                            {min.toLocaleString()}
+                            {min !== max && <span className="text-[13px] font-bold"> – {max.toLocaleString()}</span>}
                           </span>
                           <span className="text-[11px] text-emerald-600 ml-0.5">/night</span>
                         </div>
