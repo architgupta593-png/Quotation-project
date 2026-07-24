@@ -197,24 +197,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-[11px] text-gray-400 uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-gray-100" />
-          </div>
-
-          {/* Sign up */}
-          <Link
-            href="/signup"
-            className={cn(
-              "flex w-full h-10 items-center justify-center rounded-xl border border-gray-200",
-              "text-[14px] text-gray-700 font-medium",
-              "hover:bg-gray-50 hover:border-gray-300 transition-colors"
-            )}
-          >
-            Create an account
-          </Link>
+          {/* Contact admin note */}
+          <p className="text-center text-[12px] text-gray-400 mt-6 leading-relaxed">
+            Need an account? Contact your system administrator.
+          </p>
 
           <p className="text-center text-[11px] text-gray-400 mt-10 leading-relaxed">
             By continuing, you agree to our{" "}
