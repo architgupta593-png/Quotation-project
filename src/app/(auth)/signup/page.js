@@ -12,8 +12,6 @@ import {
   EyeOff,
   ArrowRight,
   Loader2,
-  Crown,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -35,22 +33,6 @@ const strengthColors = [
   "bg-emerald-500",
 ];
 
-// ── Role options ───────────────────────────────────────────────────────────────
-const roles = [
-  {
-    value: "admin",
-    label: "Admin",
-    desc: "Full access & team control",
-    Icon: Crown,
-  },
-  {
-    value: "teammate",
-    label: "Teammate",
-    desc: "Collaborate on quotations",
-    Icon: Users,
-  },
-];
-
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function SignupPage() {
   const router = useRouter();
@@ -63,8 +45,6 @@ export default function SignupPage() {
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(signupSchema),
@@ -73,11 +53,9 @@ export default function SignupPage() {
       email: "",
       password: "",
       confirmPassword: "",
-      role: "teammate",
     },
   });
 
-  const selectedRole = watch("role");
   const strength = passwordRules.filter((r) => r.test(passwordValue)).length;
 
   const onSubmit = async (data) => {
@@ -134,7 +112,7 @@ export default function SignupPage() {
               Create an account
             </h1>
             <p className="text-[14px] text-gray-500 leading-relaxed">
-              Start building travel quotations with your team.
+              Join as a team member and start creating quotations.
             </p>
           </div>
 
@@ -146,53 +124,6 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
-
-            {/* ── Role selector ────────────────────────────────────────────── */}
-            <div className="space-y-1.5">
-              <label className="block text-[13px] font-medium text-gray-700">
-                I am a…
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {roles.map(({ value, label, desc, Icon }) => {
-                  const active = selectedRole === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      id={`role-${value}`}
-                      onClick={() => setValue("role", value, { shouldValidate: true })}
-                      className={cn(
-                        "flex flex-col items-start gap-2 p-3.5 rounded-xl border text-left transition-all",
-                        active
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 hover:bg-white"
-                      )}
-                    >
-                      <Icon
-                        className={cn("w-4 h-4", active ? "text-white" : "text-gray-400")}
-                        strokeWidth={2}
-                      />
-                      <div>
-                        <p className="text-[13px] font-semibold leading-none mb-1">
-                          {label}
-                        </p>
-                        <p
-                          className={cn(
-                            "text-[11px] leading-snug",
-                            active ? "text-gray-300" : "text-gray-400"
-                          )}
-                        >
-                          {desc}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {errors.role && (
-                <p className="text-[12px] text-red-500">{errors.role.message}</p>
-              )}
-            </div>
 
             {/* ── Full name ────────────────────────────────────────────────── */}
             <div className="space-y-1.5">

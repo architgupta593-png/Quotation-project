@@ -1,13 +1,20 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LogOut, Package, Plus, Hotel, Route } from "lucide-react";
+import { LogOut, Package, Plus, Hotel, Route, Users, FileText } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
 export const metadata = {
   title: "Dashboard",
   description: "TourCraft admin dashboard — manage your travel packages.",
+};
+
+// ── Role badge colors ─────────────────────────────────────────────────────────
+const roleBadge = {
+  superuser: "bg-amber-100 text-amber-700",
+  admin: "bg-blue-100 text-blue-700",
+  member: "bg-gray-100 text-gray-600",
 };
 
 export default async function DashboardPage() {
@@ -17,54 +24,73 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const isAdmin = session.user.role === "admin";
+  const { role } = session.user;
+  const isSuperuserOrAdmin = role === "superuser" || role === "admin";
 
-  const quickLinks = [
-    {
-      href: "/dashboard/packages",
-      icon: Package,
-      title: "Travel Packages",
-      description: "Manage quotation packages — itineraries, hotels, vehicles.",
-      color: "bg-indigo-500",
-      bg: "bg-indigo-50",
-      border: "border-indigo-100",
-      textColor: "text-indigo-600",
-    },
-    {
-      href: "/dashboard/itineraries",
-      icon: Route,
-      title: "Itineraries",
-      description: "Create and manage day-by-day itineraries with pricing & schedules.",
-      color: "bg-violet-500",
-      bg: "bg-violet-50",
-      border: "border-violet-100",
-      textColor: "text-violet-600",
-    },
-    ...(isAdmin
-      ? [
-          {
-            href: "/dashboard/packages/new",
-            icon: Plus,
-            title: "New Package",
-            description: "Create a new travel package with day-by-day itinerary.",
-            color: "bg-sky-500",
-            bg: "bg-sky-50",
-            border: "border-sky-100",
-            textColor: "text-sky-600",
-          },
-          {
-            href: "/dashboard/accommodation",
-            icon: Hotel,
-            title: "Accommodation",
-            description: "Manage cities, hotels, room types, pricing & activities.",
-            color: "bg-emerald-500",
-            bg: "bg-emerald-50",
-            border: "border-emerald-100",
-            textColor: "text-emerald-600",
-          },
-        ]
-      : []),
-  ];
+  // ── Build quick links based on role ───────────────────────────────────────
+  const quickLinks = [];
+
+  // Members, admins, and superusers can all access quotations
+  quickLinks.push({
+    href: "/dashboard/packages",
+    icon: Package,
+    title: "Travel Packages",
+    description: "Manage quotation packages — itineraries, hotels, vehicles.",
+    color: "bg-indigo-500",
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    textColor: "text-indigo-600",
+  });
+
+  quickLinks.push({
+    href: "/dashboard/itineraries",
+    icon: Route,
+    title: "Itineraries",
+    description: "Create and manage day-by-day itineraries with pricing & schedules.",
+    color: "bg-violet-500",
+    bg: "bg-violet-50",
+    border: "border-violet-100",
+    textColor: "text-violet-600",
+  });
+
+  // Admin and superuser only
+  if (isSuperuserOrAdmin) {
+    quickLinks.push({
+      href: "/dashboard/packages/new",
+      icon: Plus,
+      title: "New Package",
+      description: "Create a new travel package with day-by-day itinerary.",
+      color: "bg-sky-500",
+      bg: "bg-sky-50",
+      border: "border-sky-100",
+      textColor: "text-sky-600",
+    });
+
+    quickLinks.push({
+      href: "/dashboard/accommodation",
+      icon: Hotel,
+      title: "Accommodation",
+      description: "Manage cities, hotels, room types, pricing & activities.",
+      color: "bg-emerald-500",
+      bg: "bg-emerald-50",
+      border: "border-emerald-100",
+      textColor: "text-emerald-600",
+    });
+  }
+
+  // Superuser only — User Management
+  if (role === "superuser") {
+    quickLinks.push({
+      href: "/dashboard/users",
+      icon: Users,
+      title: "User Management",
+      description: "Create, edit, and manage user accounts and roles.",
+      color: "bg-amber-500",
+      bg: "bg-amber-50",
+      border: "border-amber-100",
+      textColor: "text-amber-600",
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -83,8 +109,8 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-4">
           <span className="text-[13px] text-gray-500 hidden sm:block">
             {session.user.name}
-            <span className="ml-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium capitalize">
-              {session.user.role}
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${roleBadge[role] || roleBadge.member}`}>
+              {role}
             </span>
           </span>
           <a
@@ -139,7 +165,7 @@ export default async function DashboardPage() {
         <div className="px-5 py-4 bg-white border border-gray-100 rounded-2xl text-[13px] text-gray-600 flex items-center gap-3 shadow-sm">
           <span className="text-emerald-500 text-[16px]">✓</span>
           <span>
-            Authenticated as <strong>{session.user.email}</strong> · Session expires in 7 days
+            Authenticated as <strong>{session.user.email}</strong> · Role: <strong className="capitalize">{role}</strong> · Session expires in 7 days
           </span>
         </div>
       </main>

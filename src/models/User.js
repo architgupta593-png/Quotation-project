@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+/** Maximum number of superuser accounts allowed in the system. */
+const MAX_SUPERUSERS = 2;
+
 const UserSchema = new mongoose.Schema(
   {
     name: {
@@ -26,8 +29,8 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "teammate"],
-      default: "teammate",
+      enum: ["superuser", "admin", "member"],
+      default: "member",
     },
     isActive: {
       type: Boolean,
@@ -38,6 +41,29 @@ const UserSchema = new mongoose.Schema(
     timestamps: true, // adds createdAt and updatedAt
   }
 );
+
+// ── Enforce max superuser limit ───────────────────────────────────────────────
+UserSchema.pre("validate", async function () {
+  if (this.role !== "superuser") return;
+
+  // When updating an existing user, skip if the role didn't change
+  if (!this.isNew && !this.isModified("role")) return;
+
+  const User = mongoose.model("User");
+  const query = { role: "superuser" };
+
+  // Exclude self from count when updating an existing document
+  if (!this.isNew) {
+    query._id = { $ne: this._id };
+  }
+
+  const count = await User.countDocuments(query);
+  if (count >= MAX_SUPERUSERS) {
+    throw new Error(
+      `Cannot create more than ${MAX_SUPERUSERS} superuser accounts.`
+    );
+  }
+});
 
 // ── Hash password before saving ───────────────────────────────────────────────
 UserSchema.pre("save", async function () {

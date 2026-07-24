@@ -16,7 +16,7 @@ export const loginSchema = z.object({
   password: z.string().min(1, { message: "Password is required." }),
 });
 
-// ─── Sign Up ──────────────────────────────────────────────────────────────────
+// ─── Public Sign Up (always creates a "member") ──────────────────────────────
 export const signupSchema = z
   .object({
     name: z
@@ -26,14 +26,43 @@ export const signupSchema = z
     email: z.email({ message: "Please enter a valid email address." }).trim(),
     password: passwordSchema,
     confirmPassword: z.string(),
-    role: z.enum(["admin", "teammate"], {
-      message: "Please select a valid role.",
-    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match.",
     path: ["confirmPassword"],
   });
+
+// ─── Create User (superuser-only, full role selection) ────────────────────────
+export const createUserSchema = z.object({
+  name: z
+    .string()
+    .min(2, { message: "Name must be at least 2 characters long." })
+    .trim(),
+  email: z.email({ message: "Please enter a valid email address." }).trim(),
+  password: passwordSchema,
+  role: z.enum(["superuser", "admin", "member"], {
+    message: "Please select a valid role.",
+  }),
+});
+
+// ─── Update User (superuser-only) ─────────────────────────────────────────────
+export const updateUserSchema = z.object({
+  name: z
+    .string()
+    .min(2, { message: "Name must be at least 2 characters long." })
+    .trim()
+    .optional(),
+  email: z
+    .email({ message: "Please enter a valid email address." })
+    .trim()
+    .optional(),
+  role: z
+    .enum(["superuser", "admin", "member"], {
+      message: "Please select a valid role.",
+    })
+    .optional(),
+  isActive: z.boolean().optional(),
+});
 
 // ─── Profile Update ───────────────────────────────────────────────────────────
 export const profileUpdateSchema = z.object({
@@ -47,4 +76,5 @@ export const profileUpdateSchema = z.object({
     .trim()
     .optional(),
 });
+
 

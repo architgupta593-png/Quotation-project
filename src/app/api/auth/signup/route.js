@@ -4,13 +4,14 @@ import { signupSchema } from "@/lib/validations";
 
 /**
  * POST /api/auth/signup
- * Creates a new user account (admin or teammate).
+ * Creates a new "member" account.
+ * Only superusers can create admin/superuser accounts (via /api/users).
  */
 export async function POST(request) {
   try {
     const body = await request.json();
 
-    // 1. Validate all fields with the shared Zod schema
+    // 1. Validate all fields with the shared Zod schema (no role field)
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json(
@@ -22,7 +23,7 @@ export async function POST(request) {
       );
     }
 
-    const { name, email, password, role } = parsed.data;
+    const { name, email, password } = parsed.data;
 
     // 2. Connect to MongoDB
     await connectDB();
@@ -36,8 +37,8 @@ export async function POST(request) {
       );
     }
 
-    // 4. Create the user — password is hashed by the Mongoose pre-save hook
-    const user = await User.create({ name, email, password, role });
+    // 4. Create the user as "member" — password is hashed by the Mongoose pre-save hook
+    const user = await User.create({ name, email, password, role: "member" });
 
     return Response.json(
       {
@@ -59,3 +60,4 @@ export async function POST(request) {
     );
   }
 }
+
