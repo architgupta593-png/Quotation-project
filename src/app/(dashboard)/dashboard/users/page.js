@@ -18,6 +18,7 @@ import {
   ToggleRight,
   Pencil,
   ChevronDown,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +56,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [actionLoading, setActionLoading] = useState("");
 
   const isSuperuser = session?.user?.role === "superuser";
@@ -281,6 +283,13 @@ export default function UsersPage() {
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
                                   <button
+                                    onClick={() => setResetPasswordUser(user)}
+                                    className="p-1.5 rounded-lg hover:bg-gray-100 text-amber-500 hover:text-amber-700 transition-colors"
+                                    title="Reset password"
+                                  >
+                                    <KeyRound className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
                                     onClick={() => toggleActive(user)}
                                     className={cn(
                                       "p-1.5 rounded-lg hover:bg-gray-100 transition-colors",
@@ -332,6 +341,15 @@ export default function UsersPage() {
             fetchUsers();
           }}
           superuserCount={superuserCount}
+        />
+      )}
+
+      {/* ── Reset Password Modal ───────────────────────────────────────── */}
+      {resetPasswordUser && (
+        <ResetPasswordModal
+          user={resetPasswordUser}
+          onClose={() => setResetPasswordUser(null)}
+          onSuccess={() => setResetPasswordUser(null)}
         />
       )}
     </div>
@@ -637,6 +655,157 @@ function EditUserModal({ user, onClose, onSuccess, superuserCount }) {
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-3.5 h-3.5" />}
               {loading ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Reset Password Modal ──────────────────────────────────────────────────────
+function ResetPasswordModal({ user, onClose, onSuccess }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Password strength rules
+  const rules = [
+    { label: "At least 8 characters", test: (v) => v.length >= 8 },
+    { label: "Contains a letter", test: (v) => /[a-zA-Z]/.test(v) },
+    { label: "Contains a number", test: (v) => /[0-9]/.test(v) },
+    { label: "Contains a special character", test: (v) => /[^a-zA-Z0-9]/.test(v) },
+  ];
+
+  const allPassed = rules.every((r) => r.test(newPassword));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!allPassed) return;
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`/api/users/${user._id}/reset-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to reset password.");
+        return;
+      }
+      setSuccess(data.message || "Password reset successfully.");
+      setTimeout(() => onSuccess(), 1500);
+    } catch {
+      setError("Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-[16px] font-semibold text-gray-900">Reset Password</h2>
+            <p className="text-[12px] text-gray-500 mt-0.5">
+              Set a new password for <strong>{user.name}</strong>
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-600">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[12px] text-emerald-600">
+              {success}
+            </div>
+          )}
+
+          {/* User info */}
+          <div className="flex items-center gap-3 px-3.5 py-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[13px] font-semibold text-gray-500">
+              {user.name?.charAt(0)?.toUpperCase() || "?"}
+            </div>
+            <div>
+              <p className="text-[13px] font-medium text-gray-900">{user.name}</p>
+              <p className="text-[11px] text-gray-400">{user.email}</p>
+            </div>
+          </div>
+
+          {/* New password */}
+          <div className="space-y-1.5">
+            <label className="block text-[12px] font-medium text-gray-600">New password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full h-10 px-3 pr-10 rounded-xl border border-gray-200 bg-gray-50 text-[13px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 transition-colors"
+                placeholder="Enter new password"
+                required
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Password rules */}
+          {newPassword.length > 0 && (
+            <div className="space-y-1.5 px-1">
+              {rules.map((rule, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-colors",
+                    rule.test(newPassword) ? "bg-emerald-500" : "bg-gray-300"
+                  )} />
+                  <span className={cn(
+                    "transition-colors",
+                    rule.test(newPassword) ? "text-emerald-600" : "text-gray-400"
+                  )}>
+                    {rule.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-10 rounded-xl border border-gray-200 text-[13px] font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !allPassed}
+              className="flex-1 h-10 rounded-xl bg-amber-500 text-white text-[13px] font-medium hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+              {loading ? "Resetting…" : "Reset Password"}
             </button>
           </div>
         </form>
