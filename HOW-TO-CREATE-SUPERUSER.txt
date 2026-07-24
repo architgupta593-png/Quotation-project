@@ -1,0 +1,215 @@
+===============================================================================
+              HOW TO CREATE A SUPERUSER — mandeholidays
+===============================================================================
+
+A superuser is the highest-privilege account in the system. They can manage all
+users, reset passwords, and access every feature. The system allows a maximum
+of 2 superuser accounts.
+
+IMPORTANT: Public signup is DISABLED. Only a superuser can create new user 
+accounts from the User Management panel (Dashboard → User Management).
+
+───────────────────────────────────────────────────────────────────────────────
+  METHOD 1: Using the Setup URL (For Hostinger / No Terminal Access)
+───────────────────────────────────────────────────────────────────────────────
+
+Use this method if your hosting provider (like Hostinger) does not give you
+terminal/SSH access.
+
+1. Add these environment variables in your Hostinger dashboard:
+   (Go to: Hostinger Panel → Your Website → Advanced → Environment Variables)
+
+   SETUP_SECRET=my-super-secret-key-12345
+   SUPERUSER_NAME=Super Admin
+   SUPERUSER_EMAIL=admin@mandeholidays.com
+   SUPERUSER_PASSWORD=Admin@123
+
+   ⚠️ CHANGE "my-super-secret-key-12345" to your own secret key!
+   ⚠️ CHANGE the email and password to your own!
+
+2. Deploy your application
+
+3. Open your browser and visit this URL:
+   https://yourdomain.com/api/setup?secret=my-super-secret-key-12345
+
+   (Replace "yourdomain.com" with your actual domain)
+   (Replace "my-super-secret-key-12345" with your actual SETUP_SECRET)
+
+4. You will see a JSON response confirming the superuser was created:
+   {
+     "message": "✅ Superuser created successfully!",
+     "user": { "name": "Super Admin", "email": "admin@mandeholidays.com" },
+     "defaultPassword": "Admin@123"
+   }
+
+5. Login at https://yourdomain.com/login with your superuser credentials
+
+6. IMPORTANT: Change the default password immediately!
+
+7. SECURITY: After creating the superuser, you can remove the SETUP_SECRET
+   environment variable from Hostinger to disable this endpoint completely.
+
+───────────────────────────────────────────────────────────────────────────────
+  METHOD 2: Using the Seed Script (For local development / terminal access)
+───────────────────────────────────────────────────────────────────────────────
+
+1. Open a terminal/command prompt
+
+2. Navigate to the project folder:
+   cd c:\Users\Suraj\Desktop\SummerInternByMe\archit-project
+
+3. Run the seed script:
+  node scripts/seed-superuser.mjs
+
+4. The script will create a superuser with these default credentials:
+   - Name:     Super Admin
+   - Email:    admin@mandeholidays.com
+   - Password: Admin@123
+
+5. Login at http://localhost:3000/login with these credentials
+
+6. IMPORTANT: Change the default password immediately after first login!
+
+───────────────────────────────────────────────────────────────────────────────
+  CUSTOMIZING THE SUPERUSER CREDENTIALS
+───────────────────────────────────────────────────────────────────────────────
+
+You can customize the superuser credentials by setting environment variables
+BEFORE running the seed script:
+
+  On Windows (PowerShell):
+    $env:SUPERUSER_NAME = "Your Name"
+    $env:SUPERUSER_EMAIL = "your@email.com"
+    $env:SUPERUSER_PASSWORD = "YourSecure@Password1"
+    node scripts/seed-superuser.mjs
+
+  On Windows (Command Prompt):
+    set SUPERUSER_NAME=Your Name
+    set SUPERUSER_EMAIL=your@email.com
+    set SUPERUSER_PASSWORD=YourSecure@Password1
+    node scripts/seed-superuser.mjs
+
+  On Mac/Linux:
+    SUPERUSER_NAME="Your Name" \
+    SUPERUSER_EMAIL="your@email.com" \
+    SUPERUSER_PASSWORD="YourSecure@Password1" \
+    node scripts/seed-superuser.mjs
+
+───────────────────────────────────────────────────────────────────────────────
+  METHOD 3: Using the User Management Panel (for the 2nd superuser)
+───────────────────────────────────────────────────────────────────────────────
+
+Once you have the first superuser, you can create a second one from the UI:
+
+1. Login as the existing superuser
+2. Go to Dashboard → User Management (/dashboard/users)
+3. Click "Create User"
+4. Fill in the name, email, and password
+5. Select the "Superuser" role
+6. Click "Create User"
+
+NOTE: The system allows a MAXIMUM of 2 superusers. If 2 already exist,
+the "Superuser" option will be grayed out.
+
+───────────────────────────────────────────────────────────────────────────────
+  WHAT EACH ROLE CAN DO
+───────────────────────────────────────────────────────────────────────────────
+
+  SUPERUSER (max 2):
+    ✓ Create, edit, delete users
+    ✓ Reset any user's password
+    ✓ Manage packages, itineraries, accommodation
+    ✓ Create quotations
+    ✓ Full access to everything
+
+  ADMIN (unlimited):
+    ✓ Manage packages, itineraries, accommodation
+    ✓ Create quotations
+    ✓ View user list (read-only)
+    ✗ Cannot create/edit/delete users
+    ✗ Cannot reset passwords
+
+  MEMBER (unlimited):
+    ✓ View packages, itineraries
+    ✓ Create quotations
+    ✗ Cannot manage packages/accommodation
+    ✗ Cannot access user management
+
+───────────────────────────────────────────────────────────────────────────────
+  PASSWORD REQUIREMENTS
+───────────────────────────────────────────────────────────────────────────────
+
+All passwords must meet these requirements:
+  • At least 8 characters long
+  • Contains at least one letter (a-z or A-Z)
+  • Contains at least one number (0-9)
+  • Contains at least one special character (!@#$%^&* etc.)
+
+───────────────────────────────────────────────────────────────────────────────
+  FORGOT PASSWORD
+───────────────────────────────────────────────────────────────────────────────
+
+If a user forgets their password:
+  1. They click "Forgot password?" on the login page
+  2. They submit a reset request with their email
+  3. Contact the superuser/admin
+  4. The superuser goes to Dashboard → User Management
+  5. Clicks the key icon (🔑) next to the user
+  6. Sets a new temporary password
+  7. Shares the temporary password with the user
+  8. User logs in and should change their password
+
+───────────────────────────────────────────────────────────────────────────────
+  TROUBLESHOOTING
+───────────────────────────────────────────────────────────────────────────────
+
+Q: "Cannot create more than 2 superuser accounts"
+A: The system already has 2 superusers. To create a new one, demote or 
+   delete an existing superuser first from the User Management panel.
+
+Q: The seed script says "MONGODB_URI is not set"
+A: Make sure your .env.local file exists in the project root and contains
+   the MONGODB_URI variable.
+
+Q: "Superuser already exists with email: ..."
+A: A superuser with that email already exists. Use a different email or
+   log in with the existing account.
+
+Q: 503 Service Unavailable error on Hostinger
+A: This usually means the server is overloaded or restarting. Try these:
+   1. Wait 30 seconds and refresh the page
+   2. Check if your MongoDB Atlas cluster is accessible (not paused)
+   3. Make sure all environment variables are set correctly in Hostinger
+   4. If using MongoDB Atlas free tier, make sure your IP is whitelisted
+      (set to 0.0.0.0/0 to allow all IPs for shared hosting)
+
+Q: 504 Gateway Timeout error on Hostinger
+A: This means a request took too long. Common fixes:
+   1. Make sure your MongoDB Atlas cluster is in a nearby region
+   2. Check if your MongoDB connection string is correct
+   3. The first request after idle time may be slow (cold start) — 
+      just wait and retry
+   4. If it keeps happening, your MongoDB may be too slow — consider
+      upgrading from Atlas free tier to M10+
+
+Q: The /api/setup endpoint returns 500
+A: Make sure SETUP_SECRET is set in your Hostinger environment variables.
+   Also check that MONGODB_URI is correct and the database is accessible.
+
+───────────────────────────────────────────────────────────────────────────────
+  HOSTINGER ENVIRONMENT VARIABLES CHECKLIST
+───────────────────────────────────────────────────────────────────────────────
+
+Make sure ALL of these are set in Hostinger → Advanced → Environment Variables:
+
+  MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname
+  NEXTAUTH_SECRET=your-random-secret-key
+  NEXTAUTH_URL=https://yourdomain.com
+  CLOUDINARY_CLOUD_NAME=your_cloud_name
+  CLOUDINARY_API_KEY=your_api_key
+  CLOUDINARY_API_SECRET=your_api_secret
+  SETUP_SECRET=your-setup-secret (remove after creating superuser)
+
+===============================================================================
+  For support, contact the development team.
+===============================================================================
