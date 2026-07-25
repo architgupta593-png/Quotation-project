@@ -1006,7 +1006,7 @@ const STATUS_FILTER_OPTS = [
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ItineraryPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = ["superuser", "admin"].includes(session?.user?.role);
 
   const [items,     setItems]    = useState([]);
   const [loading,   setLoading]  = useState(true);

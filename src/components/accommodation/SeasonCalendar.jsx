@@ -99,7 +99,9 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
   // Selected date info
   const selInfo = useMemo(() => {
     if (!selected) return null;
-    const idx = getSeasonIdx(selected, seasonalPricing);
+    // Convert local selected date to UTC for accurate DB matching
+    const utcSel = new Date(Date.UTC(selected.getFullYear(), selected.getMonth(), selected.getDate()));
+    const idx = getSeasonIdx(utcSel, seasonalPricing);
     if (idx < 0) return { label: "No rate configured", meals: [], pal: null };
     const s = seasonalPricing[idx];
     return {
@@ -266,12 +268,13 @@ export default function SeasonCalendar({ seasonalPricing = [], roomType = "", co
           {Array.from({ length: daysInMonth }, (_, i) => {
             const day  = i + 1;
             const date = new Date(viewYear, viewMonth, day);
+            const utcDate = new Date(Date.UTC(viewYear, viewMonth, day));
             const past = isPast(day);
             const tod  = isToday(day);
             const sel  = isSel(day);
             const isSun = (firstDOW + i) % 7 === 0;
 
-            const idx = past ? -1 : getSeasonIdx(date, seasonalPricing);
+            const idx = past ? -1 : getSeasonIdx(utcDate, seasonalPricing);
             const pal = idx >= 0 ? PALETTE[idx % PALETTE.length] : null;
 
             // Tooltip: show season + EP (from) price

@@ -8,7 +8,7 @@ import PackageCard from "@/components/packages/PackageCard";
 
 export default function PackagesListPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = ["superuser", "admin"].includes(session?.user?.role);
 
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);

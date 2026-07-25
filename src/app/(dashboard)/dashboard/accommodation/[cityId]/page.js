@@ -13,7 +13,7 @@ import HotelPreviewModal from "@/components/accommodation/HotelPreviewModal";
 export default function AccommodationHotelsPage() {
   const { cityId } = useParams();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = ["superuser", "admin"].includes(session?.user?.role);
   const router = useRouter();
 
   const [city, setCity] = useState(null);

@@ -19,7 +19,7 @@ import CityFormModal from "@/components/accommodation/CityFormModal";
 
 export default function AccommodationCitiesPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = ["superuser", "admin"].includes(session?.user?.role);
   const router = useRouter();
 
   const [cities, setCities] = useState([]);
