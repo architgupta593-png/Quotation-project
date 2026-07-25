@@ -35,13 +35,15 @@ export default function AccommodationImageUploader({
       return;
     }
 
+    setUploading(true);
+    let currentImages = [...images];
+
     for (const file of toProcess) {
       if (!file.type.startsWith("image/")) {
         setError("Only image files are allowed.");
         continue;
       }
 
-      setUploading(true);
       try {
         const formData = new FormData();
         formData.append("file", file);
@@ -53,13 +55,14 @@ export default function AccommodationImageUploader({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Upload failed");
 
-        onChange([...images, { url: data.url, publicId: data.publicId, caption: "" }]);
+        currentImages = [...currentImages, { url: data.url, publicId: data.publicId, caption: "" }];
+        onChange(currentImages);
       } catch (err) {
         setError(err.message);
-      } finally {
-        setUploading(false);
       }
     }
+    
+    setUploading(false);
   }
 
   async function handleDelete(publicId) {
