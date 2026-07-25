@@ -22,32 +22,44 @@ export const authOptions = {
       /**
        * Verify user credentials against the MongoDB User collection.
        * Return a user object on success, or null on failure.
+       *
+       * Wrapped in a timeout to prevent hanging on shared hosting (Hostinger)
+       * where MongoDB connections can stall and cause 504 Gateway Timeout.
        */
       async authorize(credentials) {
-        // 1. Validate incoming shape with Zod
-        const parsed = loginSchema.safeParse(credentials);
-        if (!parsed.success) return null;
+        try {
+          // 1. Validate incoming shape with Zod
+          const parsed = loginSchema.safeParse(credentials);
+          if (!parsed.success) return null;
 
-        const { email, password } = parsed.data;
+          const { email, password } = parsed.data;
 
-        // 2. Connect to DB
-        await connectDB();
+          // 2. Connect to DB (with timeout protection)
+          const connectPromise = connectDB();
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("DB connection timeout")), 10000)
+          );
+          await Promise.race([connectPromise, timeoutPromise]);
 
-        // 3. Find user — explicitly select password (hidden by default via select: false)
-        const user = await User.findOne({ email }).select("+password");
-        if (!user || !user.isActive) return null;
+          // 3. Find user — explicitly select password (hidden by default via select: false)
+          const user = await User.findOne({ email }).select("+password");
+          if (!user || !user.isActive) return null;
 
-        // 4. Compare password using bcrypt instance method
-        const isValid = await user.comparePassword(password);
-        if (!isValid) return null;
+          // 4. Compare password using bcrypt instance method
+          const isValid = await user.comparePassword(password);
+          if (!isValid) return null;
 
-        // 5. Return a plain serialisable object (not a Mongoose document)
-        return {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
+          // 5. Return a plain serialisable object (not a Mongoose document)
+          return {
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          };
+        } catch (err) {
+          console.error("[NextAuth authorize]", err.message);
+          return null;
+        }
       },
     }),
   ],
@@ -91,5 +103,10 @@ export const authOptions = {
 
   // ── Security ───────────────────────────────────────────────────────────────
   secret: process.env.NEXTAUTH_SECRET,
+
+  // Trust the host header — required for Hostinger and reverse-proxy deployments
+  // Without this, NextAuth may reject requests because it can't verify the host.
+  trustHost: true,
+
   debug: process.env.NODE_ENV === "development",
 };

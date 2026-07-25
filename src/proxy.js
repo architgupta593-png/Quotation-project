@@ -16,10 +16,20 @@ import { getToken } from "next-auth/jwt";
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
  */
 export async function proxy(request) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  let token;
+
+  try {
+    token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+  } catch (err) {
+    // If getToken fails (e.g. malformed cookie, secret mismatch),
+    // treat as unauthenticated and redirect to login.
+    console.error("[Proxy] getToken error:", err.message);
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
 
   const { pathname } = request.nextUrl;
 
@@ -67,8 +77,7 @@ export async function proxy(request) {
 
 /**
  * Matcher: only run this proxy on private routes.
- * Public routes (/, /login, /register, /api/auth/*, static files) are never matched.
- * Add more paths here as the application grows.
+ * Public routes (/, /login, /forgot-password, /api/auth/*, /api/setup, static files) are never matched.
  */
 export const config = {
   matcher: [
