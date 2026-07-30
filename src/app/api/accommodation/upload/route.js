@@ -38,6 +38,7 @@ export async function POST(request) {
     const { url, publicId } = await uploadImage(dataUri, {
       folder: "accommodation",
     });
+    
 
     return NextResponse.json({ url, publicId }, { status: 201 });
   } catch (err) {

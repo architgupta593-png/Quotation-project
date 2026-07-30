@@ -209,8 +209,7 @@ function PreviewModal({ itin, onClose, onEdit, isAdmin }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: "rgba(15,20,40,0.6)", backdropFilter: "blur(6px)" }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
+      style={{ background: "rgba(15,20,40,0.6)", backdropFilter: "blur(6px)" }}>
       <div className="relative w-full sm:max-w-2xl bg-white flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
         style={{ maxHeight: "92dvh", boxShadow: "0 32px 80px rgba(0,0,0,0.3)" }}>
 
@@ -565,8 +564,7 @@ function ItineraryFormModal({ itin, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: "rgba(15,20,40,0.6)", backdropFilter: "blur(6px)" }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
+      style={{ background: "rgba(15,20,40,0.6)", backdropFilter: "blur(6px)" }}>
       <div className="relative w-full sm:max-w-2xl bg-white flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
         style={{ maxHeight: "92dvh", boxShadow: "0 32px 80px rgba(0,0,0,0.3)" }}>
 

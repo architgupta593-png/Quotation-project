@@ -7,6 +7,7 @@ import {
   Sparkles, ImageIcon, Tag, Users,
 } from "lucide-react";
 import AccommodationImageUploader from "@/components/accommodation/AccommodationImageUploader";
+import { HOTEL_FEATURES_LIST } from "@/data/activity";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HOTEL_TYPES = ["hotel","resort","hostel","guesthouse","villa","apartment","other"];
@@ -180,14 +181,38 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
               ))}
             </div>
           )}
-          <div className="flex gap-2">
-            <input type="text" value={newFeat}
-              onChange={e => setNewFeat(e.target.value)}
-              onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeat())}
-              placeholder="e.g. AC, Mountain View, King Bed…"
-              className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-[11px] placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all" />
+          <div className="flex gap-2 relative">
+            <div className="flex-1 relative">
+              <input type="text" value={newFeat}
+                onChange={e => setNewFeat(e.target.value)}
+                onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeat())}
+                placeholder="e.g. AC, Mountain View, King Bed…"
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[11px] placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all" />
+              {newFeat.length >= 1 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
+                  {(() => {
+                    const recs = HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeat.toLowerCase()) && !(room.features||[]).includes(f));
+                    if (recs.length === 0) return null;
+                    return recs.map(f => (
+                      <button
+                        key={f}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          update({ features: [...(room.features||[]), f] });
+                          setNewFeat("");
+                        }}
+                        className="w-full text-left px-3 py-2 text-[11px] hover:bg-violet-50 text-gray-700 transition-colors"
+                      >
+                        {f}
+                      </button>
+                    ));
+                  })()}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={addFeat}
-              className="px-3 py-2 rounded-xl text-violet-600 hover:shadow-sm transition-all"
+              className="px-3 py-2 rounded-xl text-violet-600 hover:shadow-sm transition-all flex-shrink-0"
               style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd50" }}>
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -433,8 +458,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background:"rgba(15,20,40,0.55)", backdropFilter:"blur(6px)" }}
-      onClick={e => e.target===e.currentTarget && onClose()}>
+      style={{ background:"rgba(15,20,40,0.55)", backdropFilter:"blur(6px)" }}>
 
       <div className="relative w-full sm:max-w-2xl bg-white flex flex-col rounded-t-3xl sm:rounded-2xl overflow-hidden"
         style={{ maxHeight:"92dvh", boxShadow:"0 32px 80px rgba(0,0,0,0.35),0 8px 24px rgba(0,0,0,0.15)" }}>
@@ -570,14 +594,38 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <input type="text" id="new-hotel-feature" value={newFeature}
-                    onChange={e => setNewFeature(e.target.value)}
-                    onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeature())}
-                    placeholder="e.g. Swimming Pool, Free WiFi, Spa…"
-                    className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
+                <div className="flex gap-2 relative">
+                  <div className="flex-1 relative">
+                    <input type="text" id="new-hotel-feature" value={newFeature}
+                      onChange={e => setNewFeature(e.target.value)}
+                      onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeature())}
+                      placeholder="e.g. Swimming Pool, Free WiFi, Spa…"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
+                    {newFeature.length >= 1 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
+                        {(() => {
+                          const recs = HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeature.toLowerCase()) && !form.features.includes(f));
+                          if (recs.length === 0) return null;
+                          return recs.map(f => (
+                            <button
+                              key={f}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                updateForm({ features: [...form.features, f] });
+                                setNewFeature("");
+                              }}
+                              className="w-full text-left px-3 py-2 text-[12px] hover:bg-indigo-50 text-gray-700 transition-colors"
+                            >
+                              {f}
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
                   <button type="button" id="add-hotel-feature-btn" onClick={addFeature}
-                    className="px-3 py-2 rounded-xl text-white transition-all"
+                    className="px-3 py-2 rounded-xl text-white transition-all flex-shrink-0"
                     style={{ background:"linear-gradient(135deg,#4f46e5,#6366f1)" }}>
                     <Plus className="w-4 h-4" />
                   </button>
