@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle, ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -29,8 +29,20 @@ const DEFAULT_FORM = {
   coverImage: null,
   itinerary: [],
   accommodations: [],
-  vehicle: {},
-  pricing: { pricePerPerson: 0, totalPrice: 0, currency: "INR", includes: [], excludes: [] },
+  vehicle: { vehicleType: "SUV", model: "", seats: 4, acType: "AC", vehiclePrice: 0, notes: "" },
+  pricing: {
+    accommodationTotal: 0,
+    vehicleTotal: 0,
+    subtotal: 0,
+    marginType: "absolute",
+    margin: 0,
+    finalPrice: 0,
+    perPersonPrice: 0,
+    numberOfPersons: 1,
+    currency: "INR",
+    includes: [],
+    excludes: [],
+  },
   status: "draft",
 };
 
@@ -76,6 +88,15 @@ export default function NewPackagePage() {
     const idx = SECTIONS.indexOf(currentSection);
     if (idx > 0) goTo(SECTIONS[idx - 1]);
   }
+
+  // Computed totals
+  const accommodationTotal = useMemo(() => {
+    return (form.accommodations || []).reduce((sum, a) => sum + (a.pricePerNight || 0), 0);
+  }, [form.accommodations]);
+
+  const vehicleTotal = useMemo(() => {
+    return form.vehicle?.vehiclePrice || 0;
+  }, [form.vehicle]);
 
   async function handleSubmit(status = "draft") {
     setError("");
@@ -157,8 +178,10 @@ export default function NewPackagePage() {
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
-                <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold
-                  ${isActive ? 'border-white' : isPast ? 'border-indigo-600' : 'border-gray-400'}">
+                <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    borderColor: isActive ? "white" : isPast ? "#4338ca" : "#9ca3af"
+                  }}>
                   {i + 1}
                 </span>
                 {SECTION_LABELS[sec]}
@@ -308,7 +331,7 @@ export default function NewPackagePage() {
           <div className="space-y-6">
             <SectionHeader
               title="Accommodation"
-              description={`Hotel details for each of the ${form.nights} nights.`}
+              description={`Select hotels & rooms for each of the ${form.nights} nights. Prices auto-fill from your accommodation database.`}
             />
             <AccommodationPanel
               nights={form.nights}
@@ -321,7 +344,7 @@ export default function NewPackagePage() {
         {/* ── Section: Vehicle ── */}
         {currentSection === "vehicle" && (
           <div className="space-y-6">
-            <SectionHeader title="Vehicle" description="Transport details for the package." />
+            <SectionHeader title="Vehicle" description="Transport details and pricing for the package." />
             <VehiclePanel
               value={form.vehicle}
               onChange={(vehicle) => updateForm({ vehicle })}
@@ -332,10 +355,15 @@ export default function NewPackagePage() {
         {/* ── Section: Pricing ── */}
         {currentSection === "pricing" && (
           <div className="space-y-6">
-            <SectionHeader title="Pricing" description="Set the cost and inclusion/exclusion list." />
+            <SectionHeader
+              title="Pricing"
+              description="Auto-calculated from accommodation & vehicle costs. Add your margin below."
+            />
             <PricingPanel
               value={form.pricing}
               onChange={(pricing) => updateForm({ pricing })}
+              accommodationTotal={accommodationTotal}
+              vehicleTotal={vehicleTotal}
             />
           </div>
         )}
@@ -351,8 +379,15 @@ export default function NewPackagePage() {
               <ReviewRow label="Status" value={form.status} />
               <ReviewRow label="Itinerary Days" value={`${form.itinerary.filter((d) => d.title).length} of ${form.days} filled`} />
               <ReviewRow label="Accommodation" value={`${form.accommodations.filter((a) => a.hotelName).length} of ${form.nights} nights filled`} />
+              <ReviewRow label="Accommodation Total" value={`₹${accommodationTotal.toLocaleString()}`} highlight />
               <ReviewRow label="Vehicle" value={form.vehicle?.vehicleType || "Not set"} />
-              <ReviewRow label="Price / Person" value={`${form.pricing?.currency} ${(form.pricing?.pricePerPerson || 0).toLocaleString()}`} />
+              <ReviewRow label="Vehicle Price" value={`₹${vehicleTotal.toLocaleString()}`} highlight />
+              <ReviewRow
+                label="Margin"
+                value={`${form.pricing?.marginType === "percentage" ? `${form.pricing?.margin || 0}%` : `₹${(form.pricing?.margin || 0).toLocaleString()}`}`}
+              />
+              <ReviewRow label="Final Price" value={`₹${Math.round(form.pricing?.finalPrice || 0).toLocaleString()}`} highlight />
+              <ReviewRow label="Per Person" value={`₹${Math.round(form.pricing?.perPersonPrice || 0).toLocaleString()} (${form.pricing?.numberOfPersons || 1} pax)`} highlight />
               <ReviewRow label="Highlights" value={form.highlights.length > 0 ? form.highlights.join(", ") : "None"} />
             </div>
 
@@ -413,11 +448,13 @@ function SectionHeader({ title, description }) {
   );
 }
 
-function ReviewRow({ label, value }) {
+function ReviewRow({ label, value, highlight }) {
   return (
     <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
-      <span className="text-[13px] text-gray-500 w-36 flex-shrink-0">{label}</span>
-      <span className="text-[13px] font-medium text-gray-900 text-right">{value}</span>
+      <span className="text-[13px] text-gray-500 w-40 flex-shrink-0">{label}</span>
+      <span className={`text-[13px] font-medium text-right ${highlight ? "text-emerald-700 font-semibold" : "text-gray-900"}`}>
+        {value}
+      </span>
     </div>
   );
 }

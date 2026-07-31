@@ -7,7 +7,7 @@ import {
   Sparkles, ImageIcon, Tag, Users,
 } from "lucide-react";
 import AccommodationImageUploader from "@/components/accommodation/AccommodationImageUploader";
-import { HOTEL_FEATURES_LIST } from "@/data/activity";
+import { HOTEL_FEATURES_LIST, ACTIVITIES_LIST } from "@/data/activity";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const HOTEL_TYPES = ["hotel","resort","hostel","guesthouse","villa","apartment","other"];
@@ -85,13 +85,39 @@ function SectionHead({ icon: Icon, color, title, subtitle, action }) {
 function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
   const [newFeat,   setNewFeat]   = useState("");
   const [imageOpen, setImageOpen] = useState(false);
+  const [focusedIdx, setFocusedIdx] = useState(-1);
 
   function update(p) { onChange({ ...room, ...p }); }
 
-  function addFeat() {
-    const f = newFeat.trim();
+  const roomRecs = newFeat.length >= 1 
+    ? HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeat.toLowerCase()) && !(room.features||[]).includes(f)).slice(0, 10)
+    : [];
+
+  function addFeat(selectedFeature = null) {
+    const f = (selectedFeature || newFeat).trim();
     if (!f || (room.features||[]).includes(f)) return;
-    update({ features:[...(room.features||[]), f] }); setNewFeat("");
+    const matched = HOTEL_FEATURES_LIST.find(item => item.toLowerCase() === f.toLowerCase());
+    if (!matched) return;
+    update({ features:[...(room.features||[]), matched] }); 
+    setNewFeat("");
+    setFocusedIdx(-1);
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedIdx(prev => (prev < roomRecs.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIdx(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusedIdx >= 0 && focusedIdx < roomRecs.length) {
+        addFeat(roomRecs[focusedIdx]);
+      } else {
+        addFeat();
+      }
+    }
   }
 
   function setMealPrice(seasonLabel, plan, price) {
@@ -184,34 +210,30 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
           <div className="flex gap-2 relative">
             <div className="flex-1 relative">
               <input type="text" value={newFeat}
-                onChange={e => setNewFeat(e.target.value)}
-                onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeat())}
+                onChange={e => { setNewFeat(e.target.value); setFocusedIdx(-1); }}
+                onKeyDown={handleKeyDown}
                 placeholder="e.g. AC, Mountain View, King Bed…"
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[11px] placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all" />
-              {newFeat.length >= 1 && (
+              {roomRecs.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
-                  {(() => {
-                    const recs = HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeat.toLowerCase()) && !(room.features||[]).includes(f));
-                    if (recs.length === 0) return null;
-                    return recs.map(f => (
-                      <button
-                        key={f}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          update({ features: [...(room.features||[]), f] });
-                          setNewFeat("");
-                        }}
-                        className="w-full text-left px-3 py-2 text-[11px] hover:bg-violet-50 text-gray-700 transition-colors"
-                      >
-                        {f}
-                      </button>
-                    ));
-                  })()}
+                  {roomRecs.map((f, i) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        addFeat(f);
+                      }}
+                      onMouseEnter={() => setFocusedIdx(i)}
+                      className={`w-full text-left px-3 py-2 text-[11px] transition-colors ${focusedIdx === i ? "bg-violet-100 text-violet-900" : "hover:bg-violet-50 text-gray-700"}`}
+                    >
+                      {f}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-            <button type="button" onClick={addFeat}
+            <button type="button" onClick={() => addFeat()}
               className="px-3 py-2 rounded-xl text-violet-600 hover:shadow-sm transition-all flex-shrink-0"
               style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd50" }}>
               <Plus className="w-3.5 h-3.5" />
@@ -337,6 +359,94 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
   );
 }
 
+// ── Activity Row Form (activities & add-ons) ────────────────────────────────────
+function ActivityRow({ activity, index, onChange, onRemove }) {
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const { name, price } = activity;
+
+  const activityRecs = name.length >= 1 
+    ? ACTIVITIES_LIST.filter(f => f.toLowerCase().includes(name.toLowerCase()) && f.toLowerCase() !== name.toLowerCase()).slice(0, 10)
+    : [];
+
+  function handleKeyDown(e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedIdx(prev => (prev < activityRecs.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIdx(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusedIdx >= 0 && focusedIdx < activityRecs.length) {
+        onChange({ name: activityRecs[focusedIdx] });
+        setFocusedIdx(-1);
+      } else {
+        // No strict match required here since price is manually set and custom activities might be desired,
+        // but user asked "no extra activity put in" so we strictly match from the list
+        const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === name.trim().toLowerCase());
+        if (matched) {
+          onChange({ name: matched });
+        }
+        setFocusedIdx(-1);
+      }
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border relative"
+      style={{ background:"linear-gradient(135deg,#faf5ff,#ede9fe)", borderColor:"#ddd6fe" }}>
+      <div className="flex-1 relative">
+        <input type="text" value={name}
+          onChange={e => { onChange({ name: e.target.value }); setFocusedIdx(-1); }}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            if (name.trim()) {
+              const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === name.trim().toLowerCase());
+              if (!matched) {
+                onChange({ name: "" });
+              } else {
+                onChange({ name: matched });
+              }
+            }
+            // Add a small delay before clearing dropdown to allow click events if preventDefault wasn't perfect
+            setTimeout(() => setFocusedIdx(-1), 150);
+          }}
+          placeholder="Activity name"
+          className="w-full px-2.5 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
+        {activityRecs.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
+            {activityRecs.map((f, i) => (
+              <button
+                key={f}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange({ name: f });
+                  setFocusedIdx(-1);
+                }}
+                onMouseEnter={() => setFocusedIdx(i)}
+                className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${focusedIdx === i ? "bg-violet-100 text-violet-900" : "hover:bg-violet-50 text-gray-700"}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <span className="text-[12px] text-gray-500 flex-shrink-0">₹</span>
+      <input type="number" min={0} value={price}
+        onChange={e => onChange({ price: e.target.value })}
+        placeholder="0"
+        className="w-24 px-2 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
+      <button type="button"
+        onClick={onRemove}
+        className="p-1 rounded-lg text-violet-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ── Main Modal ────────────────────────────────────────────────────────────────
 export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], onClose, onSaved }) {
   const isEdit = Boolean(hotel);
@@ -344,6 +454,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
   const [form,       setForm]       = useState(DEFAULT_HOTEL);
   const [seasonDefs, setSeasonDefs] = useState([]);
   const [newFeature, setNewFeature] = useState("");
+  const [focusedHotelIdx, setFocusedHotelIdx] = useState(-1);
   const [rooms,      setRooms]      = useState([]);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState("");
@@ -371,10 +482,36 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
   }, [hotel, initialRooms]);
 
   const updateForm  = p => setForm(prev => ({ ...prev, ...p }));
-  const addFeature  = () => {
-    const f = newFeature.trim();
+  
+  const hotelRecs = newFeature.length >= 1 
+    ? HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeature.toLowerCase()) && !form.features.includes(f)).slice(0, 10)
+    : [];
+
+  const addFeature  = (selectedFeature = null) => {
+    const f = (selectedFeature || newFeature).trim();
     if (!f || form.features.includes(f)) return;
-    updateForm({ features:[...form.features, f] }); setNewFeature("");
+    const matched = HOTEL_FEATURES_LIST.find(item => item.toLowerCase() === f.toLowerCase());
+    if (!matched) return;
+    updateForm({ features:[...form.features, matched] }); 
+    setNewFeature("");
+    setFocusedHotelIdx(-1);
+  };
+
+  const handleHotelFeatKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedHotelIdx(prev => (prev < hotelRecs.length - 1 ? prev + 1 : prev));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedHotelIdx(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusedHotelIdx >= 0 && focusedHotelIdx < hotelRecs.length) {
+        addFeature(hotelRecs[focusedHotelIdx]);
+      } else {
+        addFeature();
+      }
+    }
   };
   const addActivity = () => updateForm({ activities:[...form.activities, { name:"", price:"" }] });
   const updActivity = (i,p) => updateForm({ activities:form.activities.map((a,idx) => idx===i ? {...a,...p} : a) });
@@ -597,34 +734,30 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 <div className="flex gap-2 relative">
                   <div className="flex-1 relative">
                     <input type="text" id="new-hotel-feature" value={newFeature}
-                      onChange={e => setNewFeature(e.target.value)}
-                      onKeyDown={e => e.key==="Enter" && (e.preventDefault(), addFeature())}
+                      onChange={e => { setNewFeature(e.target.value); setFocusedHotelIdx(-1); }}
+                      onKeyDown={handleHotelFeatKeyDown}
                       placeholder="e.g. Swimming Pool, Free WiFi, Spa…"
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all" />
-                    {newFeature.length >= 1 && (
+                    {hotelRecs.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
-                        {(() => {
-                          const recs = HOTEL_FEATURES_LIST.filter(f => f.toLowerCase().includes(newFeature.toLowerCase()) && !form.features.includes(f));
-                          if (recs.length === 0) return null;
-                          return recs.map(f => (
-                            <button
-                              key={f}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                updateForm({ features: [...form.features, f] });
-                                setNewFeature("");
-                              }}
-                              className="w-full text-left px-3 py-2 text-[12px] hover:bg-indigo-50 text-gray-700 transition-colors"
-                            >
-                              {f}
-                            </button>
-                          ));
-                        })()}
+                        {hotelRecs.map((f, i) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              addFeature(f);
+                            }}
+                            onMouseEnter={() => setFocusedHotelIdx(i)}
+                            className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${focusedHotelIdx === i ? "bg-indigo-100 text-indigo-900" : "hover:bg-indigo-50 text-gray-700"}`}
+                          >
+                            {f}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
-                  <button type="button" id="add-hotel-feature-btn" onClick={addFeature}
+                  <button type="button" id="add-hotel-feature-btn" onClick={() => addFeature()}
                     className="px-3 py-2 rounded-xl text-white transition-all flex-shrink-0"
                     style={{ background:"linear-gradient(135deg,#4f46e5,#6366f1)" }}>
                     <Plus className="w-4 h-4" />
@@ -648,23 +781,13 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 ) : (
                   <div className="space-y-2">
                     {form.activities.map((a,i) => (
-                      <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-xl border"
-                        style={{ background:"linear-gradient(135deg,#faf5ff,#ede9fe)", borderColor:"#ddd6fe" }}>
-                        <input type="text" value={a.name}
-                          onChange={e => updActivity(i, { name:e.target.value })}
-                          placeholder="Activity name"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
-                        <span className="text-[12px] text-gray-500 flex-shrink-0">₹</span>
-                        <input type="number" min={0} value={a.price}
-                          onChange={e => updActivity(i, { price:e.target.value })}
-                          placeholder="0"
-                          className="w-24 px-2 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
-                        <button type="button"
-                          onClick={() => updateForm({ activities:form.activities.filter((_,idx)=>idx!==i) })}
-                          className="p-1 rounded-lg text-violet-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <ActivityRow
+                        key={i}
+                        activity={a}
+                        index={i}
+                        onChange={(patch) => updActivity(i, patch)}
+                        onRemove={() => updateForm({ activities:form.activities.filter((_,idx)=>idx!==i) })}
+                      />
                     ))}
                   </div>
                 )}

@@ -45,6 +45,11 @@ const AccommodationSchema = new mongoose.Schema(
     },
     starRating: { type: Number, min: 1, max: 5, default: null },
     notes: { type: String, trim: true, default: "" },
+    // Linked references to accommodation DB
+    cityId: { type: mongoose.Schema.Types.ObjectId, ref: "City", default: null },
+    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", default: null },
+    pricePerNight: { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );
@@ -59,6 +64,7 @@ const VehicleSchema = new mongoose.Schema(
     model: { type: String, trim: true, default: "" },
     seats: { type: Number, min: 1, default: 4 },
     acType: { type: String, enum: ["AC", "Non-AC"], default: "AC" },
+    vehiclePrice: { type: Number, min: 0, default: 0 },
     notes: { type: String, trim: true, default: "" },
   },
   { _id: false }
@@ -66,8 +72,14 @@ const VehicleSchema = new mongoose.Schema(
 
 const PricingSchema = new mongoose.Schema(
   {
-    pricePerPerson: { type: Number, min: 0, default: 0 },
-    totalPrice: { type: Number, min: 0, default: 0 },
+    accommodationTotal: { type: Number, min: 0, default: 0 },
+    vehicleTotal: { type: Number, min: 0, default: 0 },
+    subtotal: { type: Number, min: 0, default: 0 },
+    marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
+    margin: { type: Number, default: 0 },
+    finalPrice: { type: Number, min: 0, default: 0 },
+    perPersonPrice: { type: Number, min: 0, default: 0 },
+    numberOfPersons: { type: Number, min: 1, default: 1 },
     currency: { type: String, default: "INR", maxlength: 5 },
     includes: [{ type: String, trim: true }],
     excludes: [{ type: String, trim: true }],

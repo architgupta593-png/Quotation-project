@@ -1,6 +1,6 @@
 "use client";
 
-import { Car } from "lucide-react";
+import { Car, IndianRupee } from "lucide-react";
 
 const VEHICLE_TYPES = [
   "Sedan",
@@ -13,10 +13,10 @@ const VEHICLE_TYPES = [
 ];
 
 /**
- * VehiclePanel — transport details for the package.
+ * VehiclePanel — transport details + price for the package.
  *
  * Props:
- *   value    {Object} - { vehicleType, model, seats, acType, notes }
+ *   value    {Object} - { vehicleType, model, seats, acType, vehiclePrice, notes }
  *   onChange {fn}     - Called with the updated vehicle object
  */
 export default function VehiclePanel({ value = {}, onChange }) {
@@ -25,6 +25,7 @@ export default function VehiclePanel({ value = {}, onChange }) {
     model: "",
     seats: 4,
     acType: "AC",
+    vehiclePrice: 0,
     notes: "",
     ...value,
   };
@@ -120,6 +121,24 @@ export default function VehiclePanel({ value = {}, onChange }) {
           </div>
         </div>
 
+        {/* Vehicle Price */}
+        <div>
+          <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
+            Vehicle Price (total for trip)
+          </label>
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-gray-400">₹</span>
+            <input
+              type="number"
+              min={0}
+              value={vehicle.vehiclePrice}
+              onChange={(e) => update({ vehiclePrice: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className={`${inputCls} pl-8`}
+            />
+          </div>
+        </div>
+
         {/* Notes */}
         <div className="sm:col-span-2">
           <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
@@ -134,6 +153,19 @@ export default function VehiclePanel({ value = {}, onChange }) {
           />
         </div>
       </div>
+
+      {/* Total */}
+      {vehicle.vehiclePrice > 0 && (
+        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 flex items-center justify-between">
+          <span className="text-[13px] font-medium text-sky-800 flex items-center gap-1.5">
+            <IndianRupee className="w-3.5 h-3.5" />
+            Vehicle Cost
+          </span>
+          <span className="text-[16px] font-bold text-sky-700">
+            ₹{vehicle.vehiclePrice.toLocaleString()}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
