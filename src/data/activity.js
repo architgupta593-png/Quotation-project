@@ -62,9 +62,15 @@ export const HOTEL_FEATURES_LIST = [
 
 export const ACTIVITIES_LIST = [
   "Candle Light dinner",
-  "Bonfire",
-  "Trekking",
-  "Indoor Games",
-  "Outdoor Games"
+  "Badam Milk",
+  "Flower Decoration",
+  "Honeymoon Cake",
+  "Chocolate",
+  "Wine",
+  "Beachside Candle Light Dinner",
+  "Floating Breakfast",
+  "Candle Light Dinner without wine (Pool Side)",
+  "Candle Light Dinner with wine (Pool Side)",
+  "Fruit Basket"
 ];
   
