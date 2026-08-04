@@ -32,11 +32,26 @@ const ItineraryDaySchema = new mongoose.Schema(
   { _id: false }
 );
 
-const AccommodationSchema = new mongoose.Schema(
+// ── Destination (one per city in the package) ─────────────────────────────────
+const DestinationSchema = new mongoose.Schema(
+  {
+    cityId: { type: mongoose.Schema.Types.ObjectId, ref: "City", default: null },
+    cityName: { type: String, trim: true, default: "" },
+    state: { type: String, trim: true, default: "" },
+    nights: { type: Number, min: 1, default: 1 },
+  },
+  { _id: false }
+);
+
+// ── Single night entry inside an accommodation option ─────────────────────────
+const AccommodationNightSchema = new mongoose.Schema(
   {
     night: { type: Number, required: true, min: 1 },
+    cityId: { type: mongoose.Schema.Types.ObjectId, ref: "City", default: null },
+    cityName: { type: String, trim: true, default: "" },
+    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
     hotelName: { type: String, trim: true, default: "" },
-    location: { type: String, trim: true, default: "" },
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", default: null },
     roomType: { type: String, trim: true, default: "" },
     mealPlan: {
       type: String,
@@ -44,12 +59,18 @@ const AccommodationSchema = new mongoose.Schema(
       default: "",
     },
     starRating: { type: Number, min: 1, max: 5, default: null },
-    notes: { type: String, trim: true, default: "" },
-    // Linked references to accommodation DB
-    cityId: { type: mongoose.Schema.Types.ObjectId, ref: "City", default: null },
-    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
-    roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", default: null },
     pricePerNight: { type: Number, min: 0, default: 0 },
+    notes: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+// ── One accommodation option (e.g. Premium, Standard, Budget) ─────────────────
+const AccommodationOptionSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, default: "Option 1" },
+    nights: { type: [AccommodationNightSchema], default: [] },
+    totalPrice: { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );
@@ -72,6 +93,7 @@ const VehicleSchema = new mongoose.Schema(
 
 const PricingSchema = new mongoose.Schema(
   {
+    selectedOptionIndex: { type: Number, default: 0 },
     accommodationTotal: { type: Number, min: 0, default: 0 },
     vehicleTotal: { type: Number, min: 0, default: 0 },
     subtotal: { type: Number, min: 0, default: 0 },
@@ -87,6 +109,20 @@ const PricingSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const InstructionBlockSchema = new mongoose.Schema(
+  {
+    heading: { type: String, trim: true, default: "" },
+    format: {
+      type: String,
+      enum: ["bullet", "numbered", "paragraph"],
+      default: "bullet",
+    },
+    items: [{ type: String, trim: true }],
+    content: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
 // ── Main Package Schema ───────────────────────────────────────────────────────
 
 const PackageSchema = new mongoose.Schema(
@@ -97,12 +133,13 @@ const PackageSchema = new mongoose.Schema(
       trim: true,
       maxlength: [150, "Title cannot exceed 150 characters"],
     },
-    destination: {
-      type: String,
-      required: [true, "Destination is required"],
-      trim: true,
-      maxlength: [100, "Destination cannot exceed 100 characters"],
+    // Multi-destination support
+    destinations: {
+      type: [DestinationSchema],
+      default: [],
     },
+    // Legacy single destination (kept for backward compat)
+    destination: { type: String, trim: true, default: "" },
     nights: {
       type: Number,
       required: [true, "Number of nights is required"],
@@ -121,7 +158,11 @@ const PackageSchema = new mongoose.Schema(
     },
     highlights: [{ type: String, trim: true }],
     itinerary: [ItineraryDaySchema],
-    accommodations: [AccommodationSchema],
+    // Multi-option accommodation (Premium, Standard, Budget etc.)
+    accommodationOptions: {
+      type: [AccommodationOptionSchema],
+      default: [],
+    },
     vehicle: {
       type: VehicleSchema,
       default: () => ({}),
@@ -129,6 +170,10 @@ const PackageSchema = new mongoose.Schema(
     pricing: {
       type: PricingSchema,
       default: () => ({}),
+    },
+    instructions: {
+      type: [InstructionBlockSchema],
+      default: [],
     },
     status: {
       type: String,
@@ -148,6 +193,10 @@ const PackageSchema = new mongoose.Schema(
 PackageSchema.pre("save", function (next) {
   if (this.isModified("nights")) {
     this.days = this.nights + 1;
+  }
+  // Auto-compute destination string from destinations array
+  if (this.isModified("destinations") && this.destinations.length > 0) {
+    this.destination = this.destinations.map(d => d.cityName).join(" → ");
   }
   next();
 });

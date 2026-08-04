@@ -192,6 +192,7 @@ export default function RoomFormModal({ hotelId, room, onClose, onSaved }) {
                 min={1}
                 max={20}
                 value={form.maxOccupancy}
+                onWheel={(e) => e.target.blur()}
                 onChange={(e) => update({ maxOccupancy: e.target.value })}
                 className={inputCls}
               />
@@ -206,6 +207,7 @@ export default function RoomFormModal({ hotelId, room, onClose, onSaved }) {
               type="number"
               min={0}
               value={form.basePrice}
+              onWheel={(e) => e.target.blur()}
               onChange={(e) => update({ basePrice: e.target.value })}
               placeholder="e.g. 2500"
               className={inputCls}
@@ -240,6 +242,7 @@ export default function RoomFormModal({ hotelId, room, onClose, onSaved }) {
                       type="number"
                       min={0}
                       value={m.price}
+                      onWheel={(e) => e.target.blur()}
                       onChange={(e) => updateMeal(i, { price: e.target.value })}
                       placeholder="Price"
                       aria-label="Meal price"

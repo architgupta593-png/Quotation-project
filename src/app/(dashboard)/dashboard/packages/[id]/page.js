@@ -332,6 +332,45 @@ export default function PackageViewPage() {
             </div>
           </Section>
         )}
+
+        {/* Instructions */}
+        {pkg.instructions?.length > 0 && (
+          <Section title="Package Instructions & Terms">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
+              {pkg.instructions.map((block, idx) => (
+                <div key={idx} className="space-y-2">
+                  {block.heading && (
+                    <h3 className="text-[15px] font-bold text-gray-900 border-b border-gray-100 pb-1.5">
+                      {block.heading}
+                    </h3>
+                  )}
+
+                  {block.format === "paragraph" ? (
+                    <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-line">
+                      {block.content}
+                    </p>
+                  ) : block.format === "numbered" ? (
+                    <ol className="list-decimal list-inside space-y-1.5 text-[13px] text-gray-700">
+                      {(block.items || []).map((item, i) => (
+                        <li key={i} className="pl-1">
+                          {item}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <ul className="list-disc list-inside space-y-1.5 text-[13px] text-gray-700">
+                      {(block.items || []).map((item, i) => (
+                        <li key={i} className="pl-1">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
       </div>
     </div>
   );

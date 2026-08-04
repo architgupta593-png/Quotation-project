@@ -190,7 +190,7 @@ export default function EditPackagePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-medium text-gray-500 mb-1.5">Nights</label>
-                  <input type="number" min={1} max={60} value={form.nights} onChange={(e) => handleNightsChange(e.target.value)} className={inputCls} />
+                  <input type="number" min={1} max={60} value={form.nights} onWheel={(e) => e.target.blur()} onChange={(e) => handleNightsChange(e.target.value)} className={inputCls} />
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-gray-500 mb-1.5">Days (auto)</label>

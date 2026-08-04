@@ -654,6 +654,7 @@ function ItineraryFormModal({ itin, onClose, onSaved }) {
                   <label className={lc}>No. of Days *</label>
                   <div className="flex items-center gap-2">
                     <input type="number" min={1} max={61} value={form.days}
+                      onWheel={(e) => e.target.blur()}
                       onChange={e => setDays(e.target.value)}
                       className={ic + " text-center font-black text-[16px]"} />
                     <span className="text-[11px] text-gray-400 flex-shrink-0">{form.nights} nights</span>
@@ -846,6 +847,7 @@ function ItineraryFormModal({ itin, onClose, onSaved }) {
                           <div className="relative">
                             <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                             <input type="number" min={1} max={60} value={v.seats}
+                              onWheel={(e) => e.target.blur()}
                               onChange={e => updVehicle(vi, { seats:e.target.value })}
                               placeholder="4" className={ic + " pl-8"} />
                           </div>
@@ -855,6 +857,7 @@ function ItineraryFormModal({ itin, onClose, onSaved }) {
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[13px]">₹</span>
                             <input type="number" min={0} value={v.vehiclePrice}
+                              onWheel={(e) => e.target.blur()}
                               onChange={e => { updVehicle(vi, { vehiclePrice:e.target.value }); upCalc({ vehicles: form.vehicles.map((vv,ii) => ii===vi ? {...vv, vehiclePrice:e.target.value} : vv) }); }}
                               placeholder="0" className={ic + " pl-7 font-bold text-indigo-700"} />
                           </div>
@@ -885,6 +888,7 @@ function ItineraryFormModal({ itin, onClose, onSaved }) {
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                       <input type="number" min={0} value={form.itineraryTotal !== undefined ? form.itineraryTotal : ""}
+                        onWheel={(e) => e.target.blur()}
                         onChange={e => {
                           const val = e.target.value;
                           const vTotal = form.vehicles.reduce((a,v) => a+(parseFloat(v.vehiclePrice)||0), 0);

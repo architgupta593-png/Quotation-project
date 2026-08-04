@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Package from "@/models/Package";
+import { sanitizePackagePayload } from "@/lib/sanitizePackage";
 
 // ── GET /api/packages/[id] ────────────────────────────────────────────────────
 export async function GET(request, { params }) {
@@ -40,13 +41,14 @@ export async function PUT(request, { params }) {
     await connectDB();
     const { id } = await params;
     const body = await request.json();
+    const sanitizedBody = sanitizePackagePayload(body);
 
     // Prevent overwriting the creator
-    delete body.createdBy;
+    delete sanitizedBody.createdBy;
 
     const pkg = await Package.findByIdAndUpdate(
       id,
-      { $set: body },
+      { $set: sanitizedBody },
       { new: true, runValidators: true }
     ).lean();
 

@@ -187,6 +187,7 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
               <Users className="w-3 h-3" /> Max Guests
             </label>
             <input type="number" min={1} max={20} value={room.maxOccupancy||2}
+              onWheel={(e) => e.target.blur()}
               onChange={e => update({ maxOccupancy:e.target.value })} className={ic} />
           </div>
         </div>
@@ -317,6 +318,7 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
                           <div className="flex items-center gap-1 flex-1 min-w-0">
                             <span className="text-[12px] font-bold flex-shrink-0" style={{ color:pal.strip }}>₹</span>
                             <input type="number" min={0} value={mp[plan.value]??""}
+                              onWheel={(e) => e.target.blur()}
                               onChange={e => setMealPrice(season.label, plan.value, e.target.value)}
                               placeholder="0"
                               className="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-[13px] font-bold bg-white focus:outline-none focus:ring-2 transition-all"
@@ -435,6 +437,7 @@ function ActivityRow({ activity, index, onChange, onRemove }) {
       </div>
       <span className="text-[12px] text-gray-500 flex-shrink-0">₹</span>
       <input type="number" min={0} value={price}
+        onWheel={(e) => e.target.blur()}
         onChange={e => onChange({ price: e.target.value })}
         placeholder="0"
         className="w-24 px-2 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />

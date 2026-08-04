@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Package from "@/models/Package";
+import { sanitizePackagePayload } from "@/lib/sanitizePackage";
 
 // ── GET /api/packages — List all packages ─────────────────────────────────────
 export async function GET(request) {
@@ -59,9 +60,10 @@ export async function POST(request) {
     await connectDB();
 
     const body = await request.json();
+    const sanitizedBody = sanitizePackagePayload(body);
 
     const pkg = await Package.create({
-      ...body,
+      ...sanitizedBody,
       createdBy: session.user.id,
     });
 
