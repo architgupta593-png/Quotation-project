@@ -1,0 +1,141 @@
+===============================================================================
+                       TEST TRAVEL PACKAGE DATA (sunny.txt)
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. PACKAGE BASICS
+-------------------------------------------------------------------------------
+Title: 5 Day 4 Night Luxury Munnar & Alleppey Kerala Experience
+Total Duration: 4 Nights / 5 Days
+Status: published
+Highlights:
+  - Tea Plantation Tour & Eravikulam National Park Visit
+  - Romantic Houseboat Cruise & Backwater Stay in Alleppey
+  - Candlelight Dinner & Kathakali Dance Performance
+  - Private Luxury AC SUV Transport with Driver Included
+
+Route Destinations:
+  1. Munnar (3 Nights Stay — Nights 1, 2, 3)
+  2. Alleppey (1 Night Stay — Night 4)
+
+-------------------------------------------------------------------------------
+2. DAY-BY-DAY ITINERARY (5 DAYS)
+-------------------------------------------------------------------------------
+Day 1: Arrival in Cochin & Scenic Drive to Munnar
+  Activities:
+    - Pick up from Cochin Airport / Railway Station
+    - En-route visit to Cheeyappara & Valara Waterfalls
+    - Check-in to Munnar Resort & Leisure Evening Walk
+  Meals Included: Breakfast, Dinner
+
+Day 2: Full Day Munnar Tea Gardens & Sightseeing
+  Activities:
+    - Visit Mattupetty Dam, Echo Point, and Kundala Lake
+    - Tea Museum & Tea Tasting Experience
+    - Evening Spice Garden Tour
+  Meals Included: Breakfast, Dinner
+
+Day 3: Wildlife Experience & Photo Point Exploration
+  Activities:
+    - Eravikulam National Park (Home of Nilgiri Tahr)
+    - Photo Point & Blossom International Park
+    - Shopping at Local Spice Market
+  Meals Included: Breakfast, Dinner
+
+Day 4: Munnar to Alleppey Backwaters & Houseboat Check-in
+  Activities:
+    - Morning scenic drive from Munnar to Alleppey
+    - Check-in to Traditional Kerala Luxury Houseboat / Resort at 12:00 PM
+    - Cruise along Vembanad Lake & Scenic Canal Network
+  Meals Included: Breakfast, Lunch, Dinner
+
+Day 5: Alleppey Sightseeing & Departure from Cochin
+  Activities:
+    - Sunrise view & Traditional Breakfast at Alleppey Beach
+    - Fort Kochi Heritage Walk & Chinese Fishing Nets
+    - Drop off at Cochin Airport / Railway Station
+  Meals Included: Breakfast
+
+-------------------------------------------------------------------------------
+3. ACCOMMODATION OPTIONS (TIER CATEGORIES)
+-------------------------------------------------------------------------------
+Option 1 (Premium Category):
+  - Stay 1 (Nights 1 to 3 — Munnar):
+      Hotel: Panoramic Getaway Resort Munnar (5★)
+      Room Type: Executive Mountain View Suite
+      Meal Plan: MAP (Breakfast + Dinner)
+      Price Per Night: ₹7,500 / night (Total: ₹22,500 for 3 nights)
+  - Stay 2 (Night 4 — Alleppey):
+      Hotel: Lakes & Lagoons Luxury Houseboat Alleppey (4★)
+      Room Type: Deluxe AC Houseboat Suite
+      Meal Plan: AP (All Meals)
+      Price Per Night: ₹8,500 / night (Total: ₹8,500 for 1 night)
+  Option 1 Accommodation Total: ₹31,000
+
+Option 2 (Deluxe Category):
+  - Stay 1 (Nights 1 to 3 — Munnar):
+      Hotel: Tea County Resort Munnar (4★)
+      Room Type: Deluxe Double Room
+      Meal Plan: CP (Bed & Breakfast)
+      Price Per Night: ₹4,500 / night (Total: ₹13,500 for 3 nights)
+  - Stay 2 (Night 4 — Alleppey):
+      Hotel: Alleppey Backwater Resort (3★)
+      Room Type: Lake View Room
+      Meal Plan: MAP (Breakfast + Dinner)
+      Price Per Night: ₹5,000 / night (Total: ₹5,000 for 1 night)
+  Option 2 Accommodation Total: ₹18,500
+
+-------------------------------------------------------------------------------
+4. VEHICLE & TRANSPORT FLEET
+-------------------------------------------------------------------------------
+Vehicle Category: SUV
+Model / Make: Toyota Innova Crysta
+Seats Capacity: 6 Persons
+Air Conditioning: AC
+Total Transport Price: ₹14,000 (Full 5-Day Itinerary)
+Transport Inclusions:
+  - Fuel & Mileage Included
+  - Driver Allowance Included
+  - Tolls & Parking Included
+  - Inter-State Permit Taxes Included
+
+-------------------------------------------------------------------------------
+5. PRICING & MARGIN CALCULATOR
+-------------------------------------------------------------------------------
+Base Accommodation Total (Option 1): ₹31,000
+Vehicle Transport Total: ₹14,000
+Subtotal Cost: ₹45,000
+Profit Margin: ₹9,000 (Absolute ₹)
+Grand Total Package Price: ₹54,000
+Number of Persons: 2 Pax
+Calculated Price Per Person: ₹27,000 / pax
+
+Package Inclusions:
+  - Accommodation in 4★/5★ Resorts as per selected tier
+  - Daily Breakfast and Dinner as specified in itinerary
+  - Exclusive Private AC SUV Transport (Innova Crysta) for all transfers
+  - All Toll Taxes, Parking, Fuel, and Driver Charges
+  - Welcome Drink on arrival at all hotels
+
+Package Exclusions:
+  - Airfare / Train Tickets to/from Cochin
+  - Entry monument tickets, camera fees, & safari charges
+  - Personal expenses (laundry, room service, telephone)
+  - Travel Insurance & GST
+
+-------------------------------------------------------------------------------
+6. PACKAGE INSTRUCTIONS & TERMS
+-------------------------------------------------------------------------------
+[Heading: Driver Guidelines & Arrival]
+- Driver details will be shared 24 hours prior to travel via WhatsApp.
+- Airport pick-up point is Gate 3 outside Cochin International Airport.
+
+[Heading: Houseboat Guidelines]
+- AC in Deluxe Houseboats operates from 9:00 PM to 6:00 AM.
+- Houseboat cruising timing is from 12:00 PM to 5:30 PM (Anchored at night).
+
+[Heading: Cancellation Policy]
+- 100% refund for cancellations made 30 days before travel date.
+- 50% refund for cancellations made 15–29 days before travel date.
+- No refund for cancellations within 14 days of travel.
+===============================================================================
