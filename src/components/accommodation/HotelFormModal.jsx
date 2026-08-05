@@ -445,9 +445,9 @@ function ActivityRow({ activity, index, onChange, onRemove }) {
         )}
       </div>
       <span className="text-[12px] text-gray-500 flex-shrink-0">₹</span>
-      <input type="number" min={0} value={price}
+      <input type="number" min={0} value={price === 0 || price === "0" ? "" : price}
         onWheel={(e) => e.target.blur()}
-        onChange={e => onChange({ price: e.target.value })}
+        onChange={e => onChange({ price: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 })}
         placeholder="0"
         className="w-24 px-2 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
       <button type="button"

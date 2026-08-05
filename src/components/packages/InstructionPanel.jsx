@@ -14,7 +14,7 @@ const FORMAT_OPTIONS = [
 /**
  * InstructionPanel — Minimalist Instruction & Terms Panel
  */
-export default function InstructionPanel({ value = [], onChange }) {
+export default function InstructionPanel({ instructions: propInstructions, value = [], onChange }) {
   const [newItemTexts, setNewItemTexts] = useState({});
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [targetBlockIndex, setTargetBlockIndex] = useState(null);
@@ -22,7 +22,8 @@ export default function InstructionPanel({ value = [], onChange }) {
   const [bulkHeading, setBulkHeading] = useState("Terms & Conditions");
   const [bulkFormat, setBulkFormat] = useState("bullet");
 
-  const instructions = value.length > 0 ? value : [
+  const inputList = (propInstructions && propInstructions.length > 0) ? propInstructions : value;
+  const instructions = inputList.length > 0 ? inputList : [
     {
       heading: "Important Guidelines & Instructions",
       format: "bullet",

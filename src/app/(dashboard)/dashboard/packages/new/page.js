@@ -494,6 +494,7 @@ export default function NewPackagePage() {
                 />
                 <ItineraryBuilder
                   days={form.days || 1}
+                  itinerary={form.itinerary}
                   value={form.itinerary}
                   onChange={(itinerary) => updateForm({ itinerary })}
                   packageId={null}
@@ -511,6 +512,7 @@ export default function NewPackagePage() {
                 <AccommodationPanel
                   destinations={form.destinations}
                   accommodationOptions={form.accommodationOptions}
+                  value={form.accommodationOptions}
                   onChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
               </div>
@@ -523,7 +525,11 @@ export default function NewPackagePage() {
                   title="Transport Fleet & Vehicle Pricing"
                   description="Choose transport vehicle category and specify full transport pricing."
                 />
-                <VehiclePanel value={form.vehicle} onChange={(vehicle) => updateForm({ vehicle })} />
+                <VehiclePanel
+                  vehicle={form.vehicle}
+                  value={form.vehicle}
+                  onChange={(vehicle) => updateForm({ vehicle })}
+                />
               </div>
             )}
 
@@ -535,10 +541,12 @@ export default function NewPackagePage() {
                   description="Select base accommodation option, add profit margin, and calculate per person rate."
                 />
                 <PricingPanel
+                  pricing={form.pricing}
                   value={form.pricing}
                   onChange={(pricing) => updateForm({ pricing })}
                   accommodationOptions={form.accommodationOptions}
                   vehicleTotal={vehicleTotal}
+                  vehiclePrice={vehicleTotal}
                 />
               </div>
             )}
@@ -551,6 +559,7 @@ export default function NewPackagePage() {
                   description="Add travel advisory points or paste multi-line instructions directly into any box."
                 />
                 <InstructionPanel
+                  instructions={form.instructions}
                   value={form.instructions}
                   onChange={(instructions) => updateForm({ instructions })}
                 />

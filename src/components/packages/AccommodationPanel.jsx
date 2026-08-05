@@ -17,9 +17,11 @@ const MEAL_PLANS = [
  */
 export default function AccommodationPanel({
   destinations = [],
-  accommodationOptions = [],
+  accommodationOptions: propOptions = [],
+  value = [],
   onChange,
 }) {
+  const accommodationOptions = propOptions.length > 0 ? propOptions : value;
   const [activeOptIdx, setActiveOptIdx] = useState(0);
   const [hotelsMap, setHotelsMap] = useState({});
   const [roomsMap, setRoomsMap] = useState({});

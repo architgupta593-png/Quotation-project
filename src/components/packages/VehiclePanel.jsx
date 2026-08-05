@@ -22,7 +22,8 @@ const PRESET_INCLUSIONS = [
 /**
  * VehiclePanel — Lightweight, Compact & Non-Bulky Transport Panel
  */
-export default function VehiclePanel({ value = {}, onChange }) {
+export default function VehiclePanel({ vehicle: propVehicle, value = {}, onChange }) {
+  const inputVehicle = propVehicle || value || {};
   const vehicle = {
     vehicleType: "SUV",
     model: "",
@@ -30,7 +31,7 @@ export default function VehiclePanel({ value = {}, onChange }) {
     acType: "AC",
     vehiclePrice: 0,
     notes: "",
-    ...value,
+    ...inputVehicle,
   };
 
   function update(patch) {
@@ -160,9 +161,17 @@ export default function VehiclePanel({ value = {}, onChange }) {
           <input
             type="number"
             min={0}
-            value={vehicle.vehiclePrice}
+            value={vehicle.vehiclePrice === 0 ? "" : vehicle.vehiclePrice}
             onWheel={(e) => e.target.blur()}
-            onChange={(e) => update({ vehiclePrice: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "") {
+                update({ vehiclePrice: 0 });
+              } else {
+                const parsed = parseFloat(val);
+                update({ vehiclePrice: isNaN(parsed) ? 0 : parsed });
+              }
+            }}
             placeholder="0"
             className={`${inputCls} pl-8 text-[14px] font-extrabold text-slate-900`}
           />

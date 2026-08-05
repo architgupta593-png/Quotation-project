@@ -21,12 +21,14 @@ import ImageUploader from "./ImageUploader";
  *   onChange   {fn}       - Called with the full updated array
  *   packageId  {string}   - Required for image upload (null for new packages)
  */
-export default function ItineraryBuilder({ days, value = [], onChange, packageId }) {
+export default function ItineraryBuilder({ days, itinerary, value, onChange, packageId }) {
   const [openDay, setOpenDay] = useState(0); // which accordion is open
+
+  const list = itinerary || value || [];
 
   // Ensure we always have exactly `days` entries (auto-fill gaps)
   const normalised = Array.from({ length: days }, (_, i) => {
-    const existing = value.find((d) => d.day === i + 1);
+    const existing = list.find((d) => d.day === i + 1);
     return (
       existing || {
         day: i + 1,
