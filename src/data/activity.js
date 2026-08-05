@@ -71,6 +71,8 @@ export const ACTIVITIES_LIST = [
   "Beachside Candle Light Dinner",
   "Floating Breakfast",
   "Candle Light Dinner without wine (Pool Side)",
+  "Room Decoration With Cake And Candle Light Dinner",
+  "Cake With Candle Light",
   "Candle Light Dinner with wine (Pool Side)",
   "Fruit Basket"
 ];
