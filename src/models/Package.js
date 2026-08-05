@@ -190,16 +190,19 @@ const PackageSchema = new mongoose.Schema(
 );
 
 // ── Auto-derive days from nights ──────────────────────────────────────────────
-PackageSchema.pre("save", function (next) {
-  if (this.isModified("nights")) {
-    this.days = this.nights + 1;
+PackageSchema.pre("save", function () {
+  if (!this.days && this.nights) {
+    this.days = this.nights;
   }
   // Auto-compute destination string from destinations array
   if (this.isModified("destinations") && this.destinations.length > 0) {
-    this.destination = this.destinations.map(d => d.cityName).join(" → ");
+    this.destination = this.destinations.map((d) => d.cityName).filter(Boolean).join(" → ");
   }
-  next();
 });
+
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.Package;
+}
 
 export default mongoose.models.Package ||
   mongoose.model("Package", PackageSchema);

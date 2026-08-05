@@ -88,7 +88,7 @@ export default function NewPackagePage() {
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights > 0 ? totalNights + 1 : 0,
+      days: totalNights,
     });
   }
 
@@ -98,7 +98,7 @@ export default function NewPackagePage() {
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights > 0 ? totalNights + 1 : 0,
+      days: totalNights,
       accommodationOptions: [],
     });
   }
@@ -159,8 +159,18 @@ export default function NewPackagePage() {
 
   async function handleSubmit(status = "draft") {
     setError("");
+    if (!form.title || !form.title.trim()) {
+      setError("Please enter a Package Title in the Basics section.");
+      setCurrentSection("basics");
+      return;
+    }
     if (form.destinations.length === 0 || !form.destinations.some((d) => d.cityId)) {
-      setError("Please add at least one destination city.");
+      setError("Please select at least one destination city in the Basics section.");
+      setCurrentSection("basics");
+      return;
+    }
+    if ((form.nights || 0) < 1) {
+      setError("Package duration must be at least 1 night.");
       setCurrentSection("basics");
       return;
     }

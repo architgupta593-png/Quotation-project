@@ -47,7 +47,7 @@ export default function EditPackagePage() {
 
   function handleNightsChange(nights) {
     const n = Math.max(1, Math.min(60, parseInt(nights, 10) || 1));
-    updateForm({ nights: n, days: n + 1 });
+    updateForm({ nights: n, days: n });
   }
 
   function addHighlight() {
@@ -68,6 +68,11 @@ export default function EditPackagePage() {
 
   async function handleSave() {
     setError("");
+    if (!form.title || !form.title.trim()) {
+      setError("Please enter a Package Title.");
+      setCurrentSection("basics");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/packages/${id}`, {

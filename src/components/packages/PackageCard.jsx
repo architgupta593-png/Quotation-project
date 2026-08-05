@@ -18,7 +18,7 @@ const STATUS_STYLES = {
  */
 export default function PackageCard({ pkg, onDelete, isAdmin = false }) {
   const currency = pkg.pricing?.currency || "INR";
-  const price = pkg.pricing?.pricePerPerson || 0;
+  const price = pkg.pricing?.perPersonPrice || pkg.pricing?.pricePerPerson || 0;
 
   return (
     <div className="group relative flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">

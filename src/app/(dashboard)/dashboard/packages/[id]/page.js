@@ -110,10 +110,10 @@ export default function PackageViewPage() {
             <span className="flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full text-white text-[12px] font-medium backdrop-blur-sm">
               <Sun className="w-3.5 h-3.5" /> {pkg.days} Days
             </span>
-            {pkg.pricing?.pricePerPerson > 0 && (
+            {(pkg.pricing?.perPersonPrice > 0 || pkg.pricing?.pricePerPerson > 0) && (
               <span className="flex items-center gap-1 px-3 py-1 bg-white/20 rounded-full text-white text-[12px] font-medium backdrop-blur-sm">
                 <IndianRupee className="w-3 h-3" />
-                {currency} {pkg.pricing.pricePerPerson.toLocaleString()} / person
+                {currency} {(pkg.pricing.perPersonPrice || pkg.pricing.pricePerPerson).toLocaleString()} / person
               </span>
             )}
           </div>
@@ -218,8 +218,83 @@ export default function PackageViewPage() {
           </Section>
         )}
 
-        {/* Accommodation */}
-        {pkg.accommodations?.length > 0 && (
+        {/* Accommodation Options */}
+        {pkg.accommodationOptions?.length > 0 ? (
+          <Section title="Accommodation Tiers">
+            <div className="space-y-6">
+              {pkg.accommodationOptions.map((opt, optIdx) => {
+                const legs = [];
+                (opt.nights || []).forEach((n) => {
+                  const lastLeg = legs[legs.length - 1];
+                  if (
+                    lastLeg &&
+                    lastLeg.hotelName === n.hotelName &&
+                    lastLeg.roomType === n.roomType &&
+                    lastLeg.cityName === n.cityName
+                  ) {
+                    lastLeg.endNight = n.night;
+                    lastLeg.nightsCount += 1;
+                  } else {
+                    legs.push({
+                      cityName: n.cityName,
+                      hotelName: n.hotelName,
+                      roomType: n.roomType,
+                      mealPlan: n.mealPlan,
+                      starRating: n.starRating,
+                      pricePerNight: n.pricePerNight,
+                      notes: n.notes,
+                      startNight: n.night,
+                      endNight: n.night,
+                      nightsCount: 1,
+                    });
+                  }
+                });
+
+                return (
+                  <div key={optIdx} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <span className="text-[15px] font-bold text-gray-900">{opt.label}</span>
+                      <span className="text-[13px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                        Total: ₹{(opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {legs.map((leg, li) => (
+                        <div key={li} className="p-4 rounded-xl bg-gray-50/70 border border-gray-100 flex items-start gap-4">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white text-[12px] font-bold flex items-center justify-center flex-shrink-0">
+                            {leg.nightsCount > 1 ? `N${leg.startNight}–${leg.endNight}` : `N${leg.startNight}`}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-[14px] font-bold text-gray-900">{leg.hotelName || "Hotel TBA"}</p>
+                              {leg.starRating > 0 && (
+                                <div className="flex">
+                                  {Array.from({ length: leg.starRating }).map((_, si) => (
+                                    <Star key={si} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              <Badge
+                                label={leg.nightsCount > 1 ? `${leg.cityName || "Stay"} (${leg.nightsCount} Nights)` : leg.cityName || "Stay"}
+                                color="violet"
+                              />
+                              {leg.roomType && <Badge label={leg.roomType} color="slate" />}
+                              {leg.mealPlan && <Badge label={MEAL_PLAN_LABELS[leg.mealPlan] || leg.mealPlan} color="emerald" />}
+                            </div>
+                            {leg.notes && <p className="text-[12px] text-gray-500 mt-1.5 italic">{leg.notes}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        ) : pkg.accommodations?.length > 0 ? (
           <Section title="Accommodation">
             <div className="space-y-4">
               {pkg.accommodations.map((acc, i) => (
@@ -252,7 +327,7 @@ export default function PackageViewPage() {
               ))}
             </div>
           </Section>
-        )}
+        ) : null}
 
         {/* Vehicle */}
         {pkg.vehicle?.vehicleType && (
@@ -277,23 +352,23 @@ export default function PackageViewPage() {
         )}
 
         {/* Pricing */}
-        {(pkg.pricing?.pricePerPerson > 0 || pkg.pricing?.includes?.length > 0) && (
+        {((pkg.pricing?.perPersonPrice || 0) > 0 || (pkg.pricing?.pricePerPerson || 0) > 0 || (pkg.pricing?.finalPrice || 0) > 0 || pkg.pricing?.includes?.length > 0) && (
           <Section title="Pricing & Inclusions">
             <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
               {/* Price row */}
-              {pkg.pricing?.pricePerPerson > 0 && (
+              {((pkg.pricing?.perPersonPrice || 0) > 0 || (pkg.pricing?.pricePerPerson || 0) > 0) && (
                 <div className="flex items-center justify-between py-3 border-b border-gray-100 mb-4">
                   <span className="text-[13px] text-gray-500">Price per person</span>
                   <span className="text-[20px] font-bold text-gray-900">
-                    {currency} {pkg.pricing.pricePerPerson.toLocaleString()}
+                    {currency} {(pkg.pricing.perPersonPrice || pkg.pricing.pricePerPerson).toLocaleString()}
                   </span>
                 </div>
               )}
-              {pkg.pricing?.totalPrice > 0 && (
+              {((pkg.pricing?.finalPrice || 0) > 0 || (pkg.pricing?.totalPrice || 0) > 0) && (
                 <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-4">
                   <span className="text-[13px] text-gray-500">Total package price</span>
                   <span className="text-[16px] font-bold text-gray-900">
-                    {currency} {pkg.pricing.totalPrice.toLocaleString()}
+                    {currency} {(pkg.pricing.finalPrice || pkg.pricing.totalPrice).toLocaleString()}
                   </span>
                 </div>
               )}

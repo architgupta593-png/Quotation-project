@@ -24,7 +24,12 @@ export async function GET(request) {
 
     const filter = {};
     if (status) filter.status = status;
-    if (destination) filter.destination = { $regex: destination, $options: "i" };
+    if (destination) {
+      filter.$or = [
+        { title: { $regex: destination, $options: "i" } },
+        { destination: { $regex: destination, $options: "i" } },
+      ];
+    }
 
     const [packages, total] = await Promise.all([
       Package.find(filter)
@@ -74,6 +79,6 @@ export async function POST(request) {
       const messages = Object.values(err.errors).map((e) => e.message);
       return NextResponse.json({ error: messages.join(", ") }, { status: 422 });
     }
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
   }
 }

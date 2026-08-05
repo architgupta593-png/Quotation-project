@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Building2, Star, Copy, Loader2, Plus, Trash2, Layers, Sparkles } from "lucide-react";
+import { Building2, Star, Copy, Loader2, Plus, Trash2, Layers, Calendar } from "lucide-react";
 
 const MEAL_PLANS = [
   { value: "", label: "Select meal plan" },
@@ -12,7 +12,8 @@ const MEAL_PLANS = [
 ];
 
 /**
- * AccommodationPanel — Vibrant Resort-Tier Accommodation Panel
+ * AccommodationPanel — Continuous Stay Leg Accommodation Builder
+ * Groups continuous nights in the same city into ONE single hotel stay card.
  */
 export default function AccommodationPanel({
   destinations = [],
@@ -25,18 +26,40 @@ export default function AccommodationPanel({
   const [loadingHotels, setLoadingHotels] = useState({});
   const [loadingRooms, setLoadingRooms] = useState({});
 
-  const nightSlots = [];
-  let currentNightCounter = 1;
-  destinations.forEach((dest) => {
-    for (let i = 0; i < (dest.nights || 1); i++) {
-      nightSlots.push({
-        night: currentNightCounter++,
-        cityId: dest.cityId,
-        cityName: dest.cityName,
-      });
-    }
+  // ── Build Stay Legs from destinations ──
+  // Each destination entry represents a continuous stay in that city.
+  let nightCounter = 1;
+  const stayLegs = destinations.map((dest, legIdx) => {
+    const nightsCount = Math.max(1, parseInt(dest.nights, 10) || 1);
+    const startNight = nightCounter;
+    const endNight = startNight + nightsCount - 1;
+    const nightNumbers = Array.from({ length: nightsCount }, (_, i) => startNight + i);
+    nightCounter = endNight + 1;
+
+    return {
+      legIdx,
+      cityId: dest.cityId,
+      cityName: dest.cityName || "Destination",
+      nightsCount,
+      startNight,
+      endNight,
+      nightNumbers,
+    };
   });
 
+  // Build full list of individual night slots for schema compatibility
+  const nightSlots = [];
+  stayLegs.forEach((leg) => {
+    leg.nightNumbers.forEach((n) => {
+      nightSlots.push({
+        night: n,
+        cityId: leg.cityId,
+        cityName: leg.cityName,
+      });
+    });
+  });
+
+  // Initialize default option if empty
   useEffect(() => {
     if (destinations.length > 0 && accommodationOptions.length === 0) {
       const defaultNights = nightSlots.map((slot) => ({
@@ -62,6 +85,7 @@ export default function AccommodationPanel({
     }
   }, [destinations]);
 
+  // Fetch hotels for cities
   const fetchHotels = useCallback(async (cityId) => {
     if (!cityId || hotelsMap[cityId]) return;
     setLoadingHotels((prev) => ({ ...prev, [cityId]: true }));
@@ -76,6 +100,7 @@ export default function AccommodationPanel({
     }
   }, [hotelsMap]);
 
+  // Fetch rooms for hotels
   const fetchRooms = useCallback(async (hotelId) => {
     if (!hotelId || roomsMap[hotelId]) return;
     setLoadingRooms((prev) => ({ ...prev, [hotelId]: true }));
@@ -112,7 +137,7 @@ export default function AccommodationPanel({
           No Route Destinations Added
         </p>
         <p className="text-[13px] text-amber-700 mt-1 max-w-sm mx-auto font-medium">
-          Please add destination cities in the Basics step first. Hotels for each city will automatically be loaded here!
+          Please add destination cities in the Basics step first. Hotels for each city stay will automatically be loaded here!
         </p>
       </div>
     );
@@ -120,6 +145,7 @@ export default function AccommodationPanel({
 
   const currentOption = accommodationOptions[activeOptIdx] || accommodationOptions[0];
 
+  // Map individual night objects for current active option
   const optionNights = nightSlots.map((slot) => {
     const existing = currentOption?.nights?.find((n) => n.night === slot.night);
     return (
@@ -194,17 +220,22 @@ export default function AccommodationPanel({
     onChange(updated);
   }
 
-  function updateNightField(nightIdx, patch) {
-    const updated = optionNights.map((n, i) => (i === nightIdx ? { ...n, ...patch } : n));
-    updateActiveOptionNights(updated);
+  // Helper to update all nights in a continuous stay leg
+  function updateLegFields(leg, patch) {
+    const updatedNights = optionNights.map((n) => {
+      if (leg.nightNumbers.includes(n.night)) {
+        return { ...n, ...patch };
+      }
+      return n;
+    });
+    updateActiveOptionNights(updatedNights);
   }
 
-  function handleHotelChange(nightIdx, hotelId) {
-    const night = optionNights[nightIdx];
-    const hotels = hotelsMap[night.cityId] || [];
+  function handleLegHotelChange(leg, hotelId) {
+    const hotels = hotelsMap[leg.cityId] || [];
     const hotel = hotels.find((h) => h._id === hotelId);
 
-    updateNightField(nightIdx, {
+    updateLegFields(leg, {
       hotelId,
       hotelName: hotel ? hotel.name : "",
       roomId: "",
@@ -216,12 +247,11 @@ export default function AccommodationPanel({
     if (hotelId) fetchRooms(hotelId);
   }
 
-  function handleRoomChange(nightIdx, roomId) {
-    const night = optionNights[nightIdx];
-    const rooms = roomsMap[night.hotelId] || [];
+  function handleLegRoomChange(leg, roomId, primaryNight) {
+    const rooms = roomsMap[primaryNight.hotelId] || [];
     const room = rooms.find((r) => r._id === roomId);
 
-    updateNightField(nightIdx, {
+    updateLegFields(leg, {
       roomId,
       roomType: room ? room.roomType : "",
       mealPlan: "",
@@ -229,10 +259,9 @@ export default function AccommodationPanel({
     });
   }
 
-  function handleMealPlanChange(nightIdx, mealPlan) {
-    const night = optionNights[nightIdx];
-    const rooms = roomsMap[night.hotelId] || [];
-    const room = rooms.find((r) => r._id === night.roomId);
+  function handleLegMealPlanChange(leg, mealPlan, primaryNight) {
+    const rooms = roomsMap[primaryNight.hotelId] || [];
+    const room = rooms.find((r) => r._id === primaryNight.roomId);
     let price = 0;
 
     if (room && mealPlan) {
@@ -245,24 +274,24 @@ export default function AccommodationPanel({
       }
     }
 
-    updateNightField(nightIdx, { mealPlan, pricePerNight: price });
+    updateLegFields(leg, { mealPlan, pricePerNight: price });
   }
 
-  function copyHotelToSameCityNights(sourceNightIdx) {
-    const source = optionNights[sourceNightIdx];
-    if (!source.hotelId) return;
+  function copyHotelToSameCityLegs(sourceLeg) {
+    const primaryNight = optionNights.find((n) => n.night === sourceLeg.startNight);
+    if (!primaryNight || !primaryNight.hotelId) return;
 
     const updated = optionNights.map((n) => {
-      if (n.cityId === source.cityId) {
+      if (n.cityId === sourceLeg.cityId) {
         return {
           ...n,
-          hotelId: source.hotelId,
-          hotelName: source.hotelName,
-          roomId: source.roomId,
-          roomType: source.roomType,
-          mealPlan: source.mealPlan,
-          starRating: source.starRating,
-          pricePerNight: source.pricePerNight,
+          hotelId: primaryNight.hotelId,
+          hotelName: primaryNight.hotelName,
+          roomId: primaryNight.roomId,
+          roomType: primaryNight.roomType,
+          mealPlan: primaryNight.mealPlan,
+          starRating: primaryNight.starRating,
+          pricePerNight: primaryNight.pricePerNight,
         };
       }
       return n;
@@ -350,43 +379,54 @@ export default function AccommodationPanel({
         </div>
       </div>
 
-      {/* Night Cards */}
-      <div className="space-y-4">
-        {optionNights.map((acc, nightIdx) => {
-          const hotels = hotelsMap[acc.cityId] || [];
-          const rooms = roomsMap[acc.hotelId] || [];
-          const isLoadingH = loadingHotels[acc.cityId];
-          const isLoadingR = loadingRooms[acc.hotelId];
+      {/* ── Continuous Stay Leg Cards ── */}
+      <div className="space-y-5">
+        {stayLegs.map((leg) => {
+          const primaryNight =
+            optionNights.find((n) => n.night === leg.startNight) || {};
+          const hotels = hotelsMap[leg.cityId] || [];
+          const rooms = roomsMap[primaryNight.hotelId] || [];
+          const isLoadingH = loadingHotels[leg.cityId];
+          const isLoadingR = loadingRooms[primaryNight.hotelId];
+
+          const legTotalCost = (primaryNight.pricePerNight || 0) * leg.nightsCount;
 
           return (
             <div
-              key={nightIdx}
+              key={leg.legIdx}
               className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs space-y-5"
             >
-              {/* Header */}
+              {/* Card Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white text-[13.5px] font-black flex items-center justify-center shadow-xs">
-                    N{acc.night}
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-[13px] font-black flex items-center justify-center shadow-xs">
+                    {leg.nightsCount > 1
+                      ? `N${leg.startNight}–${leg.endNight}`
+                      : `N${leg.startNight}`}
                   </div>
                   <div>
-                    <h3 className="text-[16px] font-extrabold text-slate-900">
-                      Night {acc.night} — {acc.cityName || "Destination"}
-                    </h3>
-                    <p className="text-[12.5px] text-slate-500 font-medium">
-                      {acc.hotelName || "Select a hotel for this night"}
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[16px] font-extrabold text-slate-900">
+                        {leg.cityName}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-extrabold">
+                        {leg.nightsCount} {leg.nightsCount === 1 ? "Night Stay" : "Nights Stay (Continuous)"}
+                      </span>
+                    </div>
+                    <p className="text-[12.5px] text-slate-500 font-medium mt-0.5">
+                      {primaryNight.hotelName || `Select hotel for ${leg.cityName}`}
                     </p>
                   </div>
                 </div>
 
-                {acc.hotelId && (
+                {primaryNight.hotelId && destinations.filter((d) => d.cityId === leg.cityId).length > 1 && (
                   <button
                     type="button"
-                    onClick={() => copyHotelToSameCityNights(nightIdx)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-[12px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-all shadow-xs"
+                    onClick={() => copyHotelToSameCityLegs(leg)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-all shadow-xs"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    Copy hotel to all {acc.cityName} nights
+                    Copy to other {leg.cityName} stays
                   </button>
                 )}
               </div>
@@ -396,19 +436,19 @@ export default function AccommodationPanel({
                 {/* Hotel */}
                 <div>
                   <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Hotel ({acc.cityName})
+                    Hotel ({leg.cityName})
                   </label>
                   {isLoadingH ? (
                     <div className="flex items-center gap-2 h-11 px-3 text-[12px] text-slate-400">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading hotels in {acc.cityName}…
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading hotels in {leg.cityName}…
                     </div>
                   ) : (
                     <select
-                      value={acc.hotelId || ""}
-                      onChange={(e) => handleHotelChange(nightIdx, e.target.value)}
+                      value={primaryNight.hotelId || ""}
+                      onChange={(e) => handleLegHotelChange(leg, e.target.value)}
                       className={selectCls}
                     >
-                      <option value="">Select hotel in {acc.cityName}…</option>
+                      <option value="">Select hotel in {leg.cityName}…</option>
                       {hotels.map((h) => (
                         <option key={h._id} value={h._id}>
                           {h.name} {h.starRating ? `(${h.starRating}★)` : ""}
@@ -429,12 +469,12 @@ export default function AccommodationPanel({
                     </div>
                   ) : (
                     <select
-                      value={acc.roomId || ""}
-                      onChange={(e) => handleRoomChange(nightIdx, e.target.value)}
-                      disabled={!acc.hotelId}
-                      className={`${selectCls} ${!acc.hotelId ? "opacity-50 cursor-not-allowed" : ""}`}
+                      value={primaryNight.roomId || ""}
+                      onChange={(e) => handleLegRoomChange(leg, e.target.value, primaryNight)}
+                      disabled={!primaryNight.hotelId}
+                      className={`${selectCls} ${!primaryNight.hotelId ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
-                      <option value="">{acc.hotelId ? "Select room type…" : "Select hotel first"}</option>
+                      <option value="">{primaryNight.hotelId ? "Select room type…" : "Select hotel first"}</option>
                       {rooms.map((r) => (
                         <option key={r._id} value={r._id}>
                           {r.roomType} (Max: {r.maxOccupancy} pax)
@@ -450,10 +490,10 @@ export default function AccommodationPanel({
                     Meal Plan
                   </label>
                   <select
-                    value={acc.mealPlan}
-                    onChange={(e) => handleMealPlanChange(nightIdx, e.target.value)}
-                    disabled={!acc.roomId}
-                    className={`${selectCls} ${!acc.roomId ? "opacity-50 cursor-not-allowed" : ""}`}
+                    value={primaryNight.mealPlan || ""}
+                    onChange={(e) => handleLegMealPlanChange(leg, e.target.value, primaryNight)}
+                    disabled={!primaryNight.roomId}
+                    className={`${selectCls} ${!primaryNight.roomId ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {MEAL_PLANS.map((mp) => (
                       <option key={mp.value} value={mp.value}>
@@ -473,45 +513,61 @@ export default function AccommodationPanel({
                       <Star
                         key={star}
                         className={`w-4.5 h-4.5 transition-colors ${
-                          (acc.starRating ?? 0) >= star
+                          (primaryNight.starRating ?? 0) >= star
                             ? "fill-amber-400 text-amber-400 drop-shadow-sm"
                             : "text-slate-300"
                         }`}
                       />
                     ))}
-                    {!acc.starRating && (
+                    {!primaryNight.starRating && (
                       <span className="text-[11.5px] text-slate-400 ml-2 font-bold">Auto-filled</span>
                     )}
                   </div>
                 </div>
 
-                {/* Price Per Night */}
+                {/* Rate Per Night */}
                 <div>
                   <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
                     Price Per Night
                   </label>
                   <div className="flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50">
                     <span className="text-[14px] text-slate-500 font-bold">₹</span>
-                    <span className={`text-[16px] font-black ${acc.pricePerNight > 0 ? "text-emerald-700" : "text-slate-400"}`}>
-                      {acc.pricePerNight > 0 ? acc.pricePerNight.toLocaleString() : "—"}
+                    <span className={`text-[16px] font-black ${primaryNight.pricePerNight > 0 ? "text-emerald-700" : "text-slate-400"}`}>
+                      {primaryNight.pricePerNight > 0 ? primaryNight.pricePerNight.toLocaleString() : "—"}
                     </span>
+                    <span className="text-[11px] text-slate-400 ml-auto font-medium">/ night</span>
                   </div>
                 </div>
 
                 {/* Notes */}
                 <div>
                   <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Notes
+                    Notes for {leg.cityName} Stay
                   </label>
                   <input
                     type="text"
-                    value={acc.notes}
-                    onChange={(e) => updateNightField(nightIdx, { notes: e.target.value })}
+                    value={primaryNight.notes || ""}
+                    onChange={(e) => updateLegFields(leg, { notes: e.target.value })}
                     placeholder="e.g. Mountain-view suite, honeymoon setup"
                     className={inputCls}
                   />
                 </div>
               </div>
+
+              {/* Leg Cost Footer */}
+              {leg.nightsCount > 1 && (
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 text-[13px]">
+                  <span className="font-extrabold text-indigo-900">
+                    Total for this {leg.nightsCount}-Night Stay in {leg.cityName}:
+                  </span>
+                  <span className="text-[15px] font-black text-indigo-900">
+                    ₹{legTotalCost.toLocaleString()}{" "}
+                    <span className="text-[11.5px] font-semibold text-indigo-600">
+                      (₹{primaryNight.pricePerNight?.toLocaleString() || 0} × {leg.nightsCount} nights)
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -520,7 +576,7 @@ export default function AccommodationPanel({
       {/* Option Total Summary Banner */}
       <div className="rounded-3xl border border-emerald-300 bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-700 text-white p-5.5 flex items-center justify-between shadow-md shadow-emerald-500/20">
         <span className="text-[14.5px] font-extrabold text-emerald-50">
-          Total for {currentOption?.label || "Option"} ({optionNights.length} Nights)
+          Total for {currentOption?.label || "Option"} ({optionNights.length} Nights Total)
         </span>
         <span className="text-[22px] font-black text-white">
           ₹{optionTotal.toLocaleString()}

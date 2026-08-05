@@ -63,7 +63,7 @@ export async function PUT(request, { params }) {
       const messages = Object.values(err.errors).map((e) => e.message);
       return NextResponse.json({ error: messages.join(", ") }, { status: 422 });
     }
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
   }
 }
 
