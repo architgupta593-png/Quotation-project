@@ -1,35 +1,104 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 
 /**
- * Root error boundary — catches all unhandled errors in the app subtree.
- * Must be a Client Component (`"use client"`).
- *
- * @see https://nextjs.org/docs/app/api-reference/file-conventions/error
+ * Root error boundary — catches all unhandled errors including chunk load failures.
+ * When a ChunkLoadError occurs (common after redeployment on Hostinger),
+ * automatically reloads the page to fetch fresh chunks.
  */
 export default function GlobalError({ error, reset }) {
   useEffect(() => {
-    // Log to an error reporting service in production
-    console.error(error);
+    console.error("[GlobalError]", error);
+
+    // Auto-reload on chunk load failures (happens after redeployment)
+    const msg = (error?.message || "").toLowerCase();
+    if (
+      msg.includes("chunk") ||
+      msg.includes("loading chunk") ||
+      msg.includes("failed to load") ||
+      msg.includes("loading css chunk") ||
+      error?.name === "ChunkLoadError"
+    ) {
+      // Only auto-reload once to prevent infinite loops
+      const key = "chunk_reload_" + window.location.pathname;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+      }
+    }
   }, [error]);
 
+  const isChunkError =
+    (error?.message || "").toLowerCase().includes("chunk") ||
+    (error?.message || "").toLowerCase().includes("failed to load");
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <span className="text-6xl">⚠️</span>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Something went wrong
-        </h1>
-        <p className="max-w-md text-muted-foreground">
-          {error?.message ||
-            "An unexpected error occurred. Please try again or contact support if the issue persists."}
-        </p>
-      </div>
-      <Button onClick={() => reset()} size="lg">
-        Try again
-      </Button>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "24px",
+        padding: "24px",
+        textAlign: "center",
+        fontFamily:
+          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        backgroundColor: "#f8fafc",
+        color: "#0f172a",
+      }}
+    >
+      <span style={{ fontSize: "56px" }}>⚠️</span>
+      <h1
+        style={{
+          fontSize: "24px",
+          fontWeight: 800,
+          margin: 0,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        Something went wrong
+      </h1>
+      <p
+        style={{
+          fontSize: "14px",
+          color: "#64748b",
+          maxWidth: "400px",
+          margin: 0,
+          lineHeight: 1.6,
+        }}
+      >
+        {isChunkError
+          ? "The app was recently updated. Please reload the page to get the latest version."
+          : error?.message ||
+            "An unexpected error occurred. Please try again."}
+      </p>
+      <button
+        onClick={() => {
+          if (isChunkError) {
+            window.location.reload();
+          } else {
+            reset();
+          }
+        }}
+        style={{
+          padding: "12px 32px",
+          fontSize: "14px",
+          fontWeight: 700,
+          color: "#ffffff",
+          backgroundColor: "#4f46e5",
+          border: "none",
+          borderRadius: "12px",
+          cursor: "pointer",
+          transition: "background-color 0.2s",
+        }}
+        onMouseOver={(e) => (e.target.style.backgroundColor = "#4338ca")}
+        onMouseOut={(e) => (e.target.style.backgroundColor = "#4f46e5")}
+      >
+        {isChunkError ? "Reload Page" : "Try Again"}
+      </button>
     </div>
   );
 }

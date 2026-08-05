@@ -12,19 +12,28 @@ const nextConfig = {
   },
 
   // ── Optimisations for shared hosting (Hostinger) ────────────────────────
-  // Pre-bundle heavy dependencies so cold starts are faster
   serverExternalPackages: ["mongoose", "bcryptjs"],
 
-  // Increase server actions timeout for slow shared hosting
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",
     },
   },
 
-  // ── Custom headers — keep connections alive ─────────────────────────────
+  // ── Headers: cache immutable chunks, keep API alive ─────────────────────
   async headers() {
     return [
+      // Immutable cache for hashed static chunks (JS, CSS, fonts)
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      // Keep API connections alive on slow shared hosting
       {
         source: "/api/:path*",
         headers: [
