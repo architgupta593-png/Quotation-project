@@ -107,6 +107,24 @@ export function sanitizePackagePayload(body) {
     sanitized.instructions = [];
   }
 
+  // Sanitize itinerary
+  if (Array.isArray(sanitized.itinerary)) {
+    sanitized.itinerary = sanitized.itinerary.map((day, idx) => ({
+      day: day.day || idx + 1,
+      title: (day.title || "").trim() || `Day ${day.day || idx + 1} Schedule`,
+      description: (day.description || "").trim(),
+      activities: Array.isArray(day.activities) ? day.activities.map((a) => (a || "").trim()).filter(Boolean) : [],
+      meals: {
+        breakfast: Boolean(day.meals?.breakfast),
+        lunch: Boolean(day.meals?.lunch),
+        dinner: Boolean(day.meals?.dinner),
+      },
+      images: Array.isArray(day.images) ? day.images.filter((img) => img && img.url) : [],
+    }));
+  } else {
+    sanitized.itinerary = [];
+  }
+
   // Sanitize status
   sanitized.status = ["draft", "published"].includes(sanitized.status) ? sanitized.status : "draft";
 

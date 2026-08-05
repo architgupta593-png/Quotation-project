@@ -16,7 +16,7 @@ const ItineraryDaySchema = new mongoose.Schema(
     day: { type: Number, required: true, min: 1 },
     title: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       maxlength: 120,
     },
