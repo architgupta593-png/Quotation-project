@@ -64,6 +64,7 @@ export const ACTIVITIES_LIST = [
   "Candle Light dinner",
   "Badam Milk",
   "Flower Decoration",
+  "Cake",
   "Honeymoon Cake",
   "Chocolate",
   "Wine",
