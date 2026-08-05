@@ -97,8 +97,8 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
     const f = (selectedFeature || newFeat).trim();
     if (!f || (room.features||[]).includes(f)) return;
     const matched = HOTEL_FEATURES_LIST.find(item => item.toLowerCase() === f.toLowerCase());
-    if (!matched) return;
-    update({ features:[...(room.features||[]), matched] }); 
+    const finalVal = matched || f;
+    update({ features:[...(room.features||[]), finalVal] }); 
     setNewFeat("");
     setFocusedIdx(-1);
   }
@@ -364,11 +364,20 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
 // ── Activity Row Form (activities & add-ons) ────────────────────────────────────
 function ActivityRow({ activity, index, onChange, onRemove }) {
   const [focusedIdx, setFocusedIdx] = useState(-1);
+  const [showDropdown, setShowDropdown] = useState(false);
   const { name, price } = activity;
 
-  const activityRecs = name.length >= 1 
-    ? ACTIVITIES_LIST.filter(f => f.toLowerCase().includes(name.toLowerCase()) && f.toLowerCase() !== name.toLowerCase()).slice(0, 10)
+  const activityRecs = (showDropdown && name.length >= 1)
+    ? ACTIVITIES_LIST.filter(f => f.toLowerCase().includes(name.toLowerCase())).slice(0, 10)
     : [];
+
+  function selectActivity(selectedName) {
+    const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === selectedName.trim().toLowerCase());
+    const finalName = matched || selectedName.trim();
+    onChange({ name: finalName });
+    setShowDropdown(false);
+    setFocusedIdx(-1);
+  }
 
   function handleKeyDown(e) {
     if (e.key === "ArrowDown") {
@@ -380,17 +389,13 @@ function ActivityRow({ activity, index, onChange, onRemove }) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (focusedIdx >= 0 && focusedIdx < activityRecs.length) {
-        onChange({ name: activityRecs[focusedIdx] });
-        setFocusedIdx(-1);
-      } else {
-        // No strict match required here since price is manually set and custom activities might be desired,
-        // but user asked "no extra activity put in" so we strictly match from the list
-        const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === name.trim().toLowerCase());
-        if (matched) {
-          onChange({ name: matched });
-        }
-        setFocusedIdx(-1);
+        selectActivity(activityRecs[focusedIdx]);
+      } else if (name.trim()) {
+        selectActivity(name);
       }
+    } else if (e.key === "Escape") {
+      setShowDropdown(false);
+      setFocusedIdx(-1);
     }
   }
 
@@ -399,21 +404,26 @@ function ActivityRow({ activity, index, onChange, onRemove }) {
       style={{ background:"linear-gradient(135deg,#faf5ff,#ede9fe)", borderColor:"#ddd6fe" }}>
       <div className="flex-1 relative">
         <input type="text" value={name}
-          onChange={e => { onChange({ name: e.target.value }); setFocusedIdx(-1); }}
+          onFocus={() => setShowDropdown(true)}
+          onChange={e => {
+            onChange({ name: e.target.value });
+            setShowDropdown(true);
+            setFocusedIdx(-1);
+          }}
           onKeyDown={handleKeyDown}
           onBlur={() => {
-            if (name.trim()) {
-              const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === name.trim().toLowerCase());
-              if (!matched) {
-                onChange({ name: "" });
-              } else {
-                onChange({ name: matched });
+            setTimeout(() => {
+              if (name.trim()) {
+                const matched = ACTIVITIES_LIST.find(item => item.toLowerCase() === name.trim().toLowerCase());
+                if (matched) {
+                  onChange({ name: matched });
+                }
               }
-            }
-            // Add a small delay before clearing dropdown to allow click events if preventDefault wasn't perfect
-            setTimeout(() => setFocusedIdx(-1), 150);
+              setShowDropdown(false);
+              setFocusedIdx(-1);
+            }, 200);
           }}
-          placeholder="Activity name"
+          placeholder="e.g. Cake, Flower Decoration, Wine..."
           className="w-full px-2.5 py-1.5 rounded-lg border border-violet-200 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 transition-all" />
         {activityRecs.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto overflow-hidden py-1">
@@ -423,11 +433,10 @@ function ActivityRow({ activity, index, onChange, onRemove }) {
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  onChange({ name: f });
-                  setFocusedIdx(-1);
+                  selectActivity(f);
                 }}
                 onMouseEnter={() => setFocusedIdx(i)}
-                className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${focusedIdx === i ? "bg-violet-100 text-violet-900" : "hover:bg-violet-50 text-gray-700"}`}
+                className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${focusedIdx === i ? "bg-violet-100 text-violet-900 font-bold" : "hover:bg-violet-50 text-gray-700"}`}
               >
                 {f}
               </button>
@@ -494,8 +503,8 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
     const f = (selectedFeature || newFeature).trim();
     if (!f || form.features.includes(f)) return;
     const matched = HOTEL_FEATURES_LIST.find(item => item.toLowerCase() === f.toLowerCase());
-    if (!matched) return;
-    updateForm({ features:[...form.features, matched] }); 
+    const finalVal = matched || f;
+    updateForm({ features:[...form.features, finalVal] }); 
     setNewFeature("");
     setFocusedHotelIdx(-1);
   };
