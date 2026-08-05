@@ -17,7 +17,9 @@ const nextConfig = {
 
   // Increase server actions timeout for slow shared hosting
   experimental: {
-    serverActionsBodySizeLimit: "2mb",
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
   },
 
   // ── Custom headers — keep connections alive ─────────────────────────────
