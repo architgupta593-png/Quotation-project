@@ -74,7 +74,9 @@ export default function PricingPanel({
 
   const preTaxTotal = subtotal + marginAmount;
   const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
-  const finalPrice = Math.round(preTaxTotal + gstAmount);
+  const rawFinalPrice = preTaxTotal + gstAmount;
+  // Round off to nearest 100 (e.g. 12768 -> 12800, 12740 -> 12700)
+  const finalPrice = Math.round(rawFinalPrice / 100) * 100;
 
   useEffect(() => {
     if (
@@ -202,7 +204,8 @@ export default function PricingPanel({
                 const optMarginAmount = optMarginType === "absolute" ? optMargin : optSubtotal * (optMargin / 100);
                 const optPreTax = optSubtotal + optMarginAmount;
                 const optGst = pricing.includeGst ? Math.round(optPreTax * ((pricing.gstPercentage || 5) / 100)) : 0;
-                const optFinal = Math.round(optPreTax + optGst);
+                const optRawFinal = optPreTax + optGst;
+                const optFinal = Math.round(optRawFinal / 100) * 100;
                 const isSelected = i === selectedIdx;
 
                 return (
@@ -274,7 +277,8 @@ export default function PricingPanel({
               <span className="font-extrabold text-slate-900">₹{actTotal.toLocaleString("en-IN")}</span>
             </div>
           )}
-          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100/70">
+          <br/>
+          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-200">
             <span className="text-slate-900 font-extrabold">Subtotal Base Cost</span>
             <span className="font-extrabold text-slate-900 text-[15px]">₹{subtotal.toLocaleString("en-IN")}</span>
           </div>
@@ -294,7 +298,12 @@ export default function PricingPanel({
             </div>
           )}
           <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white">
-            <span className="font-black text-[15px]">Grand Package Total</span>
+            <div className="flex items-center gap-2.5">
+              <span className="font-black text-[15px]">Grand Package Total</span>
+              <span className="text-[10.5px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full text-emerald-100 border border-white/20">
+                Rounded to nearest ₹100
+              </span>
+            </div>
             <span className="font-black text-[21px]">₹{finalPrice.toLocaleString("en-IN")}</span>
           </div>
         </div>
