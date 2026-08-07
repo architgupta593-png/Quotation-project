@@ -44,17 +44,31 @@ export default function PricingPanel({
   const [newInclude, setNewInclude] = useState("");
   const [newExclude, setNewExclude] = useState("");
 
+  const pax = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 1);
+  const maxPerRoom = Math.max(1, parseInt(pricing.maxPersonsPerRoom, 10) || 2);
+  const isPerPerson = pricing.rateBasis === "per_person";
+
+  // Calculate required rooms based on max persons per room:
+  // e.g. 5 persons with max 2 per room = Math.ceil(5 / 2) = 3 rooms.
+  const roomsRequired = isPerPerson
+    ? Math.max(1, Math.ceil(pax / maxPerRoom))
+    : Math.max(1, Math.ceil(pax / 2));
+
+  const couples = isPerPerson ? roomsRequired : Math.max(1, Math.ceil(pax / 2));
+
   const selectedIdx = Math.min(
     pricing.selectedOptionIndex || 0,
     Math.max(0, accommodationOptions.length - 1)
   );
 
   const selectedOption = accommodationOptions[selectedIdx];
-  const accommodationTotal = selectedOption
+  const baseAccomTotal = selectedOption
     ? (selectedOption.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0)
     : 0;
 
-  const subtotal = accommodationTotal + vTotal;
+  const effectiveAccomTotal = baseAccomTotal * roomsRequired;
+
+  const subtotal = effectiveAccomTotal + vTotal;
   let marginAmount = 0;
   if (pricing.marginType === "absolute") {
     marginAmount = pricing.margin || 0;
@@ -66,13 +80,12 @@ export default function PricingPanel({
   const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
   const finalPrice = Math.round(preTaxTotal + gstAmount);
 
-  const pax = Math.max(1, pricing.numberOfPersons || 2);
   const perPersonPrice = Math.round(finalPrice / pax);
-  const perCouplePrice = Math.round((finalPrice / pax) * 2);
+  const perCouplePrice = Math.round(finalPrice / roomsRequired);
 
   useEffect(() => {
     if (
-      pricing.accommodationTotal !== accommodationTotal ||
+      pricing.accommodationTotal !== effectiveAccomTotal ||
       pricing.vehicleTotal !== vTotal ||
       pricing.subtotal !== subtotal ||
       pricing.finalPrice !== finalPrice ||
@@ -83,7 +96,7 @@ export default function PricingPanel({
       onChange({
         ...pricing,
         selectedOptionIndex: selectedIdx,
-        accommodationTotal,
+        accommodationTotal: effectiveAccomTotal,
         vehicleTotal: vTotal,
         subtotal,
         finalPrice,
@@ -93,13 +106,14 @@ export default function PricingPanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    accommodationTotal,
+    effectiveAccomTotal,
     vTotal,
     pricing.margin,
     pricing.marginType,
     pricing.includeGst,
     pricing.gstPercentage,
     pricing.numberOfPersons,
+    pricing.maxPersonsPerRoom,
     pricing.rateBasis,
     selectedIdx,
   ]);
@@ -164,7 +178,7 @@ export default function PricingPanel({
                         isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      ₹{optTotal.toLocaleString()}
+                      ₹{optTotal.toLocaleString("en-IN")}
                     </span>
                   </button>
                 );
@@ -178,22 +192,27 @@ export default function PricingPanel({
           <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
             <span className="text-slate-700 font-semibold flex items-center gap-2">
               🏨 Accommodation ({selectedOption?.label || "Option 1"})
+              <span className="text-[11px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">
+                {isPerPerson
+                  ? `${pax} Persons → ${roomsRequired} ${roomsRequired === 1 ? "Room" : "Rooms"} (${roomsRequired} × ₹${baseAccomTotal.toLocaleString("en-IN")})`
+                  : `${couples} ${couples === 1 ? "Couple (1 Room)" : "Couples (" + couples + " Rooms)"} × ₹${baseAccomTotal.toLocaleString("en-IN")}`}
+              </span>
             </span>
-            <span className="font-extrabold text-slate-900">₹{accommodationTotal.toLocaleString()}</span>
+            <span className="font-extrabold text-slate-900">₹{effectiveAccomTotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/40">
             <span className="text-slate-700 font-semibold flex items-center gap-2">🚗 Vehicle Transport</span>
-            <span className="font-extrabold text-slate-900">₹{vTotal.toLocaleString()}</span>
+            <span className="font-extrabold text-slate-900">₹{vTotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100/70">
             <span className="text-slate-900 font-extrabold">Subtotal Base Cost</span>
-            <span className="font-extrabold text-slate-900 text-[15px]">₹{subtotal.toLocaleString()}</span>
+            <span className="font-extrabold text-slate-900 text-[15px]">₹{subtotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-amber-50/60">
             <span className="text-amber-900 font-bold">
               📈 Profit Margin ({pricing.marginType === "percentage" ? `${pricing.margin}%` : "Absolute"})
             </span>
-            <span className="font-extrabold text-amber-700 text-[14.5px]">+ ₹{Math.round(marginAmount).toLocaleString()}</span>
+            <span className="font-extrabold text-amber-700 text-[14.5px]">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
           </div>
           {pricing.includeGst && (
             <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60">
@@ -201,12 +220,12 @@ export default function PricingPanel({
                 <Receipt className="w-4 h-4 text-blue-600" />
                 GST Tax ({pricing.gstPercentage || 5}%)
               </span>
-              <span className="font-extrabold text-blue-800 text-[14.5px]">+ ₹{gstAmount.toLocaleString()}</span>
+              <span className="font-extrabold text-blue-800 text-[14.5px]">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
             </div>
           )}
           <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white">
             <span className="font-black text-[15px]">Grand Package Total</span>
-            <span className="font-black text-[21px]">₹{finalPrice.toLocaleString()}</span>
+            <span className="font-black text-[21px]">₹{finalPrice.toLocaleString("en-IN")}</span>
           </div>
         </div>
 
@@ -311,7 +330,7 @@ export default function PricingPanel({
             </label>
             {pricing.includeGst && (
               <span className="text-[11.5px] font-black text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full">
-                GST Included (+₹{gstAmount.toLocaleString()})
+                GST Included (+₹{gstAmount.toLocaleString("en-IN")})
               </span>
             )}
           </div>
@@ -353,7 +372,7 @@ export default function PricingPanel({
           )}
         </div>
 
-        {/* ── Rate Basis (Per Couple vs Per Person) & Pax Controls ── */}
+        {/* ── Rate Basis (Per Couple vs Per Person) & Pax/Couple Controls ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           {/* Rate Calculation Basis */}
           <div>
@@ -365,7 +384,7 @@ export default function PricingPanel({
                 type="button"
                 onClick={() => update({ rateBasis: "per_couple" })}
                 className={`flex-1 py-3 rounded-xl border text-[12.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  (pricing.rateBasis || "per_couple") === "per_couple"
+                  !isPerPerson
                     ? "bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-600 text-white shadow-sm"
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                 }`}
@@ -377,7 +396,7 @@ export default function PricingPanel({
                 type="button"
                 onClick={() => update({ rateBasis: "per_person" })}
                 className={`flex-1 py-3 rounded-xl border text-[12.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  pricing.rateBasis === "per_person"
+                  isPerPerson
                     ? "bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-600 text-white shadow-sm"
                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                 }`}
@@ -388,30 +407,95 @@ export default function PricingPanel({
             </div>
           </div>
 
-          {/* Number of Persons */}
+          {/* Number of Couples OR Persons Input */}
           <div>
             <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Number of Persons (Pax)
+              {!isPerPerson ? "Number of Couples" : "Number of Persons (Pax)"}
             </label>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={pricing.numberOfPersons === 0 ? "" : pricing.numberOfPersons}
-              onWheel={(e) => e.target.blur()}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "") {
-                  update({ numberOfPersons: 1 });
-                } else {
-                  const parsed = parseInt(val, 10);
-                  update({ numberOfPersons: isNaN(parsed) ? 1 : parsed });
-                }
-              }}
-              className={`${inputCls} font-bold`}
-            />
+            {!isPerPerson ? (
+              <div className="relative">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={couples}
+                  onWheel={(e) => e.target.blur()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      update({ numberOfPersons: 2 });
+                    } else {
+                      const c = Math.max(1, parseInt(val, 10) || 1);
+                      update({ numberOfPersons: c * 2 });
+                    }
+                  }}
+                  className={`${inputCls} font-bold pr-20`}
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11.5px] font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md pointer-events-none">
+                  = {couples * 2} Pax
+                </span>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={pax}
+                  onWheel={(e) => e.target.blur()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      update({ numberOfPersons: 1 });
+                    } else {
+                      const p = Math.max(1, parseInt(val, 10) || 1);
+                      update({ numberOfPersons: p });
+                    }
+                  }}
+                  className={`${inputCls} font-bold pr-24`}
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11.5px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md pointer-events-none">
+                  = {roomsRequired} {roomsRequired === 1 ? "Room" : "Rooms"}
+                </span>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Max Persons per Room selector when in Per Person mode */}
+        {isPerPerson && (
+          <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-[12.5px] font-extrabold text-indigo-950 block">
+                Max Allowed Occupancy per Room
+              </span>
+              <span className="text-[11.5px] text-indigo-700 font-medium">
+                {pax} Persons ÷ {maxPerRoom} Max per Room = <strong className="font-black text-indigo-900">{roomsRequired} {roomsRequired === 1 ? "Room allocated" : "Rooms allocated"}</strong>
+              </span>
+            </div>
+            <div className="flex gap-1.5 w-full sm:w-auto">
+              {[
+                { val: 1, label: "1 (Single)" },
+                { val: 2, label: "2 (Double)" },
+                { val: 3, label: "3 (Triple)" },
+                { val: 4, label: "4 (Quad)" },
+              ].map((opt) => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => update({ maxPersonsPerRoom: opt.val })}
+                  className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all ${
+                    maxPerRoom === opt.val
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Calculated Rate Box */}
         <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -420,9 +504,9 @@ export default function PricingPanel({
               <HeartHandshake className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-900">Per Couple Rate (2 Pax)</p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-900">Per Couple Rate ({couples} {couples === 1 ? "Couple" : "Couples"})</p>
               <p className="text-[20px] font-black text-emerald-700 leading-tight">
-                {pricing.currency} {perCouplePrice.toLocaleString()}
+                {pricing.currency} {perCouplePrice.toLocaleString("en-IN")}
                 <span className="text-[12px] font-semibold text-emerald-600"> / couple</span>
               </p>
             </div>
@@ -433,9 +517,9 @@ export default function PricingPanel({
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-indigo-900">Per Person Rate (1 Pax)</p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-indigo-900">Per Person Rate ({pax} Pax)</p>
               <p className="text-[20px] font-black text-indigo-700 leading-tight">
-                {pricing.currency} {perPersonPrice.toLocaleString()}
+                {pricing.currency} {perPersonPrice.toLocaleString("en-IN")}
                 <span className="text-[12px] font-semibold text-indigo-600"> / person</span>
               </p>
             </div>

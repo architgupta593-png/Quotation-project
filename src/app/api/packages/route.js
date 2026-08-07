@@ -33,7 +33,7 @@ export async function GET(request) {
 
     const [packages, total] = await Promise.all([
       Package.find(filter)
-        .select("-itinerary -accommodations") // keep list lean
+        .select("-itinerary -accommodationOptions -instructions") // keep list lean
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

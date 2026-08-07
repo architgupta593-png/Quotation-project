@@ -148,7 +148,7 @@ export default function PackageViewPage() {
                 <HeartHandshake className="w-4 h-4 text-emerald-400" /> Per Couple Rate (2 Pax)
               </p>
               <p className="text-[22px] font-black text-emerald-400">
-                {currency} {perCouplePrice.toLocaleString()}
+                {currency} {perCouplePrice.toLocaleString("en-IN")}
                 <span className="text-[12px] font-semibold text-slate-300"> / couple</span>
               </p>
             </div>
@@ -158,7 +158,7 @@ export default function PackageViewPage() {
                 <Users className="w-4 h-4 text-indigo-400" /> Per Person Rate (1 Pax)
               </p>
               <p className="text-[22px] font-black text-indigo-300">
-                {currency} {perPersonPrice.toLocaleString()}
+                {currency} {perPersonPrice.toLocaleString("en-IN")}
                 <span className="text-[12px] font-semibold text-slate-300"> / person</span>
               </p>
             </div>
@@ -168,7 +168,7 @@ export default function PackageViewPage() {
                 <Sparkles className="w-4 h-4 text-amber-400" /> Grand Total Package Price
               </p>
               <p className="text-[22px] font-black text-amber-300">
-                {currency} {finalPrice.toLocaleString()}
+                {currency} {finalPrice.toLocaleString("en-IN")}
               </p>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function PackageViewPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] font-bold text-slate-400 uppercase">Accommodation Total</p>
-                        <p className="text-[18px] font-black text-indigo-900">₹{optTotal.toLocaleString()}</p>
+                        <p className="text-[18px] font-black text-indigo-900">₹{optTotal.toLocaleString("en-IN")}</p>
                       </div>
                     </div>
 
@@ -399,11 +399,11 @@ export default function PackageViewPage() {
                           {leg.pricePerNight > 0 && (
                             <div className="text-right flex-shrink-0">
                               <p className="text-[14px] font-black text-slate-900">
-                                ₹{leg.pricePerNight.toLocaleString()} <span className="text-[11px] text-slate-400 font-semibold">/ night</span>
+                                ₹{leg.pricePerNight.toLocaleString("en-IN")} <span className="text-[11px] text-slate-400 font-semibold">/ night</span>
                               </p>
                               {leg.nightsCount > 1 && (
                                 <p className="text-[11px] font-bold text-indigo-600">
-                                  Total: ₹{(leg.pricePerNight * leg.nightsCount).toLocaleString()}
+                                  Total: ₹{(leg.pricePerNight * leg.nightsCount).toLocaleString("en-IN")}
                                 </p>
                               )}
                             </div>
@@ -450,7 +450,7 @@ export default function PackageViewPage() {
 
               <div className="text-right flex-shrink-0">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Transport Fleet Total</p>
-                <p className="text-[20px] font-black text-sky-950">₹{(pkg.vehicle.vehiclePrice || 0).toLocaleString()}</p>
+                <p className="text-[20px] font-black text-sky-950">₹{(pkg.vehicle.vehiclePrice || 0).toLocaleString("en-IN")}</p>
               </div>
             </div>
           </div>
@@ -473,7 +473,7 @@ export default function PackageViewPage() {
                   <HeartHandshake className="w-4 h-4" /> Per Couple Rate (2 Pax)
                 </p>
                 <p className="text-[24px] font-black">
-                  {currency} {perCouplePrice.toLocaleString()}
+                  {currency} {perCouplePrice.toLocaleString("en-IN")}
                   <span className="text-[13px] font-semibold text-emerald-100"> / couple</span>
                 </p>
               </div>
@@ -483,7 +483,7 @@ export default function PackageViewPage() {
                   <Users className="w-4 h-4" /> Per Person Rate (1 Pax)
                 </p>
                 <p className="text-[24px] font-black">
-                  {currency} {perPersonPrice.toLocaleString()}
+                  {currency} {perPersonPrice.toLocaleString("en-IN")}
                   <span className="text-[13px] font-semibold text-indigo-100"> / person</span>
                 </p>
               </div>
@@ -550,24 +550,41 @@ export default function PackageViewPage() {
                   )}
 
                   {block.format === "paragraph" ? (
-                    <p className="text-[13.5px] text-slate-700 leading-relaxed font-medium whitespace-pre-line">
+                    <div className="text-[13.5px] text-slate-700 leading-relaxed font-medium whitespace-pre-line bg-white p-4 rounded-2xl border border-slate-200/80 font-mono">
                       {block.content}
-                    </p>
+                    </div>
                   ) : block.format === "numbered" ? (
                     <ol className="list-decimal list-inside space-y-2 text-[13.5px] font-bold text-slate-800">
-                      {(block.items || []).map((item, i) => (
-                        <li key={i} className="pl-1">
-                          {item}
-                        </li>
-                      ))}
+                      {(block.items || []).map((item, i) => {
+                        const isIndented = item.startsWith("   ");
+                        return (
+                          <li key={i} className={`pl-1 ${isIndented ? "ml-6 text-purple-900 font-medium" : ""}`}>
+                            {item.trim()}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  ) : block.format === "alphabetic" ? (
+                    <ol className="list-[lower-alpha] list-inside space-y-2 text-[13.5px] font-bold text-slate-800">
+                      {(block.items || []).map((item, i) => {
+                        const isIndented = item.startsWith("   ");
+                        return (
+                          <li key={i} className={`pl-1 ${isIndented ? "ml-6 text-purple-900 font-medium" : ""}`}>
+                            {item.trim()}
+                          </li>
+                        );
+                      })}
                     </ol>
                   ) : (
                     <ul className="list-disc list-inside space-y-2 text-[13.5px] font-bold text-slate-800">
-                      {(block.items || []).map((item, i) => (
-                        <li key={i} className="pl-1">
-                          {item}
-                        </li>
-                      ))}
+                      {(block.items || []).map((item, i) => {
+                        const isIndented = item.startsWith("   ");
+                        return (
+                          <li key={i} className={`pl-1 ${isIndented ? "ml-6 text-purple-900 font-medium" : ""}`}>
+                            {item.trim()}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

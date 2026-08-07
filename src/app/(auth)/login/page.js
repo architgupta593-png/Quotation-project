@@ -177,6 +177,7 @@ export default function LoginPage() {
               id="login-submit"
               type="submit"
               disabled={isLoading}
+              suppressHydrationWarning
               className={cn(
                 "w-full h-10 rounded-xl text-[14px] font-medium text-white",
                 "flex items-center justify-center gap-2 transition-colors mt-1",

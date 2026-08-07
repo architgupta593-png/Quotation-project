@@ -26,7 +26,7 @@ const VehicleSchema = new mongoose.Schema(
     vehicleType: {
       type: String,
       enum: ["Sedan", "SUV", "MUV", "Tempo Traveller", "Mini Bus", "Bus", "Other"],
-      default: "SUV",
+      default: "Sedan",
     },
     model:        { type: String, trim: true, default: "" },
     acType:       { type: String, enum: ["AC", "Non-AC"], default: "AC" },

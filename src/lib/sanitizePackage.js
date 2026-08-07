@@ -70,7 +70,7 @@ export function sanitizePackagePayload(body) {
   const VALID_VEHICLES = ["Sedan", "SUV", "MUV", "Tempo Traveller", "Mini Bus", "Bus", "Other"];
   const vehicle = sanitized.vehicle || {};
   sanitized.vehicle = {
-    vehicleType: VALID_VEHICLES.includes(vehicle.vehicleType) ? vehicle.vehicleType : "SUV",
+    vehicleType: VALID_VEHICLES.includes(vehicle.vehicleType) ? vehicle.vehicleType : "Sedan",
     model: (vehicle.model || "").trim(),
     seats: Math.max(1, parseInt(vehicle.seats, 10) || 4),
     acType: ["AC", "Non-AC"].includes(vehicle.acType) ? vehicle.acType : "AC",
@@ -87,9 +87,14 @@ export function sanitizePackagePayload(body) {
     subtotal: Math.max(0, parseFloat(pricing.subtotal) || 0),
     marginType: ["absolute", "percentage"].includes(pricing.marginType) ? pricing.marginType : "absolute",
     margin: Math.max(0, parseFloat(pricing.margin) || 0),
+    includeGst: Boolean(pricing.includeGst),
+    gstPercentage: Math.max(0, parseFloat(pricing.gstPercentage) || 5),
+    rateBasis: ["per_couple", "per_person"].includes(pricing.rateBasis) ? pricing.rateBasis : "per_couple",
     finalPrice: Math.max(0, parseFloat(pricing.finalPrice) || 0),
     perPersonPrice: Math.max(0, parseFloat(pricing.perPersonPrice) || 0),
-    numberOfPersons: Math.max(1, parseInt(pricing.numberOfPersons, 10) || 1),
+    perCouplePrice: Math.max(0, parseFloat(pricing.perCouplePrice) || 0),
+    numberOfPersons: Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2),
+    maxPersonsPerRoom: Math.max(1, Math.min(6, parseInt(pricing.maxPersonsPerRoom, 10) || 2)),
     currency: (pricing.currency || "INR").trim(),
     includes: Array.isArray(pricing.includes) ? pricing.includes.filter(Boolean) : [],
     excludes: Array.isArray(pricing.excludes) ? pricing.excludes.filter(Boolean) : [],
@@ -99,7 +104,7 @@ export function sanitizePackagePayload(body) {
   if (Array.isArray(sanitized.instructions)) {
     sanitized.instructions = sanitized.instructions.map((block) => ({
       heading: (block.heading || "").trim(),
-      format: ["bullet", "numbered", "paragraph"].includes(block.format) ? block.format : "bullet",
+      format: ["bullet", "numbered", "alphabetic", "paragraph"].includes(block.format) ? block.format : "bullet",
       items: Array.isArray(block.items) ? block.items.filter(Boolean) : [],
       content: (block.content || "").trim(),
     }));

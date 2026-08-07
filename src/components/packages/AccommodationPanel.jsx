@@ -358,7 +358,7 @@ export default function AccommodationPanel({
                     isActive ? "bg-white/20 text-white" : "bg-white text-slate-800 shadow-xs"
                   }`}
                 >
-                  ₹{optTotal.toLocaleString()}
+                  ₹{optTotal.toLocaleString("en-IN")}
                 </span>
 
                 {accommodationOptions.length > 1 && (
@@ -535,7 +535,7 @@ export default function AccommodationPanel({
                   <div className="flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50">
                     <span className="text-[14px] text-slate-500 font-bold">₹</span>
                     <span className={`text-[16px] font-black ${primaryNight.pricePerNight > 0 ? "text-emerald-700" : "text-slate-400"}`}>
-                      {primaryNight.pricePerNight > 0 ? primaryNight.pricePerNight.toLocaleString() : "—"}
+                      {primaryNight.pricePerNight > 0 ? primaryNight.pricePerNight.toLocaleString("en-IN") : "—"}
                     </span>
                     <span className="text-[11px] text-slate-400 ml-auto font-medium">/ night</span>
                   </div>
@@ -563,9 +563,9 @@ export default function AccommodationPanel({
                     Total for this {leg.nightsCount}-Night Stay in {leg.cityName}:
                   </span>
                   <span className="text-[15px] font-black text-indigo-900">
-                    ₹{legTotalCost.toLocaleString()}{" "}
+                    ₹{legTotalCost.toLocaleString("en-IN")}{" "}
                     <span className="text-[11.5px] font-semibold text-indigo-600">
-                      (₹{primaryNight.pricePerNight?.toLocaleString() || 0} × {leg.nightsCount} nights)
+                      (₹{primaryNight.pricePerNight?.toLocaleString("en-IN") || 0} × {leg.nightsCount} nights)
                     </span>
                   </span>
                 </div>
@@ -581,7 +581,7 @@ export default function AccommodationPanel({
           Total for {currentOption?.label || "Option"} ({optionNights.length} Nights Total)
         </span>
         <span className="text-[22px] font-black text-white">
-          ₹{optionTotal.toLocaleString()}
+          ₹{optionTotal.toLocaleString("en-IN")}
         </span>
       </div>
     </div>

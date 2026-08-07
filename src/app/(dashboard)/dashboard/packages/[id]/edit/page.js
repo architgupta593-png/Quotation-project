@@ -54,7 +54,7 @@ export default function EditPackagePage() {
             coverImage: p.coverImage || null,
             itinerary: p.itinerary || [],
             accommodationOptions: p.accommodationOptions || [],
-            vehicle: p.vehicle || { vehicleType: "SUV", model: "", seats: 6, acType: "AC", vehiclePrice: 0, notes: "" },
+            vehicle: p.vehicle || { vehicleType: "Sedan", model: "", seats: 4, acType: "AC", vehiclePrice: 0, notes: "" },
             pricing: p.pricing || {
               selectedOptionIndex: 0,
               accommodationTotal: 0,
@@ -94,8 +94,13 @@ export default function EditPackagePage() {
   // ── Destination helpers ──
   function addDestination() {
     if (!form) return;
+    const updated = [...form.destinations, { cityId: "", cityName: "", state: "", nights: 1 }];
+    const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
-      destinations: [...form.destinations, { cityId: "", cityName: "", state: "", nights: 1 }],
+      destinations: updated,
+      nights: totalNights,
+      days: totalDays,
     });
   }
 
@@ -103,10 +108,11 @@ export default function EditPackagePage() {
     if (!form) return;
     const updated = form.destinations.map((d, i) => (i === idx ? { ...d, ...patch } : d));
     const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights,
+      days: totalDays,
     });
   }
 
@@ -114,10 +120,11 @@ export default function EditPackagePage() {
     if (!form) return;
     const updated = form.destinations.filter((_, i) => i !== idx);
     const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights,
+      days: totalDays,
       accommodationOptions: [],
     });
   }
@@ -169,7 +176,12 @@ export default function EditPackagePage() {
   const accommodationTotal = useMemo(() => {
     if (!form) return 0;
     const opt = (form.accommodationOptions || [])[selectedOptIdx];
-    return opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
+    const baseAccom = opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
+    const pax = Math.max(1, parseInt(form?.pricing?.numberOfPersons, 10) || 1);
+    const maxPerRoom = Math.max(1, parseInt(form?.pricing?.maxPersonsPerRoom, 10) || 2);
+    const isPerPerson = form?.pricing?.rateBasis === "per_person";
+    const roomsRequired = isPerPerson ? Math.max(1, Math.ceil(pax / maxPerRoom)) : Math.max(1, Math.ceil(pax / 2));
+    return baseAccom * roomsRequired;
   }, [form, selectedOptIdx]);
 
   const vehicleTotal = useMemo(() => form?.vehicle?.vehiclePrice || 0, [form?.vehicle]);
@@ -246,7 +258,7 @@ export default function EditPackagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24">
+    <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24" suppressHydrationWarning>
       {/* ── Luxury Gradient Navbar ── */}
       <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-lg shadow-slate-900/20">
         <div className="flex items-center gap-4">
@@ -679,14 +691,14 @@ export default function EditPackagePage() {
                     <div>
                       <p className="text-[11px] text-slate-400 font-bold uppercase">Final Per Person Rate</p>
                       <p className="text-[22px] font-black text-emerald-400">
-                        ₹{(form.pricing?.perPersonPrice || 0).toLocaleString()}
+                        ₹{(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")}
                         <span className="text-[12px] text-slate-300 font-semibold"> / pax</span>
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[11px] text-slate-400 font-bold uppercase">Grand Total</p>
                       <p className="text-[17px] font-extrabold text-white">
-                        ₹{(form.pricing?.finalPrice || 0).toLocaleString()}
+                        ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
                       </p>
                     </div>
                   </div>
@@ -772,15 +784,15 @@ export default function EditPackagePage() {
               <div className="space-y-3 pt-3 border-t border-slate-800 text-[13px]">
                 <div className="flex justify-between text-slate-300">
                   <span>Accommodation ({form.accommodationOptions?.length || 0} Tiers)</span>
-                  <span className="font-bold text-white">₹{accommodationTotal.toLocaleString()}</span>
+                  <span className="font-bold text-white">₹{accommodationTotal.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Transport ({form.vehicle?.vehicleType || "Vehicle"})</span>
-                  <span className="font-bold text-white">₹{vehicleTotal.toLocaleString()}</span>
+                  <span className="font-bold text-white">₹{vehicleTotal.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-slate-300 font-bold pt-2 border-t border-slate-800/80">
                   <span>Base Cost Subtotal</span>
-                  <span className="text-indigo-300">₹{(accommodationTotal + vehicleTotal).toLocaleString()}</span>
+                  <span className="text-indigo-300">₹{(accommodationTotal + vehicleTotal).toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Configured Margin ({form.pricing?.marginType === "percentage" ? `${form.pricing?.margin || 0}%` : "₹"})</span>
@@ -788,7 +800,7 @@ export default function EditPackagePage() {
                     ₹{(form.pricing?.marginType === "percentage"
                       ? ((accommodationTotal + vehicleTotal) * (form.pricing?.margin || 0)) / 100
                       : form.pricing?.margin || 0
-                    ).toLocaleString()}
+                    ).toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
@@ -797,10 +809,10 @@ export default function EditPackagePage() {
               <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950 to-purple-950 border border-indigo-500/30 space-y-1">
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Calculated Per Person</p>
                 <p className="text-[24px] font-black text-emerald-400 leading-tight">
-                  ₹{(form.pricing?.perPersonPrice || 0).toLocaleString()}
+                  ₹{(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")}
                   <span className="text-[12px] text-slate-300 font-medium"> / pax</span>
                 </p>
-                <p className="text-[11px] text-slate-400">Total: ₹{(form.pricing?.finalPrice || 0).toLocaleString()}</p>
+                <p className="text-[11px] text-slate-400">Total: ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}</p>
               </div>
 
               {/* Step indicator status */}

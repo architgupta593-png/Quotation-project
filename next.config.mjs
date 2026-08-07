@@ -22,17 +22,24 @@ const nextConfig = {
 
   // ── Headers: cache immutable chunks, keep API alive ─────────────────────
   async headers() {
+    const isProduction = process.env.NODE_ENV === "production";
     return [
       // Immutable cache for hashed static chunks (JS, CSS, fonts)
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
+      // Only applied in production — Next.js dev mode manages its own
+      // caching for static files and warns when this header is overridden.
+      ...(isProduction
+        ? [
+            {
+              source: "/_next/static/:path*",
+              headers: [
+                {
+                  key: "Cache-Control",
+                  value: "public, max-age=31536000, immutable",
+                },
+              ],
+            },
+          ]
+        : []),
       // Keep API connections alive on slow shared hosting
       {
         source: "/api/:path*",

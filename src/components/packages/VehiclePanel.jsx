@@ -13,10 +13,10 @@ const VEHICLE_TYPES = [
 ];
 
 const PRESET_INCLUSIONS = [
-  "Fuel Included",
-  "Driver Allowance Included",
-  "Tolls & Parking Included",
-  "Permit Taxes Included",
+  "Fuel Included, ",
+  "Driver Allowance Included, ",
+  "Tolls & Parking Included, ",
+  "Permit Taxes Included, ",
 ];
 
 /**
@@ -25,13 +25,12 @@ const PRESET_INCLUSIONS = [
 export default function VehiclePanel({ vehicle: propVehicle, value = {}, onChange }) {
   const inputVehicle = propVehicle || value || {};
   const vehicle = {
-    vehicleType: "SUV",
-    model: "",
-    seats: 6,
-    acType: "AC",
-    vehiclePrice: 0,
-    notes: "",
-    ...inputVehicle,
+    vehicleType: inputVehicle.vehicleType || "Sedan",
+    model: inputVehicle.model || "",
+    seats: inputVehicle.seats || 4,
+    acType: inputVehicle.acType || "AC",
+    vehiclePrice: inputVehicle.vehiclePrice || 0,
+    notes: inputVehicle.notes || "",
   };
 
   function update(patch) {
@@ -41,7 +40,7 @@ export default function VehiclePanel({ vehicle: propVehicle, value = {}, onChang
   function handleTypeSelect(opt) {
     update({
       vehicleType: opt.type,
-      seats: vehicle.seats || opt.defaultSeats,
+      seats: opt.defaultSeats,
     });
   }
 

@@ -33,7 +33,7 @@ const DEFAULT_FORM = {
   coverImage: null,
   itinerary: [],
   accommodationOptions: [],
-  vehicle: { vehicleType: "SUV", model: "", seats: 6, acType: "AC", vehiclePrice: 0, notes: "" },
+  vehicle: { vehicleType: "Sedan", model: "", seats: 4, acType: "AC", vehiclePrice: 0, notes: "" },
   pricing: {
     selectedOptionIndex: 0,
     accommodationTotal: 0,
@@ -51,6 +51,8 @@ const DEFAULT_FORM = {
   instructions: [],
   status: "draft",
 };
+
+export const dynamic = "force-dynamic";
 
 export default function NewPackagePage() {
   const router = useRouter();
@@ -77,28 +79,35 @@ export default function NewPackagePage() {
 
   // ── Destination helpers ──
   function addDestination() {
+    const updated = [...form.destinations, { cityId: "", cityName: "", state: "", nights: 1 }];
+    const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
-      destinations: [...form.destinations, { cityId: "", cityName: "", state: "", nights: 1 }],
+      destinations: updated,
+      nights: totalNights,
+      days: totalDays,
     });
   }
 
   function updateDestination(idx, patch) {
     const updated = form.destinations.map((d, i) => (i === idx ? { ...d, ...patch } : d));
     const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights,
+      days: totalDays,
     });
   }
 
   function removeDestination(idx) {
     const updated = form.destinations.filter((_, i) => i !== idx);
     const totalNights = updated.reduce((s, d) => s + (d.nights || 0), 0);
+    const totalDays = totalNights > 0 ? totalNights + 1 : 1;
     updateForm({
       destinations: updated,
       nights: totalNights,
-      days: totalNights,
+      days: totalDays,
       accommodationOptions: [],
     });
   }
@@ -147,8 +156,13 @@ export default function NewPackagePage() {
   const selectedOptIdx = form.pricing?.selectedOptionIndex || 0;
   const accommodationTotal = useMemo(() => {
     const opt = (form.accommodationOptions || [])[selectedOptIdx];
-    return opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
-  }, [form.accommodationOptions, selectedOptIdx]);
+    const baseAccom = opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
+    const pax = Math.max(1, parseInt(form.pricing?.numberOfPersons, 10) || 1);
+    const maxPerRoom = Math.max(1, parseInt(form.pricing?.maxPersonsPerRoom, 10) || 2);
+    const isPerPerson = form.pricing?.rateBasis === "per_person";
+    const roomsRequired = isPerPerson ? Math.max(1, Math.ceil(pax / maxPerRoom)) : Math.max(1, Math.ceil(pax / 2));
+    return baseAccom * roomsRequired;
+  }, [form.accommodationOptions, selectedOptIdx, form.pricing?.numberOfPersons, form.pricing?.maxPersonsPerRoom, form.pricing?.rateBasis]);
 
   const vehicleTotal = useMemo(() => form.vehicle?.vehiclePrice || 0, [form.vehicle]);
 
@@ -199,7 +213,7 @@ export default function NewPackagePage() {
     "w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-[13.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition-all shadow-xs";
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24">
+    <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24" suppressHydrationWarning>
       {/* ── Luxury Gradient Navbar ── */}
       <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-lg shadow-slate-900/20">
         <div className="flex items-center gap-4">
@@ -595,13 +609,13 @@ export default function NewPackagePage() {
                       label={`  └ ${opt.label}`}
                       value={`₹${(opt.nights || [])
                         .reduce((s, n) => s + (n.pricePerNight || 0), 0)
-                        .toLocaleString()}`}
+                        .toLocaleString("en-IN")}`}
                       highlight={i === selectedOptIdx}
                     />
                   ))}
                   <ReviewRow
                     label="Vehicle"
-                    value={`${form.vehicle?.vehicleType || "—"} — ₹${vehicleTotal.toLocaleString()}`}
+                    value={`${form.vehicle?.vehicleType || "—"} — ₹${vehicleTotal.toLocaleString("en-IN")}`}
                     highlight
                   />
                   <ReviewRow
@@ -609,17 +623,17 @@ export default function NewPackagePage() {
                     value={
                       form.pricing?.marginType === "percentage"
                         ? `${form.pricing?.margin || 0}%`
-                        : `₹${(form.pricing?.margin || 0).toLocaleString()}`
+                        : `₹${(form.pricing?.margin || 0).toLocaleString("en-IN")}`
                     }
                   />
                   <ReviewRow
                     label="Final Package Price"
-                    value={`₹${Math.round(form.pricing?.finalPrice || 0).toLocaleString()}`}
+                    value={`₹${Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}`}
                     highlight
                   />
                   <ReviewRow
                     label="Price Per Person"
-                    value={`₹${Math.round(form.pricing?.perPersonPrice || 0).toLocaleString()} (${
+                    value={`₹${Math.round(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")} (${
                       form.pricing?.numberOfPersons || 1
                     } pax)`}
                     highlight
@@ -741,10 +755,10 @@ export default function NewPackagePage() {
                           }`}
                         >
                           <span className="flex items-center gap-1.5">
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                             {opt.label}
                           </span>
-                          <span className="font-black">₹{optTotal.toLocaleString()}</span>
+                          <span className="font-black">₹{optTotal.toLocaleString("en-IN")}</span>
                         </div>
                       );
                     })}
@@ -755,26 +769,26 @@ export default function NewPackagePage() {
                 <div className="p-3.5 rounded-2xl bg-sky-50/80 border border-sky-200 flex items-center justify-between text-[13px]">
                   <div className="flex items-center gap-2 font-extrabold text-sky-900">
                     <Car className="w-4.5 h-4.5 text-sky-600" />
-                    <span>{form.vehicle?.vehicleType || "SUV"}</span>
-                    <span className="text-[11px] text-sky-600 font-bold">({form.vehicle?.seats || 4} Seats)</span>
+                    <span suppressHydrationWarning>{form.vehicle?.vehicleType || "Sedan"}</span>
+                    <span suppressHydrationWarning className="text-[11px] text-sky-600 font-bold">({form.vehicle?.seats || 4} Seats)</span>
                   </div>
-                  <span className="font-black text-sky-900">₹{vehicleTotal.toLocaleString()}</span>
+                  <span className="font-black text-sky-900">₹{vehicleTotal.toLocaleString("en-IN")}</span>
                 </div>
 
                 {/* Calculated Price Banner */}
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 space-y-1">
                   <div className="flex items-center justify-between text-[12px] text-emerald-100 font-bold">
                     <span>Calculated Per Couple</span>
-                    <span>({form.pricing?.numberOfPersons || 1} Pax)</span>
+                    <span suppressHydrationWarning>({form.pricing?.numberOfPersons || 1} Pax)</span>
                   </div>
                   <div className="text-[24px] font-black tracking-tight">
-                    ₹{Math.round(form.pricing?.perPersonPrice || 0).toLocaleString()}
+                    ₹{Math.round(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")}
                     <span className="text-[13px] font-bold text-emerald-100"> / pax</span>
                   </div>
                   <div className="text-[11.5px] text-emerald-100 pt-1.5 border-t border-emerald-400/30 flex justify-between font-semibold">
                     <span>Grand Total Package Price:</span>
                     <span className="font-black text-white">
-                      ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString()}
+                      ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
