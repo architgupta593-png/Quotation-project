@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LogOut, Package, Plus, Hotel, Route, Users, FileText } from "lucide-react";
+import { LogOut, Package, Plus, Hotel, Route, Users, FileText, MapPin } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -75,6 +75,17 @@ export default async function DashboardPage() {
       bg: "bg-emerald-50",
       border: "border-emerald-100",
       textColor: "text-emerald-600",
+    });
+
+    quickLinks.push({
+      href: "/dashboard/activities",
+      icon: MapPin,
+      title: "Activities",
+      description: "Manage city-based activities and experiences for packages.",
+      color: "bg-rose-500",
+      bg: "bg-rose-50",
+      border: "border-rose-100",
+      textColor: "text-rose-600",
     });
   }
 

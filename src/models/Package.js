@@ -21,7 +21,7 @@ const ItineraryDaySchema = new mongoose.Schema(
       maxlength: 150,
     },
     description: { type: String, trim: true, default: "" },
-    activities: [{ type: String, trim: true }],
+    activities: [mongoose.Schema.Types.Mixed],
     meals: {
       breakfast: { type: Boolean, default: false },
       lunch: { type: Boolean, default: false },
@@ -71,6 +71,8 @@ const AccommodationOptionSchema = new mongoose.Schema(
     label: { type: String, trim: true, default: "Option 1" },
     nights: { type: [AccommodationNightSchema], default: [] },
     totalPrice: { type: Number, min: 0, default: 0 },
+    marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
+    margin: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -96,6 +98,7 @@ const PricingSchema = new mongoose.Schema(
     selectedOptionIndex: { type: Number, default: 0 },
     accommodationTotal: { type: Number, min: 0, default: 0 },
     vehicleTotal: { type: Number, min: 0, default: 0 },
+    activitiesTotal: { type: Number, min: 0, default: 0 },
     subtotal: { type: Number, min: 0, default: 0 },
     marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
     margin: { type: Number, default: 0 },
@@ -117,6 +120,7 @@ const PricingSchema = new mongoose.Schema(
 const InstructionBlockSchema = new mongoose.Schema(
   {
     heading: { type: String, trim: true, default: "" },
+    title: { type: String, trim: true, default: "" },
     format: {
       type: String,
       enum: ["bullet", "numbered", "alphabetic", "paragraph"],
@@ -124,6 +128,23 @@ const InstructionBlockSchema = new mongoose.Schema(
     },
     items: [{ type: String, trim: true }],
     content: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+// ── Activity selected for the package (per city) ─────────────────────────────
+const PackageActivitySchema = new mongoose.Schema(
+  {
+    cityId:     { type: mongoose.Schema.Types.ObjectId, ref: "City",     default: null },
+    cityName:   { type: String, trim: true, default: "" },
+    activityId: { type: mongoose.Schema.Types.ObjectId, ref: "Activity", default: null },
+    name:       { type: String, trim: true, default: "" },
+    price:      { type: Number, min: 0,     default: 0  },
+    category:   {
+      type:    String,
+      enum:    ["sightseeing", "adventure", "cultural", "leisure", ""],
+      default: "",
+    },
   },
   { _id: false }
 );
@@ -178,6 +199,11 @@ const PackageSchema = new mongoose.Schema(
     },
     instructions: {
       type: [InstructionBlockSchema],
+      default: [],
+    },
+    // Activities selected for this package (per city)
+    activities: {
+      type:    [PackageActivitySchema],
       default: [],
     },
     status: {

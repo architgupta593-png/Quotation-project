@@ -541,13 +541,15 @@ export default function PackageViewPage() {
             </div>
 
             <div className="space-y-6">
-              {pkg.instructions.map((block, idx) => (
-                <div key={idx} className="p-5 rounded-2xl bg-slate-50/60 border border-slate-200/80 space-y-3">
-                  {block.heading && (
-                    <h3 className="text-[15px] font-black text-slate-900 border-b border-slate-200/80 pb-2">
-                      {block.heading}
-                    </h3>
-                  )}
+              {pkg.instructions.map((block, idx) => {
+                const titleText = block.heading || block.title;
+                return (
+                  <div key={idx} className="p-5 rounded-2xl bg-slate-50/60 border border-slate-200/80 space-y-3">
+                    {titleText && (
+                      <h3 className="text-[15px] font-black text-slate-900 border-b border-slate-200/80 pb-2">
+                        {titleText}
+                      </h3>
+                    )}
 
                   {block.format === "paragraph" ? (
                     <div className="text-[13.5px] text-slate-700 leading-relaxed font-medium whitespace-pre-line bg-white p-4 rounded-2xl border border-slate-200/80 font-mono">
@@ -588,9 +590,10 @@ export default function PackageViewPage() {
                     </ul>
                   )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
+        </div>
         )}
       </div>
     </div>

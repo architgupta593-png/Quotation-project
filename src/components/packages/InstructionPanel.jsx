@@ -61,6 +61,7 @@ const PRESET_TEMPLATES = [
 export default function InstructionPanel({ instructions: propInstructions, value = [], onChange }) {
   const [newItemTexts, setNewItemTexts] = useState({});
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [openFormatPopoverIdx, setOpenFormatPopoverIdx] = useState(null);
   const [targetBlockIndex, setTargetBlockIndex] = useState(null);
   const [rawPastedText, setRawPastedText] = useState("");
   const [bulkHeading, setBulkHeading] = useState("Terms & Conditions");
@@ -90,6 +91,7 @@ export default function InstructionPanel({ instructions: propInstructions, value
       heading || (format === "paragraph" ? "General Information" : "Travel Instructions");
     const newBlock = {
       heading: defaultHeading,
+      title: defaultHeading,
       format,
       items: format === "paragraph" ? [] : ["Sample instruction item"],
       content: format === "paragraph" ? "Enter your detailed instruction paragraph here." : "",
@@ -98,7 +100,16 @@ export default function InstructionPanel({ instructions: propInstructions, value
   }
 
   function updateBlock(index, patch) {
-    const updated = instructions.map((blk, i) => (i === index ? { ...blk, ...patch } : blk));
+    const updated = instructions.map((blk, i) => {
+      if (i !== index) return blk;
+      const merged = { ...blk, ...patch };
+      if (patch.heading !== undefined || patch.title !== undefined) {
+        const text = patch.heading !== undefined ? patch.heading : patch.title;
+        merged.heading = text;
+        merged.title = text;
+      }
+      return merged;
+    });
     updateBlocks(updated);
   }
 
@@ -382,8 +393,8 @@ export default function InstructionPanel({ instructions: propInstructions, value
                   </span>
                   <input
                     type="text"
-                    value={block.heading}
-                    onChange={(e) => updateBlock(blkIdx, { heading: e.target.value })}
+                    value={block.heading || block.title || ""}
+                    onChange={(e) => updateBlock(blkIdx, { heading: e.target.value, title: e.target.value })}
                     placeholder="Section Title (e.g. Important Advisory & Guidelines)"
                     className="flex-1 text-[15px] font-extrabold text-slate-900 placeholder:text-slate-300 bg-transparent border-b border-transparent focus:border-purple-600 focus:outline-none px-1 py-1 transition-all"
                   />
@@ -398,29 +409,70 @@ export default function InstructionPanel({ instructions: propInstructions, value
                     <Clipboard className="w-3.5 h-3.5 text-purple-600" /> Paste Raw
                   </button>
 
-                  {/* Format Selector Pills */}
-                  <div className="flex items-center bg-slate-100 p-1 rounded-2xl gap-1">
-                    {FORMAT_OPTIONS.map((opt) => {
-                      const Icon = opt.icon;
-                      const isSelected = block.format === opt.value;
-                      return (
+                  {/* Format Selector Popover Component */}
+                  {(() => {
+                    const currentOpt = FORMAT_OPTIONS.find((o) => o.value === block.format) || FORMAT_OPTIONS[0];
+                    const CurrentIcon = currentOpt.icon;
+                    const isOpen = openFormatPopoverIdx === blkIdx;
+
+                    return (
+                      <div className="relative">
                         <button
-                          key={opt.value}
                           type="button"
-                          onClick={() => updateBlock(blkIdx, { format: opt.value })}
-                          title={opt.label}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11.5px] font-extrabold transition-all ${
-                            isSelected
-                              ? "bg-slate-900 text-white shadow-xs"
-                              : "text-slate-500 hover:text-slate-900"
-                          }`}
+                          onClick={() => setOpenFormatPopoverIdx(isOpen ? null : blkIdx)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 text-[12px] font-extrabold hover:bg-slate-50 transition-all shadow-2xs"
                         >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span className="hidden md:inline">{opt.label.split(" ")[0]}</span>
+                          <CurrentIcon className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{currentOpt.label}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                         </button>
-                      );
-                    })}
-                  </div>
+
+                        {/* Floating Popover Menu */}
+                        {isOpen && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setOpenFormatPopoverIdx(null)}
+                            />
+
+                            <div className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                              <div className="px-3 py-1.5 border-b border-slate-100 mb-1">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                  Format Style
+                                </p>
+                              </div>
+
+                              {FORMAT_OPTIONS.map((opt) => {
+                                const Icon = opt.icon;
+                                const isSelected = block.format === opt.value;
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => {
+                                      updateBlock(blkIdx, { format: opt.value });
+                                      setOpenFormatPopoverIdx(null);
+                                    }}
+                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[12px] font-bold text-left transition-all ${
+                                      isSelected
+                                        ? "bg-purple-50 text-purple-900 border border-purple-200/80 font-black shadow-2xs"
+                                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <Icon className={`w-4 h-4 ${isSelected ? "text-purple-600" : "text-slate-400"}`} />
+                                      <span>{opt.label}</span>
+                                    </div>
+                                    {isSelected && <Check className="w-3.5 h-3.5 text-purple-600 stroke-[3]" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Reorder & Action controls */}
                   <div className="flex items-center gap-1 pl-1 border-l border-slate-200">

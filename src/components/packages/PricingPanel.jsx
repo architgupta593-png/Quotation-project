@@ -15,19 +15,33 @@ export default function PricingPanel({
   pricing: propPricing,
   value = {},
   onChange,
+  onAccommodationOptionsChange,
   accommodationOptions = [],
   vehicleTotal = 0,
   vehiclePrice = 0,
+  activitiesTotal = 0,
+  activityTotal = 0,
 }) {
   const inputPricing = propPricing || value || {};
   const vTotal = vehicleTotal || vehiclePrice || 0;
+  const actTotal = activitiesTotal || activityTotal || inputPricing.activitiesTotal || inputPricing.activityTotal || 0;
+
+  const selectedIdx = Math.min(
+    inputPricing.selectedOptionIndex || 0,
+    Math.max(0, accommodationOptions.length - 1)
+  );
+
+  const selectedOption = accommodationOptions[selectedIdx];
+  const activeMarginType = selectedOption?.marginType || "absolute";
+  const activeMargin = selectedOption?.margin ?? 0;
+
   const pricing = {
-    selectedOptionIndex: 0,
+    selectedOptionIndex: selectedIdx,
     accommodationTotal: 0,
     vehicleTotal: vTotal,
     subtotal: 0,
-    marginType: "absolute",
-    margin: 0,
+    marginType: activeMarginType,
+    margin: activeMargin,
     includeGst: false,
     gstPercentage: 5,
     rateBasis: "per_couple", // "per_couple" (default) or "per_person"
@@ -39,87 +53,103 @@ export default function PricingPanel({
     includes: [],
     excludes: [],
     ...inputPricing,
+    marginType: activeMarginType,
+    margin: activeMargin,
   };
 
   const [newInclude, setNewInclude] = useState("");
   const [newExclude, setNewExclude] = useState("");
 
-  const pax = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 1);
-  const maxPerRoom = Math.max(1, parseInt(pricing.maxPersonsPerRoom, 10) || 2);
-  const isPerPerson = pricing.rateBasis === "per_person";
-
-  // Calculate required rooms based on max persons per room:
-  // e.g. 5 persons with max 2 per room = Math.ceil(5 / 2) = 3 rooms.
-  const roomsRequired = isPerPerson
-    ? Math.max(1, Math.ceil(pax / maxPerRoom))
-    : Math.max(1, Math.ceil(pax / 2));
-
-  const couples = isPerPerson ? roomsRequired : Math.max(1, Math.ceil(pax / 2));
-
-  const selectedIdx = Math.min(
-    pricing.selectedOptionIndex || 0,
-    Math.max(0, accommodationOptions.length - 1)
-  );
-
-  const selectedOption = accommodationOptions[selectedIdx];
   const baseAccomTotal = selectedOption
     ? (selectedOption.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0)
     : 0;
 
-  const effectiveAccomTotal = baseAccomTotal * roomsRequired;
-
-  const subtotal = effectiveAccomTotal + vTotal;
+  const subtotal = baseAccomTotal + vTotal + actTotal;
   let marginAmount = 0;
-  if (pricing.marginType === "absolute") {
-    marginAmount = pricing.margin || 0;
+  if (activeMarginType === "absolute") {
+    marginAmount = activeMargin;
   } else {
-    marginAmount = subtotal * ((pricing.margin || 0) / 100);
+    marginAmount = subtotal * (activeMargin / 100);
   }
 
   const preTaxTotal = subtotal + marginAmount;
   const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
   const finalPrice = Math.round(preTaxTotal + gstAmount);
 
-  const perPersonPrice = Math.round(finalPrice / pax);
-  const perCouplePrice = Math.round(finalPrice / roomsRequired);
-
   useEffect(() => {
     if (
-      pricing.accommodationTotal !== effectiveAccomTotal ||
+      pricing.accommodationTotal !== baseAccomTotal ||
       pricing.vehicleTotal !== vTotal ||
+      pricing.activitiesTotal !== actTotal ||
       pricing.subtotal !== subtotal ||
       pricing.finalPrice !== finalPrice ||
-      pricing.perPersonPrice !== perPersonPrice ||
-      pricing.perCouplePrice !== perCouplePrice ||
-      pricing.selectedOptionIndex !== selectedIdx
+      pricing.selectedOptionIndex !== selectedIdx ||
+      pricing.marginType !== activeMarginType ||
+      pricing.margin !== activeMargin
     ) {
       onChange({
         ...pricing,
         selectedOptionIndex: selectedIdx,
-        accommodationTotal: effectiveAccomTotal,
+        accommodationTotal: baseAccomTotal,
         vehicleTotal: vTotal,
+        activitiesTotal: actTotal,
+        activityTotal: actTotal,
         subtotal,
+        marginType: activeMarginType,
+        margin: activeMargin,
         finalPrice,
-        perPersonPrice,
-        perCouplePrice,
+        perPersonPrice: finalPrice,
+        perCouplePrice: finalPrice,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    effectiveAccomTotal,
+    baseAccomTotal,
     vTotal,
-    pricing.margin,
-    pricing.marginType,
+    actTotal,
+    subtotal,
+    activeMargin,
+    activeMarginType,
     pricing.includeGst,
     pricing.gstPercentage,
-    pricing.numberOfPersons,
-    pricing.maxPersonsPerRoom,
-    pricing.rateBasis,
     selectedIdx,
   ]);
 
   function update(patch) {
     onChange({ ...pricing, ...patch });
+  }
+
+  function updateMargin(patch) {
+    const newMarginType = patch.marginType !== undefined ? patch.marginType : activeMarginType;
+    const newMargin = patch.margin !== undefined ? patch.margin : activeMargin;
+
+    if (onAccommodationOptionsChange && accommodationOptions.length > 0) {
+      const updatedOptions = accommodationOptions.map((opt, i) =>
+        i === selectedIdx
+          ? { ...opt, marginType: newMarginType, margin: newMargin }
+          : opt
+      );
+      onAccommodationOptionsChange(updatedOptions);
+    }
+
+    onChange({
+      ...pricing,
+      marginType: newMarginType,
+      margin: newMargin,
+    });
+  }
+
+  function selectOptionTier(idx) {
+    const targetOption = accommodationOptions[idx];
+    const targetMarginType = targetOption?.marginType || "absolute";
+    const targetMargin = targetOption?.margin ?? 0;
+
+    onChange({
+      ...pricing,
+      selectedOptionIndex: idx,
+      marginType: targetMarginType,
+      margin: targetMargin,
+    });
   }
 
   function addItem(field, val, setter) {
@@ -146,40 +176,74 @@ export default function PricingPanel({
           </div>
           <div>
             <h3 className="text-[16px] font-extrabold text-slate-900">Cost & Margin Calculator</h3>
-            <p className="text-[12.5px] text-slate-500">Auto-calculated from accommodation & vehicle pricing</p>
+            <p className="text-[12.5px] text-slate-500">Auto-calculated with per-option margin support</p>
           </div>
         </div>
 
-        {/* Accommodation Tier Selector */}
-        {accommodationOptions.length > 1 && (
-          <div className="p-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-2">
-            <label className="text-[12px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              Select Base Accommodation Category Tier:
-            </label>
-            <div className="flex gap-2.5 overflow-x-auto">
+        {/* Accommodation Tier Selector with Per-Option Margins */}
+        {accommodationOptions.length > 0 && (
+          <div className="p-4.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                Accommodation Options & Configured Margins:
+              </label>
+              <span className="text-[11px] text-indigo-700 font-semibold">
+                Each option can have its own custom margin price
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {accommodationOptions.map((opt, i) => {
-                const optTotal = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
+                const optBaseAccom = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
+                const optSubtotal = optBaseAccom + vTotal + actTotal;
+                const optMarginType = opt.marginType || "absolute";
+                const optMargin = opt.margin || 0;
+                const optMarginAmount = optMarginType === "absolute" ? optMargin : optSubtotal * (optMargin / 100);
+                const optPreTax = optSubtotal + optMarginAmount;
+                const optGst = pricing.includeGst ? Math.round(optPreTax * ((pricing.gstPercentage || 5) / 100)) : 0;
+                const optFinal = Math.round(optPreTax + optGst);
                 const isSelected = i === selectedIdx;
+
                 return (
                   <button
                     key={i}
                     type="button"
-                    onClick={() => update({ selectedOptionIndex: i })}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] font-bold border transition-all ${
+                    onClick={() => selectOptionTier(i)}
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all ${
                       isSelected
-                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-600 text-white shadow-sm"
-                        : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                        ? "bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 border-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-[1.01]"
+                        : "bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300 hover:bg-white/80"
                     }`}
                   >
-                    <span>{opt.label}</span>
-                    <span
-                      className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
-                        isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      ₹{optTotal.toLocaleString("en-IN")}
-                    </span>
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className="text-[13px] font-black">{opt.label}</span>
+                      {isSelected && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      )}
+                    </div>
+
+                    <div className="space-y-0.5 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className={isSelected ? "text-indigo-200" : "text-slate-500"}>Base Accom:</span>
+                        <span className="font-bold">₹{optBaseAccom.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isSelected ? "text-indigo-200" : "text-slate-500"}>
+                          Margin ({optMarginType === "percentage" ? `${optMargin}%` : "₹"}):
+                        </span>
+                        <span className={`font-extrabold ${isSelected ? "text-emerald-300" : "text-emerald-700"}`}>
+                          +₹{Math.round(optMarginAmount).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 mt-2 border-t border-white/20 flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase ${isSelected ? "text-indigo-200" : "text-slate-400"}`}>
+                        Option Total
+                      </span>
+                      <span className="text-[14px] font-black">₹{optFinal.toLocaleString("en-IN")}</span>
+                    </div>
                   </button>
                 );
               })}
@@ -192,18 +256,24 @@ export default function PricingPanel({
           <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
             <span className="text-slate-700 font-semibold flex items-center gap-2">
               🏨 Accommodation ({selectedOption?.label || "Option 1"})
-              <span className="text-[11px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">
-                {isPerPerson
-                  ? `${pax} Persons → ${roomsRequired} ${roomsRequired === 1 ? "Room" : "Rooms"} (${roomsRequired} × ₹${baseAccomTotal.toLocaleString("en-IN")})`
-                  : `${couples} ${couples === 1 ? "Couple (1 Room)" : "Couples (" + couples + " Rooms)"} × ₹${baseAccomTotal.toLocaleString("en-IN")}`}
-              </span>
             </span>
-            <span className="font-extrabold text-slate-900">₹{effectiveAccomTotal.toLocaleString("en-IN")}</span>
+            <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/40">
             <span className="text-slate-700 font-semibold flex items-center gap-2">🚗 Vehicle Transport</span>
             <span className="font-extrabold text-slate-900">₹{vTotal.toLocaleString("en-IN")}</span>
           </div>
+          {actTotal > 0 && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/40">
+              <span className="text-slate-700 font-semibold flex items-center gap-2">
+                ⚡ Day Activities Cost
+                <span className="text-[11px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                  Included in Itinerary
+                </span>
+              </span>
+              <span className="font-extrabold text-slate-900">₹{actTotal.toLocaleString("en-IN")}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100/70">
             <span className="text-slate-900 font-extrabold">Subtotal Base Cost</span>
             <span className="font-extrabold text-slate-900 text-[15px]">₹{subtotal.toLocaleString("en-IN")}</span>
@@ -251,13 +321,16 @@ export default function PricingPanel({
 
           {/* Margin Type */}
           <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Margin Type
+            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>Margin Type</span>
+              {selectedOption?.label && (
+                <span className="text-[10.5px] font-semibold text-indigo-600">({selectedOption.label})</span>
+              )}
             </label>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => update({ marginType: "absolute" })}
+                onClick={() => updateMargin({ marginType: "absolute" })}
                 className={`flex-1 py-2.5 rounded-xl border text-[13px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
                   pricing.marginType === "absolute"
                     ? "bg-slate-900 border-slate-900 text-white shadow-xs"
@@ -269,7 +342,7 @@ export default function PricingPanel({
               </button>
               <button
                 type="button"
-                onClick={() => update({ marginType: "percentage" })}
+                onClick={() => updateMargin({ marginType: "percentage" })}
                 className={`flex-1 py-2.5 rounded-xl border text-[13px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
                   pricing.marginType === "percentage"
                     ? "bg-slate-900 border-slate-900 text-white shadow-xs"
@@ -299,10 +372,10 @@ export default function PricingPanel({
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "") {
-                    update({ margin: 0 });
+                    updateMargin({ margin: 0 });
                   } else {
                     const parsed = parseFloat(val);
-                    update({ margin: isNaN(parsed) ? 0 : parsed });
+                    updateMargin({ margin: isNaN(parsed) ? 0 : parsed });
                   }
                 }}
                 placeholder="0"
@@ -370,160 +443,6 @@ export default function PricingPanel({
               </div>
             </div>
           )}
-        </div>
-
-        {/* ── Rate Basis (Per Couple vs Per Person) & Pax/Couple Controls ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          {/* Rate Calculation Basis */}
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Rate Calculation Basis
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => update({ rateBasis: "per_couple" })}
-                className={`flex-1 py-3 rounded-xl border text-[12.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  !isPerPerson
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-600 text-white shadow-sm"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <HeartHandshake className="w-4 h-4" />
-                Per Couple (2 Pax)
-              </button>
-              <button
-                type="button"
-                onClick={() => update({ rateBasis: "per_person" })}
-                className={`flex-1 py-3 rounded-xl border text-[12.5px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  isPerPerson
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-600 text-white shadow-sm"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                Per Person
-              </button>
-            </div>
-          </div>
-
-          {/* Number of Couples OR Persons Input */}
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              {!isPerPerson ? "Number of Couples" : "Number of Persons (Pax)"}
-            </label>
-            {!isPerPerson ? (
-              <div className="relative">
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={couples}
-                  onWheel={(e) => e.target.blur()}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "") {
-                      update({ numberOfPersons: 2 });
-                    } else {
-                      const c = Math.max(1, parseInt(val, 10) || 1);
-                      update({ numberOfPersons: c * 2 });
-                    }
-                  }}
-                  className={`${inputCls} font-bold pr-20`}
-                />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11.5px] font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md pointer-events-none">
-                  = {couples * 2} Pax
-                </span>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={pax}
-                  onWheel={(e) => e.target.blur()}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "") {
-                      update({ numberOfPersons: 1 });
-                    } else {
-                      const p = Math.max(1, parseInt(val, 10) || 1);
-                      update({ numberOfPersons: p });
-                    }
-                  }}
-                  className={`${inputCls} font-bold pr-24`}
-                />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11.5px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md pointer-events-none">
-                  = {roomsRequired} {roomsRequired === 1 ? "Room" : "Rooms"}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Max Persons per Room selector when in Per Person mode */}
-        {isPerPerson && (
-          <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[12.5px] font-extrabold text-indigo-950 block">
-                Max Allowed Occupancy per Room
-              </span>
-              <span className="text-[11.5px] text-indigo-700 font-medium">
-                {pax} Persons ÷ {maxPerRoom} Max per Room = <strong className="font-black text-indigo-900">{roomsRequired} {roomsRequired === 1 ? "Room allocated" : "Rooms allocated"}</strong>
-              </span>
-            </div>
-            <div className="flex gap-1.5 w-full sm:w-auto">
-              {[
-                { val: 1, label: "1 (Single)" },
-                { val: 2, label: "2 (Double)" },
-                { val: 3, label: "3 (Triple)" },
-                { val: 4, label: "4 (Quad)" },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => update({ maxPersonsPerRoom: opt.val })}
-                  className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all ${
-                    maxPerRoom === opt.val
-                      ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Calculated Rate Box */}
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
-              <HeartHandshake className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-emerald-900">Per Couple Rate ({couples} {couples === 1 ? "Couple" : "Couples"})</p>
-              <p className="text-[20px] font-black text-emerald-700 leading-tight">
-                {pricing.currency} {perCouplePrice.toLocaleString("en-IN")}
-                <span className="text-[12px] font-semibold text-emerald-600"> / couple</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-emerald-200/80 pt-3 sm:pt-0 sm:pl-4">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-indigo-900">Per Person Rate ({pax} Pax)</p>
-              <p className="text-[20px] font-black text-indigo-700 leading-tight">
-                {pricing.currency} {perPersonPrice.toLocaleString("en-IN")}
-                <span className="text-[12px] font-semibold text-indigo-600"> / person</span>
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 

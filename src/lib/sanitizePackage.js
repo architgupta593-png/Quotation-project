@@ -46,6 +46,8 @@ export function sanitizePackagePayload(body) {
     sanitized.accommodationOptions = sanitized.accommodationOptions.map((opt) => ({
       label: (opt.label || "Option").trim(),
       totalPrice: Math.max(0, parseFloat(opt.totalPrice) || 0),
+      marginType: ["absolute", "percentage"].includes(opt.marginType) ? opt.marginType : "absolute",
+      margin: Math.max(0, parseFloat(opt.margin) || 0),
       nights: Array.isArray(opt.nights)
         ? opt.nights.map((n) => ({
             night: Math.max(1, parseInt(n.night, 10) || 1),
@@ -102,12 +104,16 @@ export function sanitizePackagePayload(body) {
 
   // Sanitize instructions
   if (Array.isArray(sanitized.instructions)) {
-    sanitized.instructions = sanitized.instructions.map((block) => ({
-      heading: (block.heading || "").trim(),
-      format: ["bullet", "numbered", "alphabetic", "paragraph"].includes(block.format) ? block.format : "bullet",
-      items: Array.isArray(block.items) ? block.items.filter(Boolean) : [],
-      content: (block.content || "").trim(),
-    }));
+    sanitized.instructions = sanitized.instructions.map((block) => {
+      const headingText = (block.heading || block.title || "").trim();
+      return {
+        heading: headingText,
+        title: headingText,
+        format: ["bullet", "numbered", "alphabetic", "paragraph"].includes(block.format) ? block.format : "bullet",
+        items: Array.isArray(block.items) ? block.items.filter(Boolean) : [],
+        content: (block.content || "").trim(),
+      };
+    });
   } else {
     sanitized.instructions = [];
   }

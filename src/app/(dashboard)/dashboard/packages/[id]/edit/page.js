@@ -645,6 +645,7 @@ export default function EditPackagePage() {
                   pricing={form.pricing}
                   value={form.pricing}
                   onChange={(pricing) => updateForm({ pricing })}
+                  onAccommodationOptionsChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
               </div>
             )}
@@ -805,14 +806,12 @@ export default function EditPackagePage() {
                 </div>
               </div>
 
-              {/* Final per person price box */}
+              {/* Final price box */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950 to-purple-950 border border-indigo-500/30 space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Calculated Per Person</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Grand Package Total</p>
                 <p className="text-[24px] font-black text-emerald-400 leading-tight">
-                  ₹{(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")}
-                  <span className="text-[12px] text-slate-300 font-medium"> / pax</span>
+                  ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
                 </p>
-                <p className="text-[11px] text-slate-400">Total: ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}</p>
               </div>
 
               {/* Step indicator status */}

@@ -1,0 +1,416 @@
+﻿===============================================================================
+            ACTIVITY COMPONENT — FULL ROADMAP & INTEGRATION PLAN
+                       (bunny.txt — Project: archit-project)
+===============================================================================
+
+  Goal : Add a new "Activity" section inside the Dashboard that lets admins
+         browse Cities -> City-level Activity Cards -> and ultimately attach
+         those activities to a Travel Package (new-package wizard).
+
+  Author Note: Read alongside sunny.txt (Kerala travel package sample data)
+               to understand how activities map to real package itineraries.
+
+-------------------------------------------------------------------------------
+ SECTION 1 | WHAT ARE ACTIVITIES?
+-------------------------------------------------------------------------------
+
+  Activities are named experiences tied to a CITY or HOTEL, e.g.
+    - Tea Plantation Tour (Munnar)
+    - Kathakali Dance Performance (Cochin)
+    - Houseboat Cruise (Alleppey)
+    - Eravikulam National Park Safari (Munnar)
+    - Chinese Fishing Nets Walk (Fort Kochi)
+
+  Each activity record contains:
+    Field            | Description
+    ─────────────────────────────────────────────────────────────────────
+    name             | Display name of the activity
+    description      | Short detail / what is included
+    price            | Per-person cost (INR)
+    category         | sightseeing / adventure / cultural / leisure
+    duration         | e.g. "2-3 hours" or "Half Day"
+    city             | Ref -> City._id  (required)
+    hotel            | Ref -> Hotel._id (optional, hotel-specific activity)
+    images           | [ { url, publicId, caption } ]
+    isHighlight      | Boolean — featured in package highlights?
+    createdBy        | Ref -> User._id
+
+-------------------------------------------------------------------------------
+ SECTION 2 | ENTIRE LAYOUT & FILE STRUCTURE
+-------------------------------------------------------------------------------
+
+  All paths relative to:
+    c:\Users\Suraj\Desktop\SummerInternByMe\archit-project\
+
+  NEW FILES TO CREATE
+  ───────────────────
+
+  A) MONGOOSE MODEL
+     src/models/Activity.js
+
+  B) API ROUTES
+     src/app/api/activities/route.js          <- GET (list) + POST (create)
+     src/app/api/activities/[id]/route.js     <- GET + PUT + DELETE
+
+  C) DASHBOARD PAGES (Next.js App Router)
+     src/app/(dashboard)/dashboard/activities/page.js
+         - City grid view — lists all cities with their activity counts
+     src/app/(dashboard)/dashboard/activities/[cityId]/page.js
+         - Activity cards for a selected city
+
+  D) REUSABLE COMPONENTS
+     src/components/activities/ActivityCard.jsx
+     src/components/activities/ActivityFormModal.jsx
+     src/components/activities/ActivityCitySelector.jsx
+     src/components/activities/ActivityBadge.jsx
+     src/components/activities/ActivityPickerPanel.jsx  <- used in package wizard
+
+  EXISTING FILES TO MODIFY
+  ────────────────────────
+
+  E) DASHBOARD HOME
+     src/app/(dashboard)/dashboard/page.js
+         - Add "Activities" quick-link card for admin/superuser
+
+  F) PACKAGE WIZARD (new-package)
+     src/app/(dashboard)/dashboard/packages/new/page.js
+         - Add "activities" field to DEFAULT_FORM
+         - Add "Activities" step to SECTIONS array
+         - Render <ActivityPickerPanel /> in new step
+
+  G) ITINERARY BUILDER (activities per day)
+     src/components/packages/ItineraryBuilder.jsx
+         - Add "Suggested Activities" sub-section per day
+         - Pull activities from city of that day's destination
+
+-------------------------------------------------------------------------------
+ SECTION 3 | DETAILED LAYOUT DESIGN (PAGE BY PAGE)
+-------------------------------------------------------------------------------
+
+  PAGE A — /dashboard/activities  (City Selection Screen)
+  ──────────────────────────────────────────────────────────────────────────
+
+    HEADER:
+      [ <- Dashboard ]  [Activities icon]  "Manage activities by city"
+      [ Search bar ]                        [ + Add Activity ] (admin only)
+
+    BODY — City Cards Grid (mirrors /dashboard/accommodation layout):
+      +──────────────+  +──────────────+  +──────────────+
+      |  Munnar       |  |  Alleppey    |  |  Cochin       |
+      |  Kerala       |  |  Kerala      |  |  Kerala       |
+      |  ──────────   |  |  ──────────  |  |  ──────────   |
+      |  5 activities |  |  3 activities|  |  4 activities |
+      +──────────────+  +──────────────+  +──────────────+
+
+      (Clicking a city card navigates to /activities/[cityId])
+
+
+  PAGE B — /dashboard/activities/[cityId]  (Activity Cards for City)
+  ──────────────────────────────────────────────────────────────────────────
+
+    HEADER:
+      [ <- Activities ]  "Munnar, Kerala"  "5 activities"
+      [ Search / Filter by Category ]       [ + Add Activity ] (admin only)
+
+    CATEGORY FILTER TABS:
+      [ All ]  [ Sightseeing ]  [ Adventure ]  [ Cultural ]  [ Leisure ]
+
+    ACTIVITY CARD GRID (2-3 columns):
+      +─────────────────────────────────────────────────────+
+      |  [Top accent bar — color varies by category]        |
+      |  Tea Plantation Tour            [Edit] [Delete]     |
+      |  Sightseeing  •  2-3 hours                          |
+      |  "Walk through lush tea gardens and Tea Museum"     |
+      |  ─────────────────────────────────────────────────  |
+      |  INR 850 / person          [Star] Highlight toggle  |
+      +─────────────────────────────────────────────────────+
+      (Repeat for each activity in the city)
+
+
+  COMPONENT C — ActivityFormModal (Create / Edit Activity)
+  ──────────────────────────────────────────────────────────────────────────
+
+    Form fields:
+      - Activity Name  (required, text input)
+      - Category       (select: sightseeing / adventure / cultural / leisure)
+      - Duration       (text: "2-3 hours", "Half Day", "Full Day")
+      - Price (INR)    (number, min 0)
+      - Description    (textarea)
+      - Is Highlight?  (checkbox — mark as package highlight)
+      - City           (auto-filled from current page context)
+      - Hotel          (optional dropdown — hotels in this city)
+
+
+  COMPONENT D — ActivityPickerPanel (inside Package Wizard)
+  ──────────────────────────────────────────────────────────────────────────
+
+    Used in:  src/app/(dashboard)/dashboard/packages/new/page.js
+              as a new wizard step between "Itinerary" and "Accommodation"
+
+    Layout per destination city:
+      ┌─ Munnar (3 Nights) ───────────────────────────────────────────────┐
+      │  Available Activities:           Selected Activities:             │
+      │  [ ] Tea Plantation  INR 850     [x] Eravikulam Park             │
+      │  [ ] Echo Point      Free        [x] Mattupetty Dam              │
+      │  [ ] Mattupetty      INR 400     ────────────────────────────     │
+      │  [x] Eravikulam      INR 650                                     │
+      └────────────────────────────────────────────────────────────────────┘
+
+    Selected activities stored in form.activities as:
+      [{ cityId, cityName, activityId, name, price, category }]
+
+-------------------------------------------------------------------------------
+ SECTION 4 | DATA MODEL — Activity.js (Mongoose Schema)
+-------------------------------------------------------------------------------
+
+  FILE: src/models/Activity.js
+
+  const ActivitySchema = new mongoose.Schema({
+    name:        { type: String, required: true, trim: true, maxlength: 150 },
+    description: { type: String, trim: true, default: "" },
+    category:    {
+                   type: String,
+                   enum: ["sightseeing","adventure","cultural","leisure"],
+                   default: "sightseeing"
+                 },
+    duration:    { type: String, trim: true, default: "" },
+    price:       { type: Number, min: 0, default: 0 },
+    city:        { type: ObjectId, ref: "City", required: true },
+    hotel:       { type: ObjectId, ref: "Hotel", default: null },
+    isHighlight: { type: Boolean, default: false },
+    images:      [ImageSchema],
+    createdBy:   { type: ObjectId, ref: "User", required: true },
+  }, { timestamps: true });
+
+  Indexes:
+    { city: 1, name: 1 }   <- fast lookup by city
+    { category: 1 }         <- filter by category
+
+-------------------------------------------------------------------------------
+ SECTION 5 | API ROUTES
+-------------------------------------------------------------------------------
+
+  GET    /api/activities
+    Query params: ?city=<cityId>  ?category=<cat>  ?search=<q>
+    Returns: { activities: [...] }
+    Auth: any logged-in user
+
+  POST   /api/activities
+    Body: { name, description, category, duration, price, city, hotel, isHighlight }
+    Returns: { activity: { ...saved } }
+    Auth: admin / superuser only
+
+  GET    /api/activities/[id]
+    Returns: { activity: { ...full detail } }
+    Auth: any logged-in user
+
+  PUT    /api/activities/[id]
+    Body: (any updatable field)
+    Auth: admin / superuser only
+
+  DELETE /api/activities/[id]
+    Auth: admin / superuser only
+
+-------------------------------------------------------------------------------
+ SECTION 6 | PACKAGE WIZARD INTEGRATION STEPS
+-------------------------------------------------------------------------------
+
+  FILE: src/app/(dashboard)/dashboard/packages/new/page.js
+
+  STEP 1 — Add new section to SECTIONS array (insert after "itinerary"):
+    { id: "activities", label: "Activities", icon: MapPin, desc: "City Experiences" },
+
+  STEP 2 — Add activities field to DEFAULT_FORM:
+    activities: [],   // Array of selected activity objects per city
+
+  STEP 3 — Add render block (after "itinerary" block, before "accommodation"):
+    {currentSection === "activities" && (
+      <div className="space-y-6">
+        <SectionHeader
+          title="City Activities & Experiences"
+          description="Select activities for each destination city."
+        />
+        <ActivityPickerPanel
+          destinations={form.destinations}
+          activities={form.activities}
+          onChange={(activities) => updateForm({ activities })}
+        />
+      </div>
+    )}
+
+  STEP 4 — activities are auto-included via ...form spread in handleSubmit().
+
+  STEP 5 — Update Package.js model to store activities:
+    activities: [{
+      cityId:     ObjectId (ref City),
+      cityName:   String,
+      activityId: ObjectId (ref Activity),
+      name:       String,
+      price:      Number,
+      category:   String,
+    }]
+
+-------------------------------------------------------------------------------
+ SECTION 7 | ITINERARY BUILDER INTEGRATION
+-------------------------------------------------------------------------------
+
+  FILE: src/components/packages/ItineraryBuilder.jsx
+
+  Enhancement: Each day card shows a "Suggested Activities" sub-section
+               that auto-fetches activities for the city covering that day.
+
+  Logic:
+    1. Determine which city covers each day based on destination nights.
+       Example: Munnar covers Days 1-3, Alleppey covers Day 4.
+    2. Fetch: GET /api/activities?city=<cityId>
+    3. Show checkbox list. Checked items are appended to that day's
+       activities[] array.
+
+  Day data shape (per day):
+    {
+      day: 1,
+      title: "Arrival in Cochin & Scenic Drive to Munnar",
+      description: "...",
+      activities: [
+        { name: "Pick up from Cochin Airport", type: "transfer" },
+        { name: "Cheeyappara Waterfalls Visit", type: "sightseeing" },
+      ],
+      meals: { breakfast: true, lunch: false, dinner: true },
+      city: "Munnar"
+    }
+
+-------------------------------------------------------------------------------
+ SECTION 8 | DASHBOARD HOME QUICK-LINK UPDATE
+-------------------------------------------------------------------------------
+
+  FILE: src/app/(dashboard)/dashboard/page.js
+
+  Add inside the quickLinks array (for admin/superuser):
+
+    quickLinks.push({
+      href: "/dashboard/activities",
+      icon: MapPin,
+      title: "Activities",
+      description: "Manage city-based activities and experiences for packages.",
+      color: "bg-rose-500",
+      bg: "bg-rose-50",
+      border: "border-rose-100",
+      textColor: "text-rose-600",
+    });
+
+  Note: MapPin is already imported from "lucide-react" in page.js.
+
+-------------------------------------------------------------------------------
+ SECTION 9 | IMPLEMENTATION ORDER (STEP-BY-STEP)
+-------------------------------------------------------------------------------
+
+  Follow this order to avoid breaking existing code:
+
+  Step  1: Create src/models/Activity.js
+  Step  2: Create src/app/api/activities/route.js            (GET + POST)
+  Step  3: Create src/app/api/activities/[id]/route.js       (GET + PUT + DELETE)
+  Step  4: Create src/components/activities/ActivityCard.jsx
+  Step  5: Create src/components/activities/ActivityBadge.jsx
+  Step  6: Create src/components/activities/ActivityFormModal.jsx
+  Step  7: Create src/app/(dashboard)/dashboard/activities/page.js
+  Step  8: Create src/app/(dashboard)/dashboard/activities/[cityId]/page.js
+  Step  9: Create src/components/activities/ActivityPickerPanel.jsx
+  Step 10: Modify src/models/Package.js            (add activities[] field)
+  Step 11: Modify src/app/(dashboard)/dashboard/packages/new/page.js
+             - add SECTIONS entry + DEFAULT_FORM field + render block
+  Step 12: Modify src/components/packages/ItineraryBuilder.jsx
+             - add city-aware activity suggestions per day
+  Step 13: Modify src/app/(dashboard)/dashboard/page.js
+             - add Activities quick-link card
+
+-------------------------------------------------------------------------------
+ SECTION 10 | COMPONENT REUSE PATTERN (Mirrors Accommodation)
+-------------------------------------------------------------------------------
+
+  The Activities module MIRRORS the Accommodation module pattern:
+
+  Accommodation Pattern              Activities Pattern
+  ──────────────────────────────     ──────────────────────────────
+  /accommodation          (cities)   /activities         (cities)
+  /accommodation/[cityId] (hotels)   /activities/[cityId](activities)
+  CityCard.jsx            <- REUSE   CityCard.jsx  (REUSE as-is!)
+  HotelCard.jsx                      ActivityCard.jsx (NEW)
+  HotelFormModal.jsx                 ActivityFormModal.jsx (NEW)
+  api/accommodation/cities           api/activities?city=<id>
+
+  Note: CityCard.jsx can be REUSED on the /activities page.
+        The city grid just shows "activityCount" badge instead of "hotelCount".
+        CityCard already supports: onClick, onEdit, onDelete, isAdmin props.
+
+-------------------------------------------------------------------------------
+ SECTION 11 | COLOR & CATEGORY SYSTEM FOR ACTIVITY CARDS
+-------------------------------------------------------------------------------
+
+  Category         Top Bar Gradient     Badge Color     Icon
+  ───────────────  ───────────────────  ──────────────  ────────────
+  sightseeing      violet -> indigo     indigo-50       Telescope
+  adventure        orange -> red        rose-50         Mountain
+  cultural         amber -> yellow      amber-50        Theater mask
+  leisure          teal -> emerald      emerald-50      Leaf / Spa
+
+-------------------------------------------------------------------------------
+ SECTION 12 | REAL-WORLD EXAMPLE (from sunny.txt — Kerala Package)
+-------------------------------------------------------------------------------
+
+  Package: "5 Day 4 Night Luxury Munnar & Alleppey Kerala Experience"
+
+  City: Munnar (3 Nights)
+    Activity                  Category      Duration   Price (INR/person)
+    ─────────────────────     ────────────  ─────────  ─────────────────
+    Tea Museum & Tasting      Cultural      2 hours    400
+    Mattupetty Dam            Sightseeing   3 hours    Free
+    Echo Point                Sightseeing   1-2 hours  Free
+    Kundala Lake              Leisure       2 hours    250
+    Eravikulam National Park  Adventure     Half Day   650
+    Spice Garden Tour         Cultural      1 hour     350
+    Spice Market Shopping     Leisure       1-2 hours  Free
+
+  City: Alleppey (1 Night)
+    Activity                  Category      Duration   Price (INR/person)
+    ─────────────────────     ────────────  ─────────  ─────────────────
+    Houseboat Cruise          Leisure       5.5 hours  Included in hotel
+    Vembanad Lake Cruise      Sightseeing   3 hours    500
+    Alleppey Beach Walk       Leisure       1 hour     Free
+
+  City: Cochin / Fort Kochi (Transit City)
+    Activity                  Category      Duration   Price (INR/person)
+    ─────────────────────     ────────────  ─────────  ─────────────────
+    Kathakali Dance Show      Cultural      2 hours    650
+    Chinese Fishing Nets      Sightseeing   1 hour     Free
+    Fort Kochi Heritage Walk  Cultural      2-3 hours  Free
+    Waterfall En-route Stop   Sightseeing   30 mins    Free
+
+-------------------------------------------------------------------------------
+ SECTION 13 | OPEN QUESTIONS / DECISIONS NEEDED
+-------------------------------------------------------------------------------
+
+  1. PRICING IN PACKAGE:
+     Should selected activity prices be:
+     (a) Auto-added to package total price? (recommended for accuracy)
+     (b) Informational only — displayed but not summed into package cost?
+
+  2. HOTEL vs CITY ACTIVITIES:
+     Hotel model already has activities[] (name + price) embedded.
+     Should the new Activity component REPLACE that embedded list or
+     COEXIST with it?
+     Recommendation: COEXIST — hotel-level activities are quick overrides,
+     city-level activities are the master library.
+
+  3. ACTIVITY IN ITINERARY:
+     When user types an activity name in the Itinerary builder (e.g. Day 1
+     "Cheeyappara Waterfalls Visit"), should it auto-link to an Activity
+     document from the DB? Or remain a free-text entry?
+
+  4. PERMISSIONS:
+     Members (non-admin) — can they VIEW activities?
+     Recommendation: YES (read-only). Only admin/superuser can CREATE / EDIT / DELETE.
+
+===============================================================================
+  END OF ROADMAP — bunny.txt
+  Next action: Start with Step 1 (Activity.js model) and work top-down.
+===============================================================================

@@ -49,6 +49,7 @@ const DEFAULT_FORM = {
     excludes: [],
   },
   instructions: [],
+  activities: [],
   status: "draft",
 };
 
@@ -56,6 +57,7 @@ export const dynamic = "force-dynamic";
 
 export default function NewPackagePage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [currentSection, setCurrentSection] = useState("basics");
   const [form, setForm] = useState(DEFAULT_FORM);
   const [newHighlight, setNewHighlight] = useState("");
@@ -63,6 +65,10 @@ export default function NewPackagePage() {
   const [error, setError] = useState("");
   const [cities, setCities] = useState([]);
   const [loadingCities, setLoadingCities] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch cities
   useEffect(() => {
@@ -166,6 +172,19 @@ export default function NewPackagePage() {
 
   const vehicleTotal = useMemo(() => form.vehicle?.vehiclePrice || 0, [form.vehicle]);
 
+  const activitiesTotal = useMemo(() => {
+    let perPersonSum = 0;
+    (form.itinerary || []).forEach((day) => {
+      (day.activities || []).forEach((act) => {
+        if (typeof act === "object" && act !== null) {
+          perPersonSum += Number(act.price) || 0;
+        }
+      });
+    });
+    const pax = Math.max(1, parseInt(form.pricing?.numberOfPersons, 10) || 1);
+    return perPersonSum * pax;
+  }, [form.itinerary, form.pricing?.numberOfPersons]);
+
   const destinationSummary = form.destinations
     .filter((d) => d.cityName)
     .map((d) => `${d.cityName} (${d.nights}N)`)
@@ -211,6 +230,15 @@ export default function NewPackagePage() {
 
   const inputCls =
     "w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-[13.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition-all shadow-xs";
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f1f5f9]">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
+        <p className="text-[13px] font-bold text-slate-500">Loading package builder…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24" suppressHydrationWarning>
@@ -512,6 +540,7 @@ export default function NewPackagePage() {
                   value={form.itinerary}
                   onChange={(itinerary) => updateForm({ itinerary })}
                   packageId={null}
+                  destinations={form.destinations}
                 />
               </div>
             )}
@@ -558,9 +587,11 @@ export default function NewPackagePage() {
                   pricing={form.pricing}
                   value={form.pricing}
                   onChange={(pricing) => updateForm({ pricing })}
+                  onAccommodationOptionsChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                   accommodationOptions={form.accommodationOptions}
                   vehicleTotal={vehicleTotal}
                   vehiclePrice={vehicleTotal}
+                  activitiesTotal={activitiesTotal}
                 />
               </div>
             )}
@@ -775,21 +806,24 @@ export default function NewPackagePage() {
                   <span className="font-black text-sky-900">₹{vehicleTotal.toLocaleString("en-IN")}</span>
                 </div>
 
+                {/* Activities Specs (if any) */}
+                {activitiesTotal > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50/80 border border-rose-200 flex items-center justify-between text-[13px]">
+                    <div className="flex items-center gap-2 font-extrabold text-rose-900">
+                      <Sparkles className="w-4.5 h-4.5 text-rose-600" />
+                      <span>Itinerary Activities</span>
+                    </div>
+                    <span className="font-black text-rose-900">₹{activitiesTotal.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+
                 {/* Calculated Price Banner */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 space-y-1">
-                  <div className="flex items-center justify-between text-[12px] text-emerald-100 font-bold">
-                    <span>Calculated Per Couple</span>
-                    <span suppressHydrationWarning>({form.pricing?.numberOfPersons || 1} Pax)</span>
+                <div className="p-4.5 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 space-y-1">
+                  <div className="text-[12px] text-emerald-100 font-bold uppercase tracking-wider">
+                    Grand Package Total
                   </div>
-                  <div className="text-[24px] font-black tracking-tight">
-                    ₹{Math.round(form.pricing?.perPersonPrice || 0).toLocaleString("en-IN")}
-                    <span className="text-[13px] font-bold text-emerald-100"> / pax</span>
-                  </div>
-                  <div className="text-[11.5px] text-emerald-100 pt-1.5 border-t border-emerald-400/30 flex justify-between font-semibold">
-                    <span>Grand Total Package Price:</span>
-                    <span className="font-black text-white">
-                      ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
-                    </span>
+                  <div className="text-[26px] font-black tracking-tight">
+                    ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
                   </div>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Building2, Star, Copy, Loader2, Plus, Trash2, Layers, Calendar } from "lucide-react";
+import { Building2, Star, Copy, Loader2, Plus, Trash2, Layers, Calendar, Search, X, Check, MapPin } from "lucide-react";
 
 const MEAL_PLANS = [
   { value: "", label: "Select meal plan" },
@@ -27,6 +27,9 @@ export default function AccommodationPanel({
   const [roomsMap, setRoomsMap] = useState({});
   const [loadingHotels, setLoadingHotels] = useState({});
   const [loadingRooms, setLoadingRooms] = useState({});
+  const [selectedHotelLeg, setSelectedHotelLeg] = useState(null);
+  const [hotelSearchQuery, setHotelSearchQuery] = useState("");
+  const [selectedStarFilter, setSelectedStarFilter] = useState("ALL");
 
   // ── Build Stay Legs from destinations ──
   // Each destination entry represents a continuous stay in that city.
@@ -201,6 +204,8 @@ export default function AccommodationPanel({
         label: optionLabel,
         nights: defaultNights,
         totalPrice: 0,
+        marginType: "absolute",
+        margin: 0,
       },
     ]);
     setActiveOptIdx(newIdx);
@@ -232,6 +237,13 @@ export default function AccommodationPanel({
     });
     updateActiveOptionNights(updatedNights);
   }
+
+  const openHotelDialog = (leg) => {
+    fetchHotels(leg.cityId);
+    setHotelSearchQuery("");
+    setSelectedStarFilter("ALL");
+    setSelectedHotelLeg(leg);
+  };
 
   function handleLegHotelChange(leg, hotelId) {
     const hotels = hotelsMap[leg.cityId] || [];
@@ -441,22 +453,47 @@ export default function AccommodationPanel({
                     Hotel ({leg.cityName})
                   </label>
                   {isLoadingH ? (
-                    <div className="flex items-center gap-2 h-11 px-3 text-[12px] text-slate-400">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading hotels in {leg.cityName}…
+                    <div className="flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-[12.5px] font-bold text-slate-500">
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> Loading hotels in {leg.cityName}…
+                    </div>
+                  ) : primaryNight.hotelId ? (
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-white transition-all shadow-2xs group">
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black flex-shrink-0 shadow-xs">
+                          <Building2 className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-[14px] font-extrabold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
+                              {primaryNight.hotelName || "Selected Hotel"}
+                            </h4>
+                            {primaryNight.starRating && (
+                              <span className="flex items-center text-amber-700 text-[10.5px] font-black bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400 mr-1" />
+                                {primaryNight.starRating}★
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-medium">Click change to pick another hotel</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openHotelDialog(leg)}
+                        className="px-3.5 py-2 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 group-hover:border-indigo-200 text-slate-700 group-hover:text-indigo-700 text-[11.5px] font-extrabold transition-all shadow-xs flex-shrink-0"
+                      >
+                        Change Hotel
+                      </button>
                     </div>
                   ) : (
-                    <select
-                      value={primaryNight.hotelId || ""}
-                      onChange={(e) => handleLegHotelChange(leg, e.target.value)}
-                      className={selectCls}
+                    <button
+                      type="button"
+                      onClick={() => openHotelDialog(leg)}
+                      className="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50 hover:border-indigo-300 text-indigo-700 font-extrabold text-[13px] flex items-center justify-center gap-2 transition-all shadow-2xs group"
                     >
-                      <option value="">Select hotel in {leg.cityName}…</option>
-                      {hotels.map((h) => (
-                        <option key={h._id} value={h._id}>
-                          {h.name} {h.starRating ? `(${h.starRating}★)` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      <Building2 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+                      <span>+ Select Hotel for {leg.cityName}</span>
+                    </button>
                   )}
                 </div>
 
@@ -584,6 +621,236 @@ export default function AccommodationPanel({
           ₹{optionTotal.toLocaleString("en-IN")}
         </span>
       </div>
+
+      {/* ── Hotel Selection Dialog Modal Component ── */}
+      {selectedHotelLeg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-5xl bg-white text-slate-900 rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-500/20 flex-shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-[18px] font-black text-white tracking-tight">
+                      Select Hotel in {selectedHotelLeg.cityName}
+                    </h3>
+                    <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-extrabold uppercase tracking-wider">
+                      {selectedHotelLeg.nightsCount} Night(s) Stay
+                    </span>
+                  </div>
+                  <p className="text-[12.5px] text-slate-300 font-medium mt-0.5">
+                    Nights {selectedHotelLeg.startNight} to {selectedHotelLeg.endNight}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedHotelLeg(null)}
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-slate-700 hover:scale-105 active:scale-95"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="p-4.5 bg-slate-50 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={hotelSearchQuery}
+                  onChange={(e) => setHotelSearchQuery(e.target.value)}
+                  placeholder="Search hotel name or address…"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Star Rating Filter Pills */}
+              <div className="flex items-center gap-2 self-stretch sm:self-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                {[
+                  { value: "ALL", label: "All Stars" },
+                  { value: "5", label: "5★ Luxury" },
+                  { value: "4", label: "4★ Premium" },
+                  { value: "3", label: "3★ Standard" },
+                ].map((starOpt) => {
+                  const isSel = selectedStarFilter === starOpt.value;
+                  return (
+                    <button
+                      key={starOpt.value}
+                      type="button"
+                      onClick={() => setSelectedStarFilter(starOpt.value)}
+                      className={`px-3.5 py-1.5 rounded-xl text-[11.5px] font-extrabold transition-all whitespace-nowrap ${
+                        isSel
+                          ? "bg-slate-900 text-white shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {starOpt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Content / Hotel Card List */}
+            <div className="p-6 overflow-y-auto flex-1 bg-[#f8fafc] space-y-5">
+              {loadingHotels[selectedHotelLeg.cityId] ? (
+                <div className="py-20 text-center space-y-4">
+                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
+                  <p className="text-[14px] font-extrabold text-slate-600">
+                    Fetching available hotels in {selectedHotelLeg.cityName}…
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const legHotels = hotelsMap[selectedHotelLeg.cityId] || [];
+                  const primaryNight = optionNights.find((n) => n.night === selectedHotelLeg.startNight) || {};
+
+                  const filteredHotels = legHotels.filter((h) => {
+                    const matchesSearch =
+                      !hotelSearchQuery.trim() ||
+                      h.name.toLowerCase().includes(hotelSearchQuery.toLowerCase()) ||
+                      (h.address && h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase()));
+                    const matchesStar =
+                      selectedStarFilter === "ALL" ||
+                      (h.starRating && String(h.starRating) === selectedStarFilter);
+                    return matchesSearch && matchesStar;
+                  });
+
+                  if (filteredHotels.length === 0) {
+                    return (
+                      <div className="py-16 px-4 text-center rounded-3xl bg-white border border-dashed border-slate-300 space-y-3">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+                          <Building2 className="w-7 h-7" />
+                        </div>
+                        <h4 className="text-[16px] font-black text-slate-900">
+                          No hotels found in {selectedHotelLeg.cityName}
+                        </h4>
+                        <p className="text-[13px] text-slate-500 max-w-md mx-auto font-medium leading-relaxed">
+                          Try clearing your search query or star filter. You can also add hotels to this city in the Accommodation Master module.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {filteredHotels.map((hotel) => {
+                        const isCurrentlySelected = primaryNight.hotelId === hotel._id;
+                        const coverImage = hotel.images && hotel.images.length > 0 ? hotel.images[0]?.url : null;
+
+                        return (
+                          <div
+                            key={hotel._id}
+                            onClick={() => {
+                              handleLegHotelChange(selectedHotelLeg, hotel._id);
+                              setSelectedHotelLeg(null);
+                            }}
+                            className={`group cursor-pointer rounded-2xl border transition-all duration-300 p-5 flex flex-col justify-between ${
+                              isCurrentlySelected
+                                ? "bg-gradient-to-br from-indigo-50/90 via-purple-50/50 to-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md scale-[1.01]"
+                                : "bg-white border-slate-200/90 hover:border-indigo-300 hover:shadow-md hover:scale-[1.01]"
+                            }`}
+                          >
+                            <div className="space-y-3.5">
+                              {/* Header Image / Badge */}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3.5 min-w-0">
+                                  {coverImage ? (
+                                    <img
+                                      src={coverImage}
+                                      alt={hotel.name}
+                                      className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shadow-xs flex-shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 border border-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors shadow-2xs">
+                                      <Building2 className="w-7 h-7" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <h4 className="text-[15px] font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-tight truncate">
+                                      {hotel.name}
+                                    </h4>
+                                    {hotel.type && (
+                                      <span className="text-[11px] font-bold text-slate-400 capitalize mt-0.5 block">
+                                        {hotel.type}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {hotel.starRating && (
+                                  <span className="flex items-center gap-1 text-amber-700 text-[11px] font-extrabold bg-amber-50 px-3 py-1 rounded-full border border-amber-200/80 flex-shrink-0 shadow-2xs">
+                                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                    {hotel.starRating} Star
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Location / Address */}
+                              {hotel.address && (
+                                <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
+                                  <MapPin className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                                  <span className="truncate">{hotel.address}</span>
+                                </div>
+                              )}
+
+                              {/* Feature Tags */}
+                              {hotel.features && hotel.features.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {hotel.features.slice(0, 3).map((feat, fi) => (
+                                    <span
+                                      key={fi}
+                                      className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700"
+                                    >
+                                      {feat}
+                                    </span>
+                                  ))}
+                                  {hotel.features.length > 3 && (
+                                    <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-400">
+                                      +{hotel.features.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Select Action Button */}
+                            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+                              <span className="text-[11.5px] text-slate-400 font-medium">
+                                {isCurrentlySelected ? "Active for this leg" : "Click card to select"}
+                              </span>
+                              <div
+                                className={`flex items-center gap-2 px-4.5 py-2 rounded-xl text-[12px] font-extrabold transition-all ${
+                                  isCurrentlySelected
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "bg-slate-900 group-hover:bg-indigo-600 text-white shadow-xs group-hover:scale-105"
+                                }`}
+                              >
+                                {isCurrentlySelected ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>Selected</span>
+                                  </>
+                                ) : (
+                                  <span>Select Hotel →</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
