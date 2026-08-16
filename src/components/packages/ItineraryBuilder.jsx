@@ -196,7 +196,7 @@ export default function ItineraryBuilder({ days, itinerary, value, onChange, pac
                   {/* Preview area */}
                   {dayObj.description ? (
                     <div
-                      className="w-full min-h-[60px] px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-[13px] text-gray-700 leading-relaxed cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                      className="w-full min-h-[60px] px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-[13px] text-gray-700 leading-relaxed cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-all itinerary-description"
                       onClick={() => setEditorDayIdx(dayIdx)}
                       title="Click to edit"
                       dangerouslySetInnerHTML={{ __html: dayObj.description }}
