@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Package from "@/models/Package";
 import { sanitizePackagePayload } from "@/lib/sanitizePackage";
+import { deleteImage } from "@/lib/cloudinary";
 
 // ── GET /api/packages/[id] ────────────────────────────────────────────────────
 export async function GET(request, { params }) {
@@ -80,10 +81,29 @@ export async function DELETE(request, { params }) {
 
     await connectDB();
     const { id } = await params;
-    const pkg = await Package.findByIdAndDelete(id);
+
+    // Fetch first so we can collect Cloudinary publicIds before deleting
+    const pkg = await Package.findById(id).lean();
     if (!pkg) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
+
+    // Collect every Cloudinary publicId stored on this package
+    const publicIds = [];
+    if (pkg.coverImage?.publicId) publicIds.push(pkg.coverImage.publicId);
+    for (const day of pkg.itinerary || []) {
+      for (const img of day.images || []) {
+        if (img.publicId) publicIds.push(img.publicId);
+      }
+    }
+
+    // Delete images from Cloudinary (best-effort — won't block DB delete if Cloudinary fails)
+    if (publicIds.length > 0) {
+      await Promise.allSettled(publicIds.map((pid) => deleteImage(pid)));
+    }
+
+    // Delete the package document
+    await Package.findByIdAndDelete(id);
 
     return NextResponse.json({ message: "Package deleted successfully" });
   } catch (err) {

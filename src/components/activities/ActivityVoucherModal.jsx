@@ -1,11 +1,17 @@
 "use client";
 
-import { CheckCircle2, Calendar, Clock, Users, MapPin, X, Download, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import {
+  CheckCircle2, Calendar, Clock, Users, MapPin, X, Download,
+  ShieldCheck, Copy, Check, ExternalLink, QrCode, Sparkles
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 /**
- * ActivityVoucherModal — Displays printable Ticket Voucher Pass
+ * ActivityVoucherModal — Displays printable Ticket Voucher Pass with scannable QR code
  */
 export default function ActivityVoucherModal({ booking, onClose }) {
+  const [copied, setCopied] = useState(false);
   if (!booking) return null;
 
   const {
@@ -27,8 +33,18 @@ export default function ActivityVoucherModal({ booking, onClose }) {
       })
     : "—";
 
+  const verificationUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/vouchers/${voucherCode}`
+    : `https://mandeholidays.com/vouchers/${voucherCode}`;
+
   function handlePrint() {
     window.print();
+  }
+
+  function handleCopyLink() {
+    navigator.clipboard.writeText(verificationUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -37,7 +53,7 @@ export default function ActivityVoucherModal({ booking, onClose }) {
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
 
       {/* Ticket Pass Card */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 my-8">
         {/* Header Ribbon */}
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 p-6 text-white text-center relative">
           <button
@@ -66,17 +82,31 @@ export default function ActivityVoucherModal({ booking, onClose }) {
 
         {/* Ticket Body */}
         <div className="p-6 space-y-5">
-          {/* Voucher Pass Code Box */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 text-center space-y-1">
-            <span className="text-[10.5px] font-black uppercase tracking-widest text-emerald-700">
-              Voucher Pass Code
-            </span>
-            <p className="text-[26px] font-black text-emerald-950 tracking-wider font-mono">
-              {voucherCode}
-            </p>
-            <p className="text-[11px] text-emerald-600 font-bold">
-              Show this code or QR code at entry gate
-            </p>
+          {/* QR Code & Voucher Pass Box */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-indigo-50/50 border-2 border-dashed border-emerald-300 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            {/* Scannable QR Code */}
+            <div className="p-3 bg-white rounded-2xl border border-emerald-200/80 shadow-sm flex-shrink-0 flex items-center justify-center">
+              <QRCodeSVG
+                value={verificationUrl}
+                size={110}
+                level="H"
+                includeMargin={false}
+                className="rounded-md"
+              />
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 flex items-center justify-center sm:justify-start gap-1">
+                <QrCode className="w-3 h-3 text-emerald-600" />
+                Scan to Verify Pass
+              </span>
+              <p className="text-[24px] font-black text-emerald-950 tracking-wider font-mono">
+                {voucherCode}
+              </p>
+              <p className="text-[11px] text-emerald-700 font-semibold">
+                Scan with phone camera or gate scanner to instantly verify authenticity
+              </p>
+            </div>
           </div>
 
           {/* Booking Specs Grid */}
@@ -121,15 +151,35 @@ export default function ActivityVoucherModal({ booking, onClose }) {
             <p className="text-slate-500">Contact: {customer?.phone} • {customer?.email}</p>
           </div>
 
+          {/* Quick share links */}
+          <div className="flex items-center justify-between text-[11.5px] px-1">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-bold transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? "Link Copied!" : "Copy Verification URL"}
+            </button>
+            <a
+              href={verificationUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 text-slate-500 hover:text-slate-800 font-semibold"
+            >
+              Open Page <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
           {/* Action buttons */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={handlePrint}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[13px] transition-all shadow-md"
             >
               <Download className="w-4 h-4" />
-              Download / Print Ticket
+              Download / Print Pass
             </button>
             <button
               type="button"

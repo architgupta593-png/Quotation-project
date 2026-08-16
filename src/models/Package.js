@@ -223,7 +223,7 @@ const PackageSchema = new mongoose.Schema(
 // ── Auto-derive days from nights ──────────────────────────────────────────────
 PackageSchema.pre("save", function () {
   if (!this.days && this.nights) {
-    this.days = this.nights;
+    this.days = this.nights + 1; // N nights = N+1 days (arrival day + N overnight stays)
   }
   // Auto-compute destination string from destinations array
   if (this.isModified("destinations") && this.destinations.length > 0) {

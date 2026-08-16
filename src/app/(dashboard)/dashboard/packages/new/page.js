@@ -43,7 +43,7 @@ const DEFAULT_FORM = {
     margin: 0,
     finalPrice: 0,
     perPersonPrice: 0,
-    numberOfPersons: 1,
+    numberOfPersons: 2,
     currency: "INR",
     includes: [],
     excludes: [],
@@ -818,12 +818,32 @@ export default function NewPackagePage() {
                 )}
 
                 {/* Calculated Price Banner */}
-                <div className="p-4.5 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 space-y-1">
-                  <div className="text-[12px] text-emerald-100 font-bold uppercase tracking-wider">
-                    Grand Package Total
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white shadow-md shadow-emerald-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-emerald-100 font-bold uppercase tracking-wider">
+                      Grand Package Total
+                    </span>
+                    <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full text-white">
+                      All Inclusive
+                    </span>
                   </div>
                   <div className="text-[26px] font-black tracking-tight">
                     ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
+                  </div>
+
+                  <div className="pt-2 border-t border-white/20 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                      <p className="text-emerald-100 text-[10px] font-bold">Per Couple</p>
+                      <p className="font-black text-[13px] text-white">
+                        ₹{(form.pricing?.perCouplePrice || Math.round(form.pricing?.finalPrice || 0)).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                      <p className="text-emerald-100 text-[10px] font-bold">Per Person ({form.pricing?.numberOfPersons || 2} Pax)</p>
+                      <p className="font-black text-[13px] text-white">
+                        ₹{(form.pricing?.perPersonPrice || Math.round((form.pricing?.finalPrice || 0) / 2)).toLocaleString("en-IN")}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

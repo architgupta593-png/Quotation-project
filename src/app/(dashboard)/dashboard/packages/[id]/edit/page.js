@@ -807,11 +807,30 @@ export default function EditPackagePage() {
               </div>
 
               {/* Final price box */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950 to-purple-950 border border-indigo-500/30 space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Grand Package Total</p>
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950 to-purple-950 border border-indigo-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Grand Package Total</p>
+                  <span className="text-[9.5px] font-extrabold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    All Inclusive
+                  </span>
+                </div>
                 <p className="text-[24px] font-black text-emerald-400 leading-tight">
                   ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
                 </p>
+                <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-white/5 rounded-xl p-2">
+                    <p className="text-indigo-200 text-[10px] font-bold">Per Couple</p>
+                    <p className="font-black text-[13px] text-white">
+                      ₹{(form.pricing?.perCouplePrice || (form.pricing?.finalPrice || 0)).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-2">
+                    <p className="text-indigo-200 text-[10px] font-bold">Per Person ({form.pricing?.numberOfPersons || 2} Pax)</p>
+                    <p className="font-black text-[13px] text-white">
+                      ₹{(form.pricing?.perPersonPrice || Math.round((form.pricing?.finalPrice || 0) / 2)).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Step indicator status */}

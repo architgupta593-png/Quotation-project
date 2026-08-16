@@ -10,9 +10,12 @@ import {
   AlertCircle,
   MapPin,
   Zap,
+  QrCode,
+  ShieldCheck,
 } from "lucide-react";
 import CityCard from "@/components/accommodation/CityCard";
 import SearchBar from "@/components/accommodation/SearchBar";
+import VerifyVoucherModal from "@/components/activities/VerifyVoucherModal";
 
 export default function ActivitiesCitiesPage() {
   const { data: session } = useSession();
@@ -23,6 +26,7 @@ export default function ActivitiesCitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [search,  setSearch]  = useState("");
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
   const fetchCities = useCallback(async () => {
     setLoading(true);
@@ -96,17 +100,34 @@ export default function ActivitiesCitiesPage() {
             </div>
           </div>
 
-          {/* Search */}
-          <div className="max-w-sm">
-            <SearchBar
-              id="activity-city-search"
-              placeholder="Search cities or states…"
-              value={search}
-              onChange={setSearch}
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Search */}
+            <div className="max-w-sm w-full">
+              <SearchBar
+                id="activity-city-search"
+                placeholder="Search cities or states…"
+                value={search}
+                onChange={setSearch}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setVerifyOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-indigo-900 text-white font-extrabold text-[13px] transition-all shadow-md shadow-slate-900/20"
+            >
+              <QrCode className="w-4 h-4 text-emerald-400" />
+              Verify Ticket Pass
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Verify Voucher Modal */}
+      <VerifyVoucherModal
+        isOpen={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+      />
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-6 py-8">

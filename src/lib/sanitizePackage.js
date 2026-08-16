@@ -123,6 +123,7 @@ export function sanitizePackagePayload(body) {
     sanitized.itinerary = sanitized.itinerary.map((day, idx) => ({
       day: day.day || idx + 1,
       title: (day.title || "").trim() || `Day ${day.day || idx + 1} Schedule`,
+      // description is stored as HTML from the rich-text editor — preserve as-is
       description: (day.description || "").trim(),
       activities: Array.isArray(day.activities) ? day.activities.map((a) => (a || "").trim()).filter(Boolean) : [],
       meals: {

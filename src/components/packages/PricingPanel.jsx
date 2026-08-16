@@ -89,6 +89,9 @@ export default function PricingPanel({
       pricing.marginType !== activeMarginType ||
       pricing.margin !== activeMargin
     ) {
+      const numPersons = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2);
+      const perPersonPriceCalc = Math.round(finalPrice / numPersons);
+      const perCouplePriceCalc = Math.round(perPersonPriceCalc * 2);
       onChange({
         ...pricing,
         selectedOptionIndex: selectedIdx,
@@ -100,8 +103,8 @@ export default function PricingPanel({
         marginType: activeMarginType,
         margin: activeMargin,
         finalPrice,
-        perPersonPrice: finalPrice,
-        perCouplePrice: finalPrice,
+        perPersonPrice: perPersonPriceCalc,
+        perCouplePrice: perCouplePriceCalc,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

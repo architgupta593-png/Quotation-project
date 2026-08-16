@@ -11,8 +11,10 @@ import {
   IndianRupee,
   X,
   Clock,
+  FileText,
 } from "lucide-react";
 import ImageUploader from "./ImageUploader";
+import DescriptionEditorDialog from "./DescriptionEditorDialog";
 
 /**
  * ItineraryBuilder — builds a day-by-day itinerary.
@@ -28,6 +30,7 @@ import ImageUploader from "./ImageUploader";
 export default function ItineraryBuilder({ days, itinerary, value, onChange, packageId, destinations }) {
   const [openDay, setOpenDay] = useState(0);
   const [dialogDayIdx, setDialogDayIdx] = useState(null);
+  const [editorDayIdx, setEditorDayIdx] = useState(null); // for description editor dialog
   // Suggested activities per cityId: { cityId -> Activity[] }
   const [suggestedMap, setSuggestedMap] = useState({});
 
@@ -176,16 +179,37 @@ export default function ItineraryBuilder({ days, itinerary, value, onChange, pac
 
                 {/* Description */}
                 <div>
-                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
-                    Description
-                  </label>
-                  <textarea
-                    value={dayObj.description}
-                    onChange={(e) => update(dayIdx, { description: e.target.value })}
-                    placeholder="Describe the day's plan in detail…"
-                    rows={3}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all resize-none"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[12px] font-medium text-gray-500">
+                      Description
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditorDayIdx(dayIdx)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11.5px] font-extrabold hover:bg-indigo-100 transition-all shadow-2xs"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      {dayObj.description ? "Edit Description" : "+ Add Description"}
+                    </button>
+                  </div>
+
+                  {/* Preview area */}
+                  {dayObj.description ? (
+                    <div
+                      className="w-full min-h-[60px] px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-[13px] text-gray-700 leading-relaxed cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                      onClick={() => setEditorDayIdx(dayIdx)}
+                      title="Click to edit"
+                      dangerouslySetInnerHTML={{ __html: dayObj.description }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditorDayIdx(dayIdx)}
+                      className="w-full px-3.5 py-4 rounded-xl border border-dashed border-gray-300 text-[13px] text-gray-400 text-center hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/40 transition-all"
+                    >
+                      Click to add a rich description — paste from Word, Google Docs, etc.
+                    </button>
+                  )}
                 </div>
 
                 {/* Activities Section */}
@@ -478,6 +502,16 @@ export default function ItineraryBuilder({ days, itinerary, value, onChange, pac
           </div>
         );
       })()}
+      {/* ── Description Rich-Text Editor Dialog ── */}
+      <DescriptionEditorDialog
+        isOpen={editorDayIdx !== null}
+        dayLabel={editorDayIdx !== null ? `Day ${normalised[editorDayIdx]?.day}` : ""}
+        value={editorDayIdx !== null ? (normalised[editorDayIdx]?.description || "") : ""}
+        onSave={(html) => {
+          if (editorDayIdx !== null) update(editorDayIdx, { description: html });
+        }}
+        onClose={() => setEditorDayIdx(null)}
+      />
     </div>
   );
 }
