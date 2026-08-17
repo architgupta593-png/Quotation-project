@@ -2,6 +2,7 @@ export const HOTEL_FEATURES_LIST = [
   "Balcony",
   "Mountain View Room",
   "Valley View Room",
+  "Waterfall View",
   "Lake View Room",
   "River View Room",
   "Sea View Room",
