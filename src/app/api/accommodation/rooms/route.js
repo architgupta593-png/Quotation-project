@@ -15,7 +15,7 @@ export async function GET(request) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const hotelId = searchParams.get("hotelId");
+    const hotelId = searchParams.get("hotelId") || searchParams.get("hotel");
 
     const filter = {};
     if (hotelId) filter.hotel = hotelId;

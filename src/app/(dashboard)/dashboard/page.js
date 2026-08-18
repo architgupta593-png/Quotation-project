@@ -35,11 +35,23 @@ export default async function DashboardPage() {
     href: "/dashboard/packages",
     icon: Package,
     title: "Travel Packages",
-    description: "Manage quotation packages — itineraries, hotels, vehicles & pricing.",
+    description: "Manage package catalog — multi-day itineraries, hotels & transport.",
     color: "bg-indigo-500",
     bg: "bg-indigo-50",
     border: "border-indigo-100",
     textColor: "text-indigo-600",
+  });
+
+  // Quotations & Proposals Builder
+  quickLinks.push({
+    href: "/dashboard/quotations",
+    icon: FileText,
+    title: "Quotations & Proposals",
+    description: "Create personalized client proposals with 1-click clone, WhatsApp & PDF.",
+    color: "bg-purple-500",
+    bg: "bg-purple-50",
+    border: "border-purple-100",
+    textColor: "text-purple-600",
   });
 
   // Admin and superuser only

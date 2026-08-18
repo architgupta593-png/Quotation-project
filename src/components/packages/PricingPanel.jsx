@@ -74,7 +74,8 @@ export default function PricingPanel({
 
   const preTaxTotal = subtotal + marginAmount;
   const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
-  const rawFinalPrice = preTaxTotal + gstAmount;
+  const discountAmount = pricing.discountAmount || 0;
+  const rawFinalPrice = Math.max(0, preTaxTotal + gstAmount - discountAmount);
   // Round off to nearest 100 (e.g. 12768 -> 12800, 12740 -> 12700)
   const finalPrice = Math.round(rawFinalPrice / 100) * 100;
 
@@ -397,64 +398,59 @@ export default function PricingPanel({
           </div>
         </div>
 
-        {/* ── Optional GST Tax Section ── */}
-        <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
-          <div className="flex items-center justify-between">
-            <label htmlFor="toggle-gst-chk" className="flex items-center gap-2 cursor-pointer">
-              <input
-                id="toggle-gst-chk"
-                type="checkbox"
-                checked={Boolean(pricing.includeGst)}
-                onChange={(e) => update({ includeGst: e.target.checked })}
-                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-[13px] font-extrabold text-blue-950 flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-blue-600" />
-                Add Optional GST Tax to Price
+        {/* ── Optional Discount & Promo Offers Section ── */}
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-50 via-pink-50/60 to-rose-50 border border-rose-200/80 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-extrabold text-rose-950 flex items-center gap-1.5">
+                <Percent className="w-4 h-4 text-rose-600" />
+                Promotional Discount &amp; Special Offer
               </span>
-            </label>
-            {pricing.includeGst && (
-              <span className="text-[11.5px] font-black text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full">
-                GST Included (+₹{gstAmount.toLocaleString("en-IN")})
+            </div>
+            {discountAmount > 0 && (
+              <span className="text-[11.5px] font-black text-rose-700 bg-rose-100 px-3 py-0.5 rounded-full border border-rose-200 animate-pulse">
+                🎉 SAVE ₹{discountAmount.toLocaleString("en-IN")} DISCOUNT
               </span>
             )}
           </div>
 
-          {pricing.includeGst && (
-            <div className="flex items-center gap-3 pt-1">
-              <span className="text-[12px] font-bold text-slate-600">GST Rate (%):</span>
-              {[5, 12, 18, 28].map((rate) => (
-                <button
-                  key={rate}
-                  type="button"
-                  onClick={() => update({ gstPercentage: rate })}
-                  className={`px-3 py-1 rounded-xl text-[12px] font-bold transition-all ${
-                    (pricing.gstPercentage || 5) === rate
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {rate}% GST
-                </button>
-              ))}
-              <div className="w-24">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                Discount Amount (₹)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[13px]">
+                  ₹
+                </span>
                 <input
                   type="number"
                   min={0}
-                  max={50}
-                  value={pricing.gstPercentage === 0 ? "" : pricing.gstPercentage}
+                  value={pricing.discountAmount === 0 ? "" : pricing.discountAmount}
                   onWheel={(e) => e.target.blur()}
                   onChange={(e) => {
                     const val = e.target.value;
-                    if (val === "") update({ gstPercentage: 0 });
-                    else update({ gstPercentage: parseFloat(val) || 0 });
+                    update({ discountAmount: val === "" ? 0 : parseFloat(val) || 0 });
                   }}
-                  placeholder="5"
-                  className="w-full px-3 py-1 rounded-xl border border-slate-200 text-[12px] font-bold bg-white text-center"
+                  placeholder="e.g. 2000"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-rose-200 bg-white text-[13px] font-black text-slate-900 focus:outline-none focus:border-rose-500 shadow-xs"
                 />
               </div>
             </div>
-          )}
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                Offer Tag / Reason (optional)
+              </label>
+              <input
+                type="text"
+                value={pricing.discountReason || ""}
+                onChange={(e) => update({ discountReason: e.target.value })}
+                placeholder="e.g. Early Bird Offer, Honeymoon Special"
+                className="w-full px-3 py-2 rounded-xl border border-rose-200 bg-white text-[12.5px] font-semibold text-slate-900 focus:outline-none focus:border-rose-500 shadow-xs"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

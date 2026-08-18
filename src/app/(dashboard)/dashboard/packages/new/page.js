@@ -571,6 +571,7 @@ export default function NewPackagePage() {
                 <VehiclePanel
                   vehicle={form.vehicle}
                   value={form.vehicle}
+                  days={form.days}
                   onChange={(vehicle) => updateForm({ vehicle })}
                 />
               </div>

@@ -16,7 +16,7 @@ export async function GET(request) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const city     = searchParams.get("city");
+    const city     = searchParams.get("city") || searchParams.get("cityId");
     const category = searchParams.get("category");
     const search   = searchParams.get("search");
 

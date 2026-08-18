@@ -210,3 +210,92 @@
   display: inline !important;
   margin: 0 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRINT & 6-PAGE PDF BROCHURE STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media print {
+  @page {
+    margin: 8mm 10mm;
+    size: A4 portrait;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+  }
+
+  .no-print,
+  nav,
+  header.sticky,
+  button,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .screen-only {
+    display: none !important;
+  }
+
+  /* 6-Page Discrete Brochure Layout */
+  .pdf-page {
+    min-height: 270mm !important;
+    max-height: 275mm !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    position: relative !important;
+    overflow: hidden !important;
+    padding-bottom: 5mm !important;
+  }
+
+  .pdf-page-last {
+    min-height: 270mm !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    position: relative !important;
+    padding-bottom: 5mm !important;
+  }
+
+  .page-break-avoid,
+  .itinerary-card,
+  .hotel-card,
+  .pricing-box {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .page-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Force background colors and gradients in print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Clean print borders */
+  .shadow-xs,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: none !important;
+  }
+}

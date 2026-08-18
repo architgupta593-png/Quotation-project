@@ -1,141 +1,356 @@
-===============================================================================
-                       TEST TRAVEL PACKAGE DATA (sunny.txt)
-===============================================================================
+================================================================================
+              COMPREHENSIVE CODEBASE ANALYSIS & QUOTATION MODULE ARCHITECTURE
+================================================================================
 
--------------------------------------------------------------------------------
-1. PACKAGE BASICS
--------------------------------------------------------------------------------
-Title: 5 Day 4 Night Luxury Munnar & Alleppey Kerala Experience
-Total Duration: 4 Nights / 5 Days
-Status: published
-Highlights:
-  - Tea Plantation Tour & Eravikulam National Park Visit
-  - Romantic Houseboat Cruise & Backwater Stay in Alleppey
-  - Candlelight Dinner & Kathakali Dance Performance
-  - Private Luxury AC SUV Transport with Driver Included
+This document contains:
+  PART 1: In-depth Technical Analysis of the Package & Related Subsystems
+  PART 2: Complete Architectural Blueprint & Recommendations for "Create Quotation"
+  PART 3: Full Data Specification & Model Design for Quotations
+  PART 4: UI/UX Component Breakdown & Dashboard File Structure
+  PART 5: Real-Time Granular Customization Engine (Activities, Hotels, Fleet & Revisions)
 
-Route Destinations:
-  1. Munnar (3 Nights Stay — Nights 1, 2, 3)
-  2. Alleppey (1 Night Stay — Night 4)
+================================================================================
+PART 1: IN-DEPTH TECHNICAL ANALYSIS OF EXISTING CODEBASE
+================================================================================
 
--------------------------------------------------------------------------------
-2. DAY-BY-DAY ITINERARY (5 DAYS)
--------------------------------------------------------------------------------
-Day 1: Arrival in Cochin & Scenic Drive to Munnar
-  Activities:
-    - Pick up from Cochin Airport / Railway Station
-    - En-route visit to Cheeyappara & Valara Waterfalls
-    - Check-in to Munnar Resort & Leisure Evening Walk
-  Meals Included: Breakfast, Dinner
+1.1 PACKAGE FOLDER (`src/app/(dashboard)/dashboard/packages/` & `src/components/packages/`)
+--------------------------------------------------------------------------------
+• `new/page.js` & `[id]/edit/page.js`:
+    - Structured as a 7-stage guided wizard:
+      1. Basics (Title, Destinations, Nights, Days [auto: Nights + 1], Highlights, Cover Photo)
+      2. Itinerary (Day-by-Day schedule via ItineraryBuilder)
+      3. Accommodation (Multi-tier hotel selection via AccommodationPanel)
+      4. Vehicle (Fleet & transport rates via VehiclePanel)
+      5. Pricing (Cost + Margin + GST + Per Person / Couple via PricingPanel)
+      6. Instructions (Policies, rules & terms via InstructionPanel)
+      7. Review (Comprehensive summary + Live Reactive Sidebar + Save Draft/Publish)
+    - Real-time Sidebar Calculator: Displays live totals, per-couple rates, per-person rates,
+      and vehicle specs as inputs change.
+    - Hydration Safety: Uses `suppressHydrationWarning` and `immediatelyRender: false`.
 
-Day 2: Full Day Munnar Tea Gardens & Sightseeing
-  Activities:
-    - Visit Mattupetty Dam, Echo Point, and Kundala Lake
-    - Tea Museum & Tea Tasting Experience
-    - Evening Spice Garden Tour
-  Meals Included: Breakfast, Dinner
+• `ItineraryBuilder.jsx` & `DescriptionEditorDialog.jsx`:
+    - Auto-suggests city activities from `/api/activities?city={cityId}`.
+    - Integrates Tiptap v3 rich-text editor modal supporting:
+      • Bold, Italics, Underline
+      • Bullet points (•) with nested sub-bullets (circles, squares)
+      • Numbered lists (1, 2, 3), Alphabetical (a, b, c), and Roman numerals (i, ii, iii)
+      • Tab / Shift+Tab keyboard shortcuts + Indent/Outdent buttons
+      • Direct clipboard pasting from Word, Google Docs, WhatsApp, and PDFs
+    - Meal inclusion checkboxes (`breakfast`, `lunch`, `dinner`).
 
-Day 3: Wildlife Experience & Photo Point Exploration
-  Activities:
-    - Eravikulam National Park (Home of Nilgiri Tahr)
-    - Photo Point & Blossom International Park
-    - Shopping at Local Spice Market
-  Meals Included: Breakfast, Dinner
+• `AccommodationPanel.jsx`:
+    - Multi-tier category support (Option 1: Standard, Option 2: Deluxe, Option 3: Luxury).
+    - City-aware hotel & room picker with meal plans (EP, CP, MAP, AP) and star ratings (1–5★).
+    - Per-option custom profit margin overrides (Absolute ₹ or Percentage %).
 
-Day 4: Munnar to Alleppey Backwaters & Houseboat Check-in
-  Activities:
-    - Morning scenic drive from Munnar to Alleppey
-    - Check-in to Traditional Kerala Luxury Houseboat / Resort at 12:00 PM
-    - Cruise along Vembanad Lake & Scenic Canal Network
-  Meals Included: Breakfast, Lunch, Dinner
+• `VehiclePanel.jsx`:
+    - Fleet categories: Sedan (4S), SUV (6S), MUV (7S), Tempo Traveller (12S), Mini Bus, Bus.
+    - AC vs Non-AC toggles, pricing, driver allowance, toll/parking presets.
 
-Day 5: Alleppey Sightseeing & Departure from Cochin
-  Activities:
-    - Sunrise view & Traditional Breakfast at Alleppey Beach
-    - Fort Kochi Heritage Walk & Chinese Fishing Nets
-    - Drop off at Cochin Airport / Railway Station
-  Meals Included: Breakfast
+• `PricingPanel.jsx`:
+    - Financial calculation engine:
+      • Subtotal = Accommodation Base + Transport Fleet + Itinerary Activities
+      • Profit Margin = Flat ₹ or % of Subtotal
+      • Optional GST Tax (5%, 12%, 18%, 28%)
+      • Grand Total rounded to nearest ₹100
+      • Per Couple Price (`finalPrice ÷ pax × 2`) & Per Person Price (`finalPrice ÷ pax`)
 
--------------------------------------------------------------------------------
-3. ACCOMMODATION OPTIONS (TIER CATEGORIES)
--------------------------------------------------------------------------------
-Option 1 (Premium Category):
-  - Stay 1 (Nights 1 to 3 — Munnar):
-      Hotel: Panoramic Getaway Resort Munnar (5★)
-      Room Type: Executive Mountain View Suite
-      Meal Plan: MAP (Breakfast + Dinner)
-      Price Per Night: ₹7,500 / night (Total: ₹22,500 for 3 nights)
-  - Stay 2 (Night 4 — Alleppey):
-      Hotel: Lakes & Lagoons Luxury Houseboat Alleppey (4★)
-      Room Type: Deluxe AC Houseboat Suite
-      Meal Plan: AP (All Meals)
-      Price Per Night: ₹8,500 / night (Total: ₹8,500 for 1 night)
-  Option 1 Accommodation Total: ₹31,000
+• `[id]/page.js` (Package Preview):
+    - Full-bleed cinematic hero banner with cover photo.
+    - Timeline-style itinerary (`D1`, `D2`, `D3`) with meal badges and photo gallery.
+    - Tabbed accommodation tier switcher and transport specs card.
 
-Option 2 (Deluxe Category):
-  - Stay 1 (Nights 1 to 3 — Munnar):
-      Hotel: Tea County Resort Munnar (4★)
-      Room Type: Deluxe Double Room
-      Meal Plan: CP (Bed & Breakfast)
-      Price Per Night: ₹4,500 / night (Total: ₹13,500 for 3 nights)
-  - Stay 2 (Night 4 — Alleppey):
-      Hotel: Alleppey Backwater Resort (3★)
-      Room Type: Lake View Room
-      Meal Plan: MAP (Breakfast + Dinner)
-      Price Per Night: ₹5,000 / night (Total: ₹5,000 for 1 night)
-  Option 2 Accommodation Total: ₹18,500
+1.2 ACCOMMODATION & ACTIVITY FOLDERS (`src/components/accommodation/` & `src/components/activities/`)
+--------------------------------------------------------------------------------
+• Accommodation Subsystem:
+    - Multi-city hierarchical database: `City` ➔ `Hotel` ➔ `Room`.
+    - Season Calendar support for peak/off-peak price multipliers.
+• Activity & Direct Booking Subsystem:
+    - Standalone city-based activity catalog with pricing tiers (`adultPrice`, `childPrice`).
+    - QR Code Ticketing: `ActivityVoucherModal.jsx` generates high-resolution SVG QR codes.
+    - Public Verification: `/vouchers/[code]` allows instant mobile camera scanning & verification.
+    - Dashboard Verification: `VerifyVoucherModal.jsx` for quick staff lookup.
 
--------------------------------------------------------------------------------
-4. VEHICLE & TRANSPORT FLEET
--------------------------------------------------------------------------------
-Vehicle Category: SUV
-Model / Make: Toyota Innova Crysta
-Seats Capacity: 6 Persons
-Air Conditioning: AC
-Total Transport Price: ₹14,000 (Full 5-Day Itinerary)
-Transport Inclusions:
-  - Fuel & Mileage Included
-  - Driver Allowance Included
-  - Tolls & Parking Included
-  - Inter-State Permit Taxes Included
+1.3 BACKEND & SANITIZATION (`src/lib/sanitizePackage.js` & `src/models/Package.js`)
+--------------------------------------------------------------------------------
+• `PackageSchema` (`src/models/Package.js`):
+    - Self-contained embedded document containing destinations, itinerary, accommodationOptions,
+      vehicle, pricing, instructions, and activities.
+    - Pre-save hook auto-derives `days = nights + 1` and creates the route string (`Munnar → Alleppey`).
+• `sanitizePackage.js`:
+    - Strict coercion: parses integers, cleans array items, preserves rich HTML descriptions.
 
--------------------------------------------------------------------------------
-5. PRICING & MARGIN CALCULATOR
--------------------------------------------------------------------------------
-Base Accommodation Total (Option 1): ₹31,000
-Vehicle Transport Total: ₹14,000
-Subtotal Cost: ₹45,000
-Profit Margin: ₹9,000 (Absolute ₹)
-Grand Total Package Price: ₹54,000
-Number of Persons: 2 Pax
-Calculated Price Per Person: ₹27,000 / pax
+================================================================================
+PART 2: ARCHITECTURAL BLUEPRINT FOR "CREATE QUOTATION" COMPONENT
+================================================================================
 
-Package Inclusions:
-  - Accommodation in 4★/5★ Resorts as per selected tier
-  - Daily Breakfast and Dinner as specified in itinerary
-  - Exclusive Private AC SUV Transport (Innova Crysta) for all transfers
-  - All Toll Taxes, Parking, Fuel, and Driver Charges
-  - Welcome Drink on arrival at all hotels
+Why a dedicated Quotation component is needed:
+While "Travel Packages" are generic templates for the public website, a "Quotation"
+is a personalized commercial proposal customized for a specific lead/client with
+their specific dates, guest count, custom markup, and client contact info.
 
-Package Exclusions:
-  - Airfare / Train Tickets to/from Cochin
-  - Entry monument tickets, camera fees, & safari charges
-  - Personal expenses (laundry, room service, telephone)
-  - Travel Insurance & GST
+RECOMMENDED KEY FEATURES FOR THE QUOTATION BUILDER:
+--------------------------------------------------------------------------------
+1. Dual Creation Workflow & 1-Click Package Fetch:
+   • Option A — "Fetch & Clone from Travel Package":
+     - Browse the package catalog or click "+ Create Quote" directly on any package card.
+     - Performs a DEEP-CLONE of the master package (Itinerary, Hotels, Vehicle, Pricing, Policies).
+     - The original master package remains completely untouched and safe.
+     - Travel Agent can immediately modify ANYTHING the client doesn't want:
+       * Replace any hotel property or room type (e.g. swap 3★ for 5★).
+       * Add, delete, or re-order day activities and sightseeing passes.
+       * Upgrade/downgrade vehicle (Sedan ➔ Innova Crysta ➔ Tempo Traveller).
+       * Edit day descriptions with rich sub-bullets and Roman numerals.
+       * Set custom client margins, special discounts, and customized payment terms.
+   • Option B — "Build Custom Quotation from Scratch":
+     - Build a unique tour itinerary, hotel tiers, and transport tailored for custom requests.
+   • Option C — "Post-Creation Re-Edit Studio":
+     - Reopen any existing quotation at `/dashboard/quotations/[id]/edit` anytime to revise
+       hotels, dates, or discounts based on client calls/WhatsApp feedback.
 
--------------------------------------------------------------------------------
-6. PACKAGE INSTRUCTIONS & TERMS
--------------------------------------------------------------------------------
-[Heading: Driver Guidelines & Arrival]
-- Driver details will be shared 24 hours prior to travel via WhatsApp.
-- Airport pick-up point is Gate 3 outside Cochin International Airport.
+2. Client & Lead Management Header:
+   • Client Name, WhatsApp Phone Number, Email, and City.
+   • Lead Source (Website, WhatsApp, Referral, Walk-in, B2B Partner).
+   • Quotation Ref Number (e.g. `QT-2026-8492` or `MANDATE-QT-014`).
+   • Quotation Validity Expiry Date (e.g. "Valid for 7 days").
 
-[Heading: Houseboat Guidelines]
-- AC in Deluxe Houseboats operates from 9:00 PM to 6:00 AM.
-- Houseboat cruising timing is from 12:00 PM to 5:30 PM (Anchored at night).
+3. Dynamic Passenger & Room Configuration:
+   • Number of Adults (12+ yrs), Children with Bed, Children without Bed, Infants.
+   • Total Rooms required (e.g. 2 Double Rooms + 1 Extra Bed).
+   • Instant recalculation of room counts and vehicle capacity recommendations.
 
-[Heading: Cancellation Policy]
-- 100% refund for cancellations made 30 days before travel date.
-- 50% refund for cancellations made 15–29 days before travel date.
-- No refund for cancellations within 14 days of travel.
-===============================================================================
+4. Multi-Category Client Options (Tiers):
+   • Give the customer choices in the same quotation:
+     - Tier 1: Standard (3★ Hotels + CP Breakfast)
+     - Tier 2: Deluxe (4★ Resorts + MAP Dinner & Breakfast)
+     - Tier 3: Luxury (5★ / Heritage Suite + MAP/AP Meals)
+
+5. Commercial Margin & Discount Engine:
+   • Base Net Cost (Hotel + Vehicle + Activities + Guides).
+   • Custom Profit Margin (Flat ₹ or %).
+   • Client Special Discount (e.g. ₹2,000 off to close deal).
+   • GST Tax calculation (5% with ITC, 12%, or Exempt).
+   • Per Couple, Per Person, and Total Quotation Value.
+
+6. Client Deliverables & Sharing (3 Modes):
+   • Mode 1: Branded PDF Itinerary Export with agency logo, terms, and contact.
+   • Mode 2: Online Interactive Quotation Webpage (`/quote/[refCode]`) with "Accept & Pay Advance" button.
+   • Mode 3: One-Click WhatsApp Formatted Text Copy for direct messaging.
+
+================================================================================
+PART 3: DATABASE SCHEMA SPECIFICATION FOR QUOTATIONS
+================================================================================
+
+File: `src/models/Quotation.js` (Enhanced Full Schema)
+
+```javascript
+const QuotationSchema = new mongoose.Schema(
+  {
+    // Identification
+    quotationCode: { type: String, unique: true, required: true, uppercase: true }, // e.g. QT-2026-8492
+    sourcePackage: { type: mongoose.Schema.Types.ObjectId, ref: "Package", default: null }, // Cloned package ID
+
+    // Client & Lead Info
+    client: {
+      name:        { type: String, required: true, trim: true },
+      phone:       { type: String, required: true, trim: true },
+      email:       { type: String, trim: true, lowercase: true },
+      company:     { type: String, trim: true, default: "" }, // For B2B agents
+      clientType:  { type: String, enum: ["b2c", "b2b", "corporate"], default: "b2c" },
+      leadSource:  { type: String, default: "Direct" },
+    },
+
+    // Trip & Travel Dates
+    tripDetails: {
+      title:        { type: String, required: true, trim: true },
+      startDate:    { type: Date, required: true },
+      endDate:      { type: Date, required: true },
+      nights:       { type: Number, required: true, min: 1 },
+      days:         { type: Number, required: true, min: 1 },
+      destinations: [DestinationSchema], // Multi-city route
+      destination:  { type: String, default: "" }, // Derived route string
+    },
+
+    // Guests & Rooms
+    passengers: {
+      adults:            { type: Number, default: 2, min: 1 },
+      childrenWithBed:   { type: Number, default: 0, min: 0 },
+      childrenNoBed:     { type: Number, default: 0, min: 0 },
+      infants:           { type: Number, default: 0, min: 0 },
+      totalRooms:        { type: Number, default: 1, min: 1 },
+    },
+
+    // Day-by-Day Itinerary (Rich HTML Description, Meals, Activities)
+    itinerary: [ItineraryDaySchema],
+
+    // Multi-Tier Hotel Categories (Standard, Deluxe, Luxury)
+    accommodationOptions: [AccommodationOptionSchema],
+    selectedOptionIndex:  { type: Number, default: 0 },
+
+    // Transport Fleet
+    vehicle: VehicleSchema,
+
+    // Pricing, Margin & Taxes
+    pricing: {
+      baseAccommodation: { type: Number, default: 0 },
+      vehicleCost:       { type: Number, default: 0 },
+      activitiesCost:    { type: Number, default: 0 },
+      subtotalNetCost:   { type: Number, default: 0 },
+      marginType:        { type: String, enum: ["absolute", "percentage"], default: "absolute" },
+      marginValue:       { type: Number, default: 0 },
+      discountAmount:    { type: Number, default: 0 },
+      includeGst:        { type: Boolean, default: false },
+      gstPercentage:     { type: Number, default: 5 },
+      finalQuotationAmount: { type: Number, required: true },
+      perPersonPrice:    { type: Number, default: 0 },
+      perCouplePrice:    { type: Number, default: 0 },
+      currency:          { type: String, default: "INR" },
+    },
+
+    // Inclusions, Exclusions & Payment Terms
+    inclusions:   [{ type: String }],
+    exclusions:   [{ type: String }],
+    paymentTerms: {
+      advancePercentage: { type: Number, default: 25 },
+      advanceAmount:     { type: Number, default: 0 },
+      balanceDueDate:    { type: Date },
+      termsText:         { type: String, default: "25% advance to confirm, balance 15 days before travel." },
+    },
+    instructions: [InstructionBlockSchema],
+
+    // Lifecycle Status
+    status: {
+      type: String,
+      enum: ["draft", "sent", "viewed", "confirmed", "expired", "cancelled"],
+      default: "draft",
+    },
+    validUntil: { type: Date, required: true }, // Expiration date
+
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  },
+  { timestamps: true }
+);
+```
+
+================================================================================
+PART 4: RECOMMENDED COMPONENT STRUCTURE FOR DASHBOARD
+================================================================================
+
+Recommended Files to Add:
+1. `src/app/(dashboard)/dashboard/quotations/page.js`
+   - Quotation pipeline list with status filters (Draft, Sent, Confirmed, Expired).
+   - Metrics bar (Total Quotes, Confirmed Revenue, Pending Leads).
+   - Actions: "Create New Quotation", "Clone Package into Quote", "WhatsApp Share", "PDF Download".
+
+2. `src/app/(dashboard)/dashboard/quotations/new/page.js`
+   - Wizard with:
+     • Step 1: Client Details & Date Selector
+     • Step 2: "Select Existing Package" Modal OR "Build Custom"
+     • Step 3: Itinerary Editor (with Tiptap rich descriptions & sub-bullets)
+     • Step 4: Accommodation Options (Standard, Deluxe, Luxury)
+     • Step 5: Vehicle & Transport
+     • Step 6: Pricing, Margin, Tax & Payment Milestones
+     • Step 7: Final Review & Generate Quote
+
+3. `src/app/(dashboard)/dashboard/quotations/[id]/edit/page.js`
+   - Full post-creation edit studio allowing travel agents to revise any quote
+     based on client calls, WhatsApp negotiation, or hotel availability updates.
+
+4. `src/app/quote/[quotationCode]/page.js` (Public Client View)
+   - Mobile-first, executive client-facing quote proposal.
+   - Interactive hotel tier switcher showing price differences.
+   - Itinerary accordion with day descriptions and photos.
+   - "Accept Quotation & Request Booking" action button.
+
+5. `src/components/quotations/WhatsAppShareModal.jsx`
+   - Generates beautifully structured WhatsApp text messages with emojis, hotel names,
+     itinerary summary, price per couple/person, and direct link.
+
+================================================================================
+PART 5: REAL-TIME GRANULAR CUSTOMIZATION & EDIT ENGINE
+================================================================================
+
+Whenever a client requests changes (e.g. "Upgrade Munnar hotel to 5-star",
+"Add Elephant Safari on Day 2", "Change vehicle to Innova Crysta", "Add 1 Extra Night"),
+the Quotation Builder allows complete, live, flexible customization:
+
+--------------------------------------------------------------------------------
+5.1 ACTIVITY CUSTOMIZATION & OPTIONAL ADD-ONS
+--------------------------------------------------------------------------------
+• Day-Specific Activity Customizer:
+    - Click "+ Add / Select Activities" on any individual day.
+    - Search & filter city-specific activities (e.g. Kathakali Show, Tea Museum, Speedboat).
+    - Override activity price (e.g. mark an activity as "Complimentary / Free" or set custom price).
+    - Remove or re-order activities on any day with 1 click.
+• Optional Client Add-ons:
+    - Include optional sightseeing/experience passes with individual price tags
+      so clients can choose whether to include them in the final quote.
+
+--------------------------------------------------------------------------------
+5.2 ACCOMMODATION & HOTEL TIER CUSTOMIZATION
+--------------------------------------------------------------------------------
+• Per-Night Hotel Swapper:
+    - Change hotel for any specific night (e.g. Night 1 & 2 in Resort A, Night 3 in Resort B).
+    - Change room category on the fly (e.g. Standard Room ➔ Private Pool Villa).
+    - Switch meal plans per stay (EP: Room Only, CP: Breakfast, MAP: Breakfast+Dinner, AP: All Meals).
+• Rate Overrides & Seasonal Customization:
+    - Directly edit the price-per-night to match custom negotiated agent rates.
+    - Custom margin per hotel tier (e.g. 10% on 3★ Standard, 15% on 5★ Luxury).
+• Duration & Night Adjustments:
+    - Add an extra night to any city or remove a night (auto-recalculates total days & dates).
+    - Add unlimited custom accommodation tiers (e.g. Tier 1: 3-Star, Tier 2: 4-Star, Tier 3: 5-Star).
+
+--------------------------------------------------------------------------------
+5.3 VEHICLE & FLEET CUSTOMIZATION
+--------------------------------------------------------------------------------
+• Vehicle Category & Fleet Upgrades:
+    - Switch vehicle type anytime: Sedan ➔ SUV ➔ Innova Crysta ➔ Tempo Traveller (12/17/26 Seats).
+    - Switch AC / Non-AC preferences.
+    - Adjust seating capacity based on family/group size.
+• Custom Logistics & Driver Terms:
+    - Custom vehicle total pricing for special routes or multi-city transfers.
+    - Toggle transport inclusions: Fuel, Driver Allowance, Parking, Toll Taxes, Interstate Permits.
+    - Add multiple vehicles for large groups/delegations (e.g. 2 Innovas for 10 Pax).
+
+--------------------------------------------------------------------------------
+5.4 DAY-BY-DAY ITINERARY CUSTOMIZATION
+--------------------------------------------------------------------------------
+• Reorder & Custom Day Editing:
+    - Add custom stopovers, sightseeing routes, and leisure days.
+    - Edit Day Titles (e.g. "Day 3: Scenic Drive to Thekkady & Wildlife Boat Safari").
+    - Rich Text Description Editor: Add paragraphs, nested sub-bullets (•, circles, squares),
+      numerical points (1, 2, 3), and Roman numerals (i, ii, iii).
+    - Individual meal toggles per day (`breakfast`, `lunch`, `dinner`).
+
+--------------------------------------------------------------------------------
+5.5 REAL-TIME COST & PROFIT MARGIN RECALCULATION
+--------------------------------------------------------------------------------
+As soon as ANY activity, hotel, room, or vehicle is customized:
+    1. Base Subtotal recalculates instantly:
+       `Subtotal = Accommodation Base + Vehicle Fleet + Activities Total`
+    2. Profit Margin recalculates dynamically (Flat ₹ or %):
+       `Margin = MarginType === 'percentage' ? (Subtotal × Margin%) ÷ 100 : Margin₹`
+    3. Optional GST & Taxes apply automatically (e.g. 5% GST):
+       `GST = IncludeGST ? (Subtotal + Margin) × 5% : 0`
+    4. Client Special Discount applies:
+       `Grand Total = (Subtotal + Margin + GST) - Discount`
+    5. Divided Unit Rates update live on screen:
+       `Per Couple Rate = (Grand Total ÷ Pax) × 2`
+       `Per Person Rate = Grand Total ÷ Pax`
+
+--------------------------------------------------------------------------------
+5.6 FULL POST-CREATION EDIT STUDIO & REVISION TRACKING
+--------------------------------------------------------------------------------
+• Live Quotation Revisions (`/dashboard/quotations/[id]/edit`):
+    - Travel agents can reopen any previously sent quotation and adjust hotels, dates,
+      passenger count, or discounts based on client negotiation.
+    - Click "Update & Resend Quotation" to instantly update the client's live web link
+      and generate a revised PDF / WhatsApp summary without changing the quote URL.
+
+================================================================================
+CONCLUSION
+================================================================================
+This granular customization architecture guarantees that travel agents have 100%
+control over every detail (Activities, Hotels, Transport, Margins, Discounts, Dates)
+while ensuring instant, error-free financial recalculations for every client proposal.
+================================================================================

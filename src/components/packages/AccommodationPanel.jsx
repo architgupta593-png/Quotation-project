@@ -18,10 +18,11 @@ const MEAL_PLANS = [
 export default function AccommodationPanel({
   destinations = [],
   accommodationOptions: propOptions = [],
+  options: optionsProp = [],
   value = [],
   onChange,
 }) {
-  const accommodationOptions = propOptions.length > 0 ? propOptions : value;
+  const accommodationOptions = propOptions.length > 0 ? propOptions : (optionsProp.length > 0 ? optionsProp : value);
   const [activeOptIdx, setActiveOptIdx] = useState(0);
   const [hotelsMap, setHotelsMap] = useState({});
   const [roomsMap, setRoomsMap] = useState({});
@@ -281,10 +282,17 @@ export default function AccommodationPanel({
     if (room && mealPlan) {
       for (const season of room.seasonalPricing || []) {
         const meal = (season.meals || []).find((m) => m.plan === mealPlan);
-        if (meal) {
-          price = meal.price || 0;
+        if (meal && meal.price > 0) {
+          price = meal.price;
           break;
         }
+      }
+      if (price === 0 && room.seasonalPricing?.length > 0) {
+        const firstMeal = (room.seasonalPricing[0]?.meals || []).find((m) => m.plan === mealPlan);
+        if (firstMeal) price = firstMeal.price || 0;
+      }
+      if (price === 0 && room.basePrice) {
+        price = room.basePrice;
       }
     }
 
