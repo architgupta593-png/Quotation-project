@@ -6,6 +6,17 @@ import {
   RefreshCw, CheckCircle2, User, Phone,
 } from "lucide-react";
 
+// Runtime Emoji Builder using String.fromCodePoint
+const EMOJI = {
+  PLANE: String.fromCodePoint(0x2708, 0xFE0F),// ✈️
+  POINT_RIGHT: String.fromCodePoint(0x1F449), // 👉
+  PHONE: String.fromCodePoint(0x1F4DE),       // 📞
+  MAIL: String.fromCodePoint(0x2709, 0xFE0F), // ✉️
+  GLOBE: String.fromCodePoint(0x1F310),      // 🌐
+  SPARKLES: String.fromCodePoint(0x2728),    // ✨
+  CHECK: String.fromCodePoint(0x2705),       // ✅
+};
+
 export default function EmailShareModal({ quotation, isOpen, onClose }) {
   const [copied, setCopied] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -46,7 +57,7 @@ export default function EmailShareModal({ quotation, isOpen, onClose }) {
   function generateDefaultContent() {
     if (!quotation) return;
 
-    const sub = `✈️ Exclusive Travel Proposal: ${tripDetails?.title || "Custom Holiday"} | Mandate Holidays (Ref: ${quotationCode})`;
+    const sub = `${EMOJI.PLANE} Exclusive Travel Proposal: ${tripDetails?.title || "Custom Holiday"} | Mandate Holidays (Ref: ${quotationCode})`;
     setSubject(sub);
     setRecipientEmail(client?.email || "");
 
@@ -87,14 +98,14 @@ VIEW INTERACTIVE PROPOSAL & ACCEPT ONLINE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 You can review the full day-by-day sightseeing timeline, hotel pictures, and confirm your booking by visiting your private client proposal link:
 
-👉 ${publicUrl}
+${EMOJI.POINT_RIGHT} ${publicUrl}
 
 Please let us know if you would like any modifications or special additions. We look forward to hosting you!
 
 Warm regards,
 Mandate Holidays Travel Operations
-📞 +91-9876543210 | ✉️ info@mandateholidays.com
-🌐 https://mandateholidays.com`;
+${EMOJI.PHONE} +91-9876543210 | ${EMOJI.MAIL} info@mandateholidays.com
+${EMOJI.GLOBE} https://mandateholidays.com`;
 
     setEmailBody(body);
   }
@@ -107,8 +118,35 @@ Mandate Holidays Travel Operations
 
   if (!isOpen || !quotation) return null;
 
-  function handleCopy() {
-    navigator.clipboard.writeText(`Subject: ${subject}\n\n${emailBody}`);
+  async function handleCopy() {
+    const fullContent = `Subject: ${subject}\n\n${emailBody}`;
+    let copiedSuccess = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(fullContent);
+        copiedSuccess = true;
+      }
+    } catch {
+      copiedSuccess = false;
+    }
+
+    if (!copiedSuccess) {
+      const textArea = document.createElement("textarea");
+      textArea.value = fullContent;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand("copy");
+      } catch (err) {
+        console.error("Copy fallback error", err);
+      }
+      textArea.remove();
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }
