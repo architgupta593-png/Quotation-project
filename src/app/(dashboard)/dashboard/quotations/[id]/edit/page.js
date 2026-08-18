@@ -15,6 +15,8 @@ import AccommodationPanel from "@/components/packages/AccommodationPanel";
 import VehiclePanel from "@/components/packages/VehiclePanel";
 import PricingPanel from "@/components/packages/PricingPanel";
 import InstructionPanel from "@/components/packages/InstructionPanel";
+import PackageCloneModal from "@/components/quotations/PackageCloneModal";
+import DateRangeSelector from "@/components/quotations/DateRangeSelector";
 
 const SECTIONS = [
   { id: "client", label: "Client & Dates", icon: Users, desc: "Lead & Travel Info" },
@@ -35,6 +37,7 @@ export default function EditQuotationPage() {
   const [error, setError] = useState("");
   const [cities, setCities] = useState([]);
   const [form, setForm] = useState(null);
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -139,6 +142,145 @@ export default function EditQuotationPage() {
     }
   }
 
+  // 1-Click Clone from Package Handler (Deep Copy & Normalize to isolate quotation)
+  async function handleClonePackage(pkg) {
+    if (!pkg) return;
+    let fullPkg = pkg;
+    if (!pkg.itinerary || !pkg.accommodationOptions || pkg.itinerary.length === 0) {
+      try {
+        const res = await fetch(`/api/packages/${pkg._id}`);
+        const data = await res.json();
+        if (data.package) fullPkg = data.package;
+      } catch (e) {
+        console.error("Error fetching package details for clone", e);
+      }
+    }
+
+    const deepClone = JSON.parse(JSON.stringify(fullPkg));
+    const incs = Array.isArray(deepClone.pricing?.includes)
+      ? deepClone.pricing.includes
+      : (Array.isArray(deepClone.inclusions) ? deepClone.inclusions : []);
+    const excs = Array.isArray(deepClone.pricing?.excludes)
+      ? deepClone.pricing.excludes
+      : (Array.isArray(deepClone.exclusions) ? deepClone.exclusions : []);
+
+    let destinations = Array.isArray(deepClone.destinations) && deepClone.destinations.length > 0
+      ? deepClone.destinations
+      : [];
+    if (destinations.length === 0 && Array.isArray(deepClone.accommodationOptions) && deepClone.accommodationOptions.length > 0) {
+      const firstOptNights = deepClone.accommodationOptions[0]?.nights || [];
+      const synthesized = [];
+      firstOptNights.forEach((n) => {
+        const last = synthesized[synthesized.length - 1];
+        if (last && last.cityName === n.cityName) {
+          last.nights += 1;
+        } else {
+          synthesized.push({
+            cityId: n.cityId || null,
+            cityName: n.cityName || "Destination",
+            state: "",
+            nights: 1,
+          });
+        }
+      });
+      destinations = synthesized;
+    }
+
+    const totalNights = deepClone.nights || (destinations.length > 0 ? destinations.reduce((s, d) => s + (d.nights || 1), 0) : form.tripDetails.nights) || 4;
+    const totalDays = deepClone.days || totalNights + 1;
+
+    const startDate = form.tripDetails.startDate || new Date().toISOString().split("T")[0];
+    const startObj = new Date(startDate);
+    const endObj = new Date(startObj.getTime() + totalNights * 24 * 60 * 60 * 1000);
+    const endDate = !isNaN(endObj.getTime()) ? endObj.toISOString().split("T")[0] : form.tripDetails.endDate;
+
+    const destination = deepClone.destination || destinations.map((d) => d.cityName).join(" → ");
+
+    const itinerary = (deepClone.itinerary || []).map((day, di) => ({
+      day: day.day || di + 1,
+      title: day.title || `Day ${di + 1}`,
+      description: day.description || "",
+      activities: Array.isArray(day.activities) ? day.activities : [],
+      meals: {
+        breakfast: Boolean(day.meals?.breakfast),
+        lunch: Boolean(day.meals?.lunch),
+        dinner: Boolean(day.meals?.dinner),
+      },
+      images: Array.isArray(day.images) ? day.images : [],
+    }));
+
+    const accommodationOptions = (deepClone.accommodationOptions || []).map((opt, optIdx) => ({
+      label: opt.label || `Option ${optIdx + 1}`,
+      marginType: opt.marginType || "absolute",
+      margin: opt.margin || 0,
+      totalPrice: opt.totalPrice || 0,
+      nights: (opt.nights || []).map((n, ni) => ({
+        night: n.night || ni + 1,
+        cityId: n.cityId || null,
+        cityName: n.cityName || "",
+        hotelId: n.hotelId || null,
+        hotelName: n.hotelName || "",
+        roomId: n.roomId || null,
+        roomType: n.roomType || "",
+        mealPlan: n.mealPlan || "CP",
+        starRating: n.starRating || null,
+        pricePerNight: n.pricePerNight || 0,
+        notes: n.notes || "",
+      })),
+    }));
+
+    const vehicle = deepClone.vehicle ? {
+      vehicleType: deepClone.vehicle.vehicleType || "Sedan",
+      model: deepClone.vehicle.model || "",
+      seats: deepClone.vehicle.seats || 4,
+      acType: deepClone.vehicle.acType || "AC",
+      vehiclePrice: deepClone.vehicle.vehiclePrice || 0,
+      notes: deepClone.vehicle.notes || "",
+    } : form.vehicle;
+
+    setForm((prev) => ({
+      ...prev,
+      sourcePackage: deepClone._id,
+      tripDetails: {
+        ...prev.tripDetails,
+        title: prev.client?.name?.trim()
+          ? `${deepClone.title} (Quote for ${prev.client.name.trim()})`
+          : deepClone.title,
+        nights: totalNights,
+        days: totalDays,
+        startDate,
+        endDate,
+        destinations,
+        destination,
+      },
+      highlights: Array.isArray(deepClone.highlights) ? deepClone.highlights : [],
+      coverImage: deepClone.coverImage || null,
+      itinerary,
+      accommodationOptions,
+      selectedOptionIndex: deepClone.pricing?.selectedOptionIndex || 0,
+      vehicle,
+      pricing: {
+        ...prev.pricing,
+        ...deepClone.pricing,
+        selectedOptionIndex: deepClone.pricing?.selectedOptionIndex || 0,
+        marginType: deepClone.pricing?.marginType || "absolute",
+        margin: deepClone.pricing?.margin || 0,
+        discountAmount: deepClone.pricing?.discountAmount || 0,
+        discountReason: deepClone.pricing?.discountReason || "",
+        includeGst: Boolean(deepClone.pricing?.includeGst),
+        gstPercentage: deepClone.pricing?.gstPercentage || 5,
+        rateBasis: deepClone.pricing?.rateBasis || "per_couple",
+        includes: incs,
+        excludes: excs,
+        numberOfPersons: prev.passengers?.adults || 2,
+      },
+      inclusions: incs,
+      exclusions: excs,
+      instructions: Array.isArray(deepClone.instructions) ? deepClone.instructions : [],
+    }));
+    setCloneModalOpen(false);
+  }
+
   const currentStepIdx = SECTIONS.findIndex((s) => s.id === currentSection);
   function nextSection() {
     if (currentStepIdx < SECTIONS.length - 1) {
@@ -176,6 +318,15 @@ export default function EditQuotationPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setCloneModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-extrabold text-[12.5px] transition-all shadow-2xs"
+          >
+            <Package className="w-4 h-4 text-indigo-600" />
+            <span>Apply Package Template</span>
+          </button>
+
           <a
             href={`/quote/${form.quotationCode}`}
             target="_blank"
@@ -273,26 +424,22 @@ export default function EditQuotationPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[12px] font-bold text-slate-600 mb-1.5">Start Date</label>
-                    <input
-                      type="date"
-                      value={form.tripDetails?.startDate || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, tripDetails: { ...p.tripDetails, startDate: e.target.value } }))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-[13.5px] font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-bold text-slate-600 mb-1.5">End Date</label>
-                    <input
-                      type="date"
-                      value={form.tripDetails?.endDate || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, tripDetails: { ...p.tripDetails, endDate: e.target.value } }))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-[13.5px] font-semibold"
-                    />
-                  </div>
-                </div>
+                {/* Visual Date Range Selector */}
+                <DateRangeSelector
+                  startDate={form.tripDetails?.startDate || ""}
+                  endDate={form.tripDetails?.endDate || ""}
+                  nights={form.tripDetails?.nights || 4}
+                  days={form.tripDetails?.days || 5}
+                  onChange={(datePatch) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      tripDetails: {
+                        ...prev.tripDetails,
+                        ...datePatch,
+                      },
+                    }));
+                  }}
+                />
               </div>
             )}
 
@@ -501,6 +648,13 @@ export default function EditQuotationPage() {
           </div>
         </div>
       </div>
+
+      {/* Package Clone Modal */}
+      <PackageCloneModal
+        isOpen={cloneModalOpen}
+        onClose={() => setCloneModalOpen(false)}
+        onSelectPackage={handleClonePackage}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ export default function PackageCloneModal({ isOpen, onClose, onSelectPackage }) 
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [cloningId, setCloningId] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -29,8 +30,6 @@ export default function PackageCloneModal({ isOpen, onClose, onSelectPackage }) 
       p.destinations?.some((d) => d.cityName?.toLowerCase().includes(q))
     );
   });
-
-  const [cloningId, setCloningId] = useState(null);
 
   async function handleSelect(pkg) {
     setCloningId(pkg._id);
