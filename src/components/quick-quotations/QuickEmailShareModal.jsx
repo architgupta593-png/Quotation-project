@@ -45,8 +45,21 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
   const discountAmount = pricing?.discountAmount || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
   const perCouple = pricing?.perCouplePrice || finalPrice;
-  const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
-  const advanceToken = Math.round((finalPrice * (pricing?.advancePercentage || 25)) / 100);
+  const advanceType = pricing?.advanceType || "absolute";
+  const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
+  const advancePercentage = pricing?.advancePercentage || 25;
+  let advancePayment = 0;
+  if (pricing?.advancePayment !== undefined && pricing?.advancePayment > 0) {
+    advancePayment = pricing.advancePayment;
+  } else if (advanceType === "percentage") {
+    advancePayment = Math.round((finalPrice * advancePercentage) / 100);
+  } else if (advanceAmount > 0) {
+    advancePayment = Math.min(finalPrice, advanceAmount);
+  } else {
+    advancePayment = Math.round(finalPrice * 0.25);
+  }
+  const advanceToken = advancePayment;
+  const advancePct = finalPrice > 0 ? Math.round((advancePayment / finalPrice) * 100) : 0;
 
   function generateDefaultContent() {
     if (!quickQuote) return;

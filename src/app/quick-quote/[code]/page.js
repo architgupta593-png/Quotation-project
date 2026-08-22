@@ -163,6 +163,7 @@ export default function QuickQuotationPublicPage({ params }) {
   }
   const balancePayment = Math.max(0, finalPrice - advancePayment);
   const advancePct = finalPrice > 0 ? Math.round((advancePayment / finalPrice) * 100) : 0;
+  const advanceToken = advancePayment;
 
   const vehicleImg = getVehicleImage(vehicle?.vehicleType || "Sedan");
 
@@ -796,7 +797,7 @@ export default function QuickQuotationPublicPage({ params }) {
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[12.5px]">
                   <p className="font-bold text-slate-800">{tripDetails?.title}</p>
                   <p className="text-slate-500">Total Price: <span className="font-bold text-slate-900">₹{finalPrice.toLocaleString("en-IN")}</span> (All Inclusive)</p>
-                  <p className="text-slate-500">Advance Token (25%): <span className="font-bold text-amber-700">₹{advanceToken.toLocaleString("en-IN")}</span></p>
+                  <p className="text-slate-500">Advance Token ({advancePct}%): <span className="font-bold text-amber-700">₹{advancePayment.toLocaleString("en-IN")}</span></p>
                 </div>
 
                 <div>

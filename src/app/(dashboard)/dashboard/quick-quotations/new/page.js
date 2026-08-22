@@ -1207,7 +1207,7 @@ export default function NewQuickQuotationPage() {
                 </div>
               </div>
 
-              {/* Commercial Pill Banner */}
+              {/* Commercial Pill Banner with Advance Payment */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-600/20 border border-amber-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
@@ -1222,11 +1222,15 @@ export default function NewQuickQuotationPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[12px]">
-                  <span className="text-slate-300">25% Advance Token:</span>
-                  <span className="font-black text-white font-mono bg-white/10 px-2.5 py-1 rounded-xl border border-white/15">
-                    ₹{advanceToken.toLocaleString("en-IN")}
-                  </span>
+                <div className="flex items-center gap-3 text-[12px]">
+                  <div className="text-right">
+                    <p className="text-slate-300 text-[10.5px]">Advance Token ({effectiveAdvancePct}%):</p>
+                    <p className="font-black text-amber-300 font-mono text-[14px]">₹{advancePayment.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div className="text-right pl-3 border-l border-white/15">
+                    <p className="text-slate-400 text-[10.5px]">On-Trip Balance:</p>
+                    <p className="font-black text-white font-mono text-[14px]">₹{balancePayment.toLocaleString("en-IN")}</p>
+                  </div>
                 </div>
               </div>
             </div>
