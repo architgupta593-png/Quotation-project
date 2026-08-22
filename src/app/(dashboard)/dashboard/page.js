@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { LogOut, Package, Hotel, Users, FileText, MapPin } from "lucide-react";
+import { LogOut, Package, Hotel, Users, FileText, MapPin, Zap } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -30,16 +30,16 @@ export default async function DashboardPage() {
   // ── Build quick links based on role ───────────────────────────────────────
   const quickLinks = [];
 
-  // Members, admins, and superusers can all access Travel Packages
+  // Quick Quotations (60-second quote builder)
   quickLinks.push({
-    href: "/dashboard/packages",
-    icon: Package,
-    title: "Travel Packages",
-    description: "Manage package catalog — multi-day itineraries, hotels & transport.",
-    color: "bg-indigo-500",
-    bg: "bg-indigo-50",
-    border: "border-indigo-100",
-    textColor: "text-indigo-600",
+    href: "/dashboard/quick-quotations",
+    icon: Zap,
+    title: "Quick Quotations",
+    description: "Instant 1-minute quote generator for phone calls, WhatsApp leads & rapid offers.",
+    color: "bg-amber-500",
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    textColor: "text-amber-600",
   });
 
   // Quotations & Proposals Builder
@@ -52,6 +52,18 @@ export default async function DashboardPage() {
     bg: "bg-purple-50",
     border: "border-purple-100",
     textColor: "text-purple-600",
+  });
+
+  // Members, admins, and superusers can all access Travel Packages
+  quickLinks.push({
+    href: "/dashboard/packages",
+    icon: Package,
+    title: "Travel Packages",
+    description: "Manage package catalog — multi-day itineraries, hotels & transport.",
+    color: "bg-indigo-500",
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    textColor: "text-indigo-600",
   });
 
   // Admin and superuser only
