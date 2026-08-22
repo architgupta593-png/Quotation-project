@@ -40,15 +40,22 @@ export async function PUT(req, { params }) {
 
     const body = await req.json();
 
-    const quickQuotation = await QuickQuotation.findById(id);
+    // Prevent overwriting immutable fields
+    delete body._id;
+    delete body.__v;
+    delete body.createdAt;
+    delete body.updatedAt;
+    delete body.createdBy;
+
+    const quickQuotation = await QuickQuotation.findByIdAndUpdate(
+      id,
+      { $set: body },
+      { new: true, runValidators: true }
+    );
+
     if (!quickQuotation) {
       return NextResponse.json({ error: "Quick quotation not found" }, { status: 404 });
     }
-
-    // Assign modified fields
-    Object.assign(quickQuotation, body);
-
-    await quickQuotation.save();
 
     return NextResponse.json({
       message: "Quick quotation updated successfully",

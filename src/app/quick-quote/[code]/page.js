@@ -146,7 +146,23 @@ export default function QuickQuotationPublicPage({ params }) {
   const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
   const perCouple = pricing?.perCouplePrice || finalPrice;
   const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
-  const advanceToken = Math.round((finalPrice * (pricing?.advancePercentage || 25)) / 100);
+
+  // Advance Payment calculations (Absolute / Percentage)
+  const advanceType = pricing?.advanceType || "absolute";
+  const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
+  const advancePercentage = pricing?.advancePercentage || 25;
+  let advancePayment = 0;
+  if (pricing?.advancePayment !== undefined && pricing?.advancePayment > 0) {
+    advancePayment = pricing.advancePayment;
+  } else if (advanceType === "percentage") {
+    advancePayment = Math.round((finalPrice * advancePercentage) / 100);
+  } else if (advanceAmount > 0) {
+    advancePayment = Math.min(finalPrice, advanceAmount);
+  } else {
+    advancePayment = Math.round(finalPrice * 0.25);
+  }
+  const balancePayment = Math.max(0, finalPrice - advancePayment);
+  const advancePct = finalPrice > 0 ? Math.round((advancePayment / finalPrice) * 100) : 0;
 
   const vehicleImg = getVehicleImage(vehicle?.vehicleType || "Sedan");
 
@@ -180,6 +196,7 @@ export default function QuickQuotationPublicPage({ params }) {
               src="/logo (2).png"
               alt="Mandate Holidays"
               fill
+              sizes="(max-width: 640px) 112px, 144px"
               className="object-contain object-left"
               priority
             />
@@ -313,6 +330,106 @@ export default function QuickQuotationPublicPage({ params }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Main Details (8 cols) */}
           <div className="lg:col-span-8 space-y-8">
+            {/* Minimalist Day-by-Day Tour Itinerary Timeline */}
+            {quickQuote.showItinerary !== false && quickQuote.itinerary && quickQuote.itinerary.length > 0 && (
+              <section className="bg-white rounded-3xl border border-slate-200/90 hover:border-indigo-400/80 p-6 sm:p-7 shadow-xs transition-all space-y-5">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
+                      <Compass className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-[17px] font-black text-slate-900">Day-by-Day Tour Itinerary</h2>
+                        <span className="text-[10.5px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.2 rounded-full border border-indigo-200">
+                          {quickQuote.itinerary.length} Days
+                        </span>
+                      </div>
+                      <p className="text-[11.5px] text-slate-500 font-semibold">Curated sightseeing route, transfer schedule &amp; meal schedule</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 hidden sm:inline-block">
+                    Full Day Schedule
+                  </span>
+                </div>
+
+                {/* Timeline Stream */}
+                <div className="relative pl-6 sm:pl-9 before:absolute before:left-3 sm:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-indigo-600 before:via-amber-400 before:to-purple-600 space-y-6">
+                  {quickQuote.itinerary.map((dayItem, idx) => (
+                    <div
+                      key={idx}
+                      className="relative group"
+                    >
+                      {/* Timeline Milestone Circular Node */}
+                      <div className="absolute -left-[31px] sm:-left-[43px] top-4 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-950 border-2 border-white text-amber-400 font-mono font-black text-[10.5px] sm:text-[11.5px] flex items-center justify-center shadow-md ring-4 ring-indigo-100 z-10">
+                        {String(dayItem.day || idx + 1).padStart(2, "0")}
+                      </div>
+
+                      {/* Day Content Card */}
+                      <div className="bg-gradient-to-br from-slate-50/90 via-white to-indigo-50/20 p-5 sm:p-6 rounded-3xl border border-slate-200/90 hover:border-indigo-400/80 transition-all space-y-3 shadow-2xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-100 text-indigo-950 font-mono font-black text-[11px] uppercase tracking-wider shadow-2xs">
+                              DAY {dayItem.day || idx + 1}
+                            </span>
+                            {(dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName) && (
+                              <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-bold text-[11px] flex items-center gap-1 shadow-2xs">
+                                <MapPin className="w-3 h-3 text-amber-600" />
+                                <span>{dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName}</span>
+                              </span>
+                            )}
+                            <h3 className="text-[16px] font-black text-slate-900">
+                              {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
+                            </h3>
+                          </div>
+
+                          {/* Meals badges */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {dayItem.meals?.breakfast && (
+                              <span className="text-[11px] font-bold text-amber-950 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-2xs flex items-center gap-1">
+                                <span>🌅</span> <span>Breakfast</span>
+                              </span>
+                            )}
+                            {dayItem.meals?.lunch && (
+                              <span className="text-[11px] font-bold text-orange-950 bg-orange-50 px-2.5 py-0.5 rounded-lg border border-orange-200 shadow-2xs flex items-center gap-1">
+                                <span>☀️</span> <span>Lunch</span>
+                              </span>
+                            )}
+                            {dayItem.meals?.dinner && (
+                              <span className="text-[11px] font-bold text-purple-950 bg-purple-50 px-2.5 py-0.5 rounded-lg border border-purple-200 shadow-2xs flex items-center gap-1">
+                                <span>🌙</span> <span>Dinner</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {dayItem.description && (
+                          <p className="text-[13.5px] text-slate-700 leading-relaxed font-medium pl-1">
+                            {dayItem.description}
+                          </p>
+                        )}
+
+                        {/* Activities tags */}
+                        {dayItem.activities && dayItem.activities.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1 pl-1">
+                            {dayItem.activities.map((act, aIdx) => (
+                              <span
+                                key={aIdx}
+                                className="text-[11.5px] font-bold text-indigo-950 bg-indigo-50/90 px-3 py-1 rounded-xl border border-indigo-200/80 shadow-2xs flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3 text-indigo-600" />
+                                <span>{act}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Hotel Accommodation Showcase */}
             <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -570,9 +687,15 @@ export default function QuickQuotationPublicPage({ params }) {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11.5px] text-amber-200">
-                  <span>25% Booking Advance Token:</span>
-                  <span className="font-black text-[13px]">₹{advanceToken.toLocaleString("en-IN")}</span>
+                <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-[11.5px]">
+                  <div className="flex items-center justify-between text-amber-200">
+                    <span>Booking Advance Token ({advancePct}%):</span>
+                    <span className="font-black text-[13.5px] font-mono text-amber-300">₹{advancePayment.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-300 text-[11px]">
+                    <span>Balance at Check-in:</span>
+                    <span className="font-bold text-white font-mono">₹{balancePayment.toLocaleString("en-IN")}</span>
+                  </div>
                 </div>
               </div>
 

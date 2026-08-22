@@ -5,6 +5,23 @@ import { connectDB } from "@/lib/db";
 import QuickQuotation from "@/models/QuickQuotation";
 import Quotation from "@/models/Quotation";
 
+async function generateUniqueQuotationCode() {
+  const year = new Date().getFullYear();
+  let code = "";
+  let isUnique = false;
+  let attempts = 0;
+  while (!isUnique && attempts < 10) {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    code = `QT-${year}-${randomNum}`;
+    const existing = await Quotation.findOne({ quotationCode: code }).lean();
+    if (!existing) {
+      isUnique = true;
+    }
+    attempts++;
+  }
+  return code || `QT-${year}-${Date.now().toString().slice(-4)}`;
+}
+
 // ── POST /api/quick-quotations/[id]/convert — Convert to Full Quotation ─────────
 export async function POST(req, { params }) {
   try {
@@ -21,8 +38,8 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: "Quick quotation not found" }, { status: 404 });
     }
 
-    // Generate new full Quotation Code
-    const quotationCode = await Quotation.generateQuotationCode();
+    // Generate new unique full Quotation Code
+    const quotationCode = await generateUniqueQuotationCode();
 
     // Synthesize destinations from hotelStays or tripDetails
     const destinations = [];
@@ -48,26 +65,37 @@ export async function POST(req, { params }) {
       });
     }
 
-    // Build day-by-day itinerary stub
-    const totalDays = qq.tripDetails.days || (qq.tripDetails.nights + 1);
-    const itinerary = [];
-    for (let d = 1; d <= totalDays; d++) {
-      itinerary.push({
-        day: d,
-        title: d === 1
-          ? `Arrival in ${destinations[0]?.cityName || qq.tripDetails.destination} & Leisure`
-          : d === totalDays
-          ? `Departure from ${destinations[destinations.length - 1]?.cityName || qq.tripDetails.destination}`
-          : `Explore ${destinations[Math.min(d - 1, destinations.length - 1)]?.cityName || qq.tripDetails.destination}`,
-        description: `Full day itinerary for Day ${d}. Sightseeing, relaxation and curated experiences.`,
-        activities: [],
-        meals: {
-          breakfast: true,
-          lunch: false,
-          dinner: d === 1,
-        },
+    // Build day-by-day itinerary (use quickQuote.itinerary if available, else synthesize)
+    let itinerary = [];
+    if (qq.itinerary && qq.itinerary.length > 0) {
+      itinerary = qq.itinerary.map((it, idx) => ({
+        day: it.day || idx + 1,
+        title: it.title || `Day ${idx + 1} Sightseeing`,
+        description: it.description || "",
+        activities: it.activities || [],
+        meals: it.meals || { breakfast: true, lunch: false, dinner: false },
         images: [],
-      });
+      }));
+    } else {
+      const totalDays = qq.tripDetails.days || (qq.tripDetails.nights + 1);
+      for (let d = 1; d <= totalDays; d++) {
+        itinerary.push({
+          day: d,
+          title: d === 1
+            ? `Arrival in ${destinations[0]?.cityName || qq.tripDetails.destination} & Leisure`
+            : d === totalDays
+            ? `Departure from ${destinations[destinations.length - 1]?.cityName || qq.tripDetails.destination}`
+            : `Explore ${destinations[Math.min(d - 1, destinations.length - 1)]?.cityName || qq.tripDetails.destination}`,
+          description: `Full day itinerary for Day ${d}. Sightseeing, relaxation and curated experiences.`,
+          activities: [],
+          meals: {
+            breakfast: true,
+            lunch: false,
+            dinner: d === 1,
+          },
+          images: [],
+        });
+      }
     }
 
     // Build 3 Accommodation Tiers from hotelStays

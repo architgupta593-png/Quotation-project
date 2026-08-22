@@ -95,8 +95,14 @@ export default function PackageViewPage() {
             {pkg.status === "published" ? "● Live" : "◌ Draft"}
           </span>
           <Link
+            href={`/dashboard/quick-quotations/new?packageId=${id}`}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[12.5px] font-black transition-all shadow-sm"
+          >
+            <Zap className="w-3.5 h-3.5" /> ⚡ Quick Quote
+          </Link>
+          <Link
             href={`/dashboard/packages/${id}/edit`}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-extrabold transition-all shadow-sm shadow-indigo-500/20"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[12.5px] font-extrabold transition-all shadow-sm"
           >
             <Pencil className="w-3.5 h-3.5" /> Edit
           </Link>

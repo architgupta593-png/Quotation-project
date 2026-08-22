@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Zap, ArrowLeft, Loader2, Sparkles, Plus, Trash2, IndianRupee,
@@ -9,9 +9,13 @@ import {
   Tag, ShieldCheck, Heart, Mountain, Compass, Waves, Trees,
   Baby, CheckCircle2, ChevronRight, FileText, Info, HelpCircle,
   Star, Clock, Building, Compass as CompassIcon, Shield, CheckCheck, Edit3,
+  Package as PackageIcon,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
 import InstructionsEditorModal from "@/components/quick-quotations/InstructionsEditorModal";
+import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFetchModal";
+import QuickItinerarySection from "@/components/quick-quotations/QuickItinerarySection";
+import QuickAccommodationSection from "@/components/quick-quotations/QuickAccommodationSection";
 
 const THEMES = [
   { id: "general", label: "General Tour", icon: Compass, color: "border-slate-300 text-slate-700 bg-slate-50" },
@@ -63,10 +67,12 @@ function getFutureDate(daysAhead) {
 
 export default function NewQuickQuotationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showAgentGuide, setShowAgentGuide] = useState(true);
   const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
 
   const [form, setForm] = useState({
     client: {
@@ -79,7 +85,7 @@ export default function NewQuickQuotationPage() {
     tripDetails: {
       title: "",
       destination: "",
-      theme: "general",
+      theme: "honeymoon",
       startDate: getTomorrowDate(),
       endDate: getFutureDate(4),
       nights: 4,
@@ -103,6 +109,8 @@ export default function NewQuickQuotationPage() {
         notes: "",
       },
     ],
+    showItinerary: true,
+    itinerary: [],
     vehicle: {
       vehicleType: "Sedan",
       model: "Dzire / Etios",
@@ -129,10 +137,190 @@ export default function NewQuickQuotationPage() {
       totalPrice: 0,
       discountAmount: 0,
       discountReason: "",
+      advanceType: "absolute",
+      advanceAmount: 0,
       advancePercentage: 25,
     },
     internalNotes: "",
   });
+
+  // Auto-fetch package from URL query param if present
+  const packageIdParam = searchParams?.get("packageId");
+
+  useEffect(() => {
+    if (!packageIdParam) return;
+    fetch(`/api/packages/${packageIdParam}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.package) {
+          handleSelectPackage(data.package);
+        }
+      })
+      .catch((err) => console.error("Failed to auto-fetch package from URL", err));
+  }, [packageIdParam]);
+
+  // Fetch package handler to auto-populate all quotation parameters
+  function handleSelectPackage(pkg) {
+    if (!pkg) return;
+
+    const nights = pkg.duration?.nights || pkg.nights || (pkg.destinations && pkg.destinations.reduce((acc, d) => acc + (d.nights || 1), 0)) || form.tripDetails.nights || 4;
+    const days = pkg.duration?.days || pkg.days || nights + 1;
+
+    // Calculate return date based on current departure date and package nights
+    const s = form.tripDetails.startDate || getTomorrowDate();
+    const d = new Date(s);
+    d.setDate(d.getDate() + nights);
+    const end = d.toISOString().split("T")[0];
+
+    const primaryDest =
+      pkg.destination ||
+      (pkg.destinations && pkg.destinations.map((d) => d.cityName).filter(Boolean).join(", ")) ||
+      form.tripDetails.destination || "Destination";
+
+    // Extract hotel stays from package
+    let stays = [];
+    const sourceStays =
+      (pkg.accommodationOptions && pkg.accommodationOptions[0]?.nights) ||
+      (pkg.accommodation && pkg.accommodation[0]?.nights) ||
+      [];
+
+    if (sourceStays.length > 0) {
+      stays = sourceStays.map((st, i) => ({
+        nightNumber: st.night || i + 1,
+        cityName: st.cityName || primaryDest,
+        hotelName: st.hotelName || "",
+        starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
+        roomType: st.roomType || "Deluxe AC Room",
+        mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
+        pricePerNight: st.pricePerNight || 0,
+        notes: st.notes || "",
+      }));
+    } else if (pkg.destinations && pkg.destinations.length > 0) {
+      let nightCounter = 1;
+      pkg.destinations.forEach((dest) => {
+        const destNights = dest.nights || 1;
+        for (let k = 0; k < destNights; k++) {
+          stays.push({
+            nightNumber: nightCounter++,
+            cityName: dest.cityName || primaryDest,
+            hotelName: "",
+            starRating: 3,
+            roomType: "Deluxe AC Room",
+            mealPlan: "CP",
+            pricePerNight: 0,
+            notes: "",
+          });
+        }
+      });
+    }
+
+    if (stays.length === 0) {
+      for (let i = 0; i < nights; i++) {
+        stays.push({
+          nightNumber: i + 1,
+          cityName: primaryDest,
+          hotelName: "",
+          starRating: 3,
+          roomType: "Deluxe AC Room",
+          mealPlan: "CP",
+          pricePerNight: 0,
+          notes: "",
+        });
+      }
+    }
+
+    // Extract day-by-day itinerary from package
+    let itineraryDays = [];
+    if (pkg.itinerary && Array.isArray(pkg.itinerary) && pkg.itinerary.length > 0) {
+      itineraryDays = pkg.itinerary.map((d, i) => ({
+        day: d.day || i + 1,
+        title: d.title || `Day ${i + 1}: Sightseeing in ${primaryDest}`,
+        description: d.description || "",
+        activities: Array.isArray(d.activities)
+          ? d.activities.map((a) => (typeof a === "string" ? a : a.name || a.title || a.activityName || "")).filter(Boolean)
+          : [],
+        meals: {
+          breakfast: d.meals?.breakfast !== undefined ? Boolean(d.meals?.breakfast) : true,
+          lunch: Boolean(d.meals?.lunch),
+          dinner: Boolean(d.meals?.dinner),
+        },
+      }));
+    } else {
+      for (let i = 1; i <= days; i++) {
+        itineraryDays.push({
+          day: i,
+          title: i === 1
+            ? `Arrival in ${primaryDest} & Hotel Check-in`
+            : i === days
+            ? `Departure from ${primaryDest} with Cherished Memories`
+            : `Day ${i}: ${primaryDest} Highlights & Exploration`,
+          description: i === 1
+            ? `Arrive and transfer to hotel. Enjoy evening at leisure.`
+            : i === days
+            ? `Breakfast at hotel, check-out and transfer for departure journey.`
+            : `Full day sightseeing and exploring scenic attractions.`,
+          activities: i === 1 ? ["Arrival Transfer", "Hotel Check-in"] : i === days ? ["Departure Transfer"] : ["Sightseeing Tour"],
+          meals: { breakfast: true, lunch: false, dinner: i === 1 },
+        });
+      }
+    }
+
+    const pkgPrice =
+      pkg.pricing?.finalPrice ||
+      pkg.pricing?.totalSellingPrice ||
+      pkg.pricing?.grandTotal ||
+      pkg.pricing?.subtotal ||
+      pkg.pricing?.totalPrice ||
+      pkg.price ||
+      form.pricing?.totalPrice ||
+      0;
+
+    const pkgInclusions = (pkg.inclusions && pkg.inclusions.length > 0)
+      ? pkg.inclusions
+      : (pkg.pricing?.includes && pkg.pricing.includes.length > 0)
+      ? pkg.pricing.includes
+      : form.inclusions;
+
+    const pkgExclusions = (pkg.exclusions && pkg.exclusions.length > 0)
+      ? pkg.exclusions
+      : (pkg.pricing?.excludes && pkg.pricing.excludes.length > 0)
+      ? pkg.pricing.excludes
+      : form.exclusions;
+
+    const clientPart = form.client.name.trim() ? ` for ${form.client.name.trim()}` : "";
+    const newTitle = pkg.title ? `${pkg.title}${clientPart}` : `${nights}N/${days}D ${primaryDest} Holiday${clientPart}`;
+
+    setForm((prev) => ({
+      ...prev,
+      tripDetails: {
+        ...prev.tripDetails,
+        title: newTitle,
+        destination: primaryDest,
+        theme: pkg.theme || pkg.category || prev.tripDetails.theme || "honeymoon",
+        startDate: s,
+        endDate: end,
+        nights: nights,
+        days: days,
+      },
+      hotelStays: stays,
+      itinerary: itineraryDays,
+      vehicle: {
+        vehicleType: pkg.vehicle?.vehicleType || prev.vehicle.vehicleType || "Sedan",
+        model: pkg.vehicle?.model || prev.vehicle.model || "Dzire / Etios",
+        seats: pkg.vehicle?.seats || prev.vehicle.seats || 4,
+        acType: pkg.vehicle?.acType || prev.vehicle.acType || "AC",
+        vehiclePrice: pkg.vehicle?.vehiclePrice || prev.vehicle.vehiclePrice || 0,
+        notes: pkg.vehicle?.notes || prev.vehicle.notes || "Includes fuel, toll taxes, parking & driver allowance",
+      },
+      inclusions: pkgInclusions,
+      exclusions: pkgExclusions,
+      pricing: {
+        ...prev.pricing,
+        totalPrice: pkgPrice,
+        discountAmount: 0,
+      },
+    }));
+  }
 
   // Direct Date calculation helper
   function handleDateChange(start, end) {
@@ -221,7 +409,21 @@ export default function NewQuickQuotationPage() {
   const numPax = Math.max(1, form.passengers.adults || 2);
   const perPersonPrice = Math.round(finalPrice / numPax);
   const perCouplePrice = finalPrice;
-  const advanceToken = Math.round((finalPrice * (form.pricing.advancePercentage || 25)) / 100);
+
+  // Advance Payment calculations (by default Absolute)
+  const advanceType = form.pricing.advanceType || "absolute";
+  const advancePercentage = Math.max(0, Math.min(100, Number(form.pricing.advancePercentage) || 25));
+  let advancePayment = 0;
+  if (advanceType === "percentage") {
+    advancePayment = Math.round((finalPrice * advancePercentage) / 100);
+  } else {
+    advancePayment = form.pricing.advanceAmount !== undefined && form.pricing.advanceAmount !== null && form.pricing.advanceAmount !== ""
+      ? Math.max(0, Number(form.pricing.advanceAmount) || 0)
+      : (finalPrice > 0 ? Math.round(finalPrice * 0.25) : 0);
+  }
+  advancePayment = Math.min(finalPrice, Math.max(0, advancePayment));
+  const balancePayment = Math.max(0, finalPrice - advancePayment);
+  const effectiveAdvancePct = finalPrice > 0 ? Math.round((advancePayment / finalPrice) * 100) : 0;
 
   function handleDestinationChange(val) {
     setForm((prev) => {
@@ -370,6 +572,15 @@ export default function NewQuickQuotationPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            onClick={() => setPackageModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[13px] font-black transition-all shadow-2xs hover:scale-105 active:scale-95"
+          >
+            <PackageIcon className="w-4 h-4 text-indigo-600" />
+            <span>Fetch Travel Package</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleSubmit("draft")}
             disabled={saving}
             className="px-4 py-2.5 rounded-2xl border border-slate-300 text-[13px] font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all disabled:opacity-50"
@@ -513,11 +724,22 @@ export default function NewQuickQuotationPage() {
 
             {/* 2. Destination & Direct Travel Dates */}
             <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-5">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-[12px]">
-                  2
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-[12px]">
+                    2
+                  </div>
+                  <h3 className="text-[16px] font-black text-slate-900">Destination &amp; Travel Dates</h3>
                 </div>
-                <h3 className="text-[16px] font-black text-slate-900">Destination &amp; Travel Dates</h3>
+
+                <button
+                  type="button"
+                  onClick={() => setPackageModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[12px] font-black transition-all shadow-2xs hover:scale-105 active:scale-95"
+                >
+                  <PackageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Fetch from Travel Packages</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -717,188 +939,25 @@ export default function NewQuickQuotationPage() {
               </div>
             </div>
 
-            {/* ── 3. Redesigned Hotel Accommodation Portfolio ── */}
-            <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-black shadow-xs">
-                    <Building className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-[16px] font-black text-slate-900">Hotel Accommodation Portfolio</h3>
-                    <p className="text-[11.5px] text-slate-400 font-medium">Night-by-night luxury &amp; standard stay options with meal plans</p>
-                  </div>
-                </div>
+            {/* ── 3. Day-by-Day Tour Itinerary ── */}
+            <QuickItinerarySection
+              itinerary={form.itinerary || []}
+              onChange={(updated) => setForm((p) => ({ ...p, itinerary: updated }))}
+              showItinerary={form.showItinerary !== false}
+              onToggleShowItinerary={() => setForm((p) => ({ ...p, showItinerary: !p.showItinerary }))}
+              daysCount={form.tripDetails.days}
+              destination={form.tripDetails.destination}
+              theme={form.tripDetails.theme}
+              hotelStays={form.hotelStays}
+            />
 
-                <button
-                  type="button"
-                  onClick={addStay}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-black text-[12px] transition-colors border border-amber-200 shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Night
-                </button>
-              </div>
-
-              {/* Modern Stay Cards */}
-              <div className="space-y-4">
-                {form.hotelStays.map((stay, idx) => (
-                  <div
-                    key={idx}
-                    className="p-5 rounded-3xl bg-gradient-to-br from-slate-50 to-white border-2 border-slate-200/90 hover:border-amber-400/80 transition-all shadow-xs space-y-4"
-                  >
-                    {/* Stay Card Header: Night Pill, City & Remove Button */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="px-3 py-1 rounded-xl bg-slate-900 text-amber-400 font-mono font-black text-[12px] shadow-xs">
-                          NIGHT {stay.nightNumber}
-                        </div>
-                        <span className="text-[12px] font-bold text-slate-400">Stay Leg {idx + 1} of {form.hotelStays.length}</span>
-                      </div>
-
-                      {form.hotelStays.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeStay(idx)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-bold transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove
-                        </button>
-                      )}
-                    </div>
-
-                    {/* City & Hotel Name & Star Rating Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                      <div className="sm:col-span-4">
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Destination / City</label>
-                        <div className="relative">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            value={stay.cityName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setForm((p) => {
-                                const st = [...p.hotelStays];
-                                st[idx].cityName = val;
-                                return { ...p, hotelStays: st };
-                              });
-                            }}
-                            placeholder="e.g. Munnar"
-                            className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-[13px] text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-5">
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Hotel Name / Resort</label>
-                        <div className="relative">
-                          <Hotel className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            value={stay.hotelName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setForm((p) => {
-                                const st = [...p.hotelStays];
-                                st[idx].hotelName = val;
-                                return { ...p, hotelStays: st };
-                              });
-                            }}
-                            placeholder="e.g. Tea County Resort"
-                            className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-[13px] text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Interactive Star Rating */}
-                      <div className="sm:col-span-3">
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Star Category</label>
-                        <div className="flex items-center gap-1 bg-white p-2 rounded-xl border border-slate-200">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() => {
-                                setForm((p) => {
-                                  const st = [...p.hotelStays];
-                                  st[idx].starRating = star;
-                                  return { ...p, hotelStays: st };
-                                });
-                              }}
-                              className="focus:outline-none transition-transform hover:scale-110"
-                            >
-                              <Star
-                                className={`w-4 h-4 ${
-                                  star <= (stay.starRating || 3)
-                                    ? "fill-amber-400 text-amber-400"
-                                    : "text-slate-200"
-                                }`}
-                              />
-                            </button>
-                          ))}
-                          <span className="text-[11px] font-black text-slate-600 ml-1">{stay.starRating || 3}★</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Meal Plan Pills & Room Category Presets */}
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-slate-200/60 items-center">
-                      <div className="sm:col-span-6 space-y-1.5">
-                        <label className="block text-[11px] font-bold text-slate-600">Meal Plan Inclusions</label>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {[
-                            { id: "CP", label: "CP", sub: "Breakfast" },
-                            { id: "MAP", label: "MAP", sub: "Bfast + Dinner" },
-                            { id: "AP", label: "AP", sub: "All Meals" },
-                            { id: "EP", label: "EP", sub: "Room Only" },
-                          ].map((mp) => {
-                            const isSel = stay.mealPlan === mp.id;
-                            return (
-                              <button
-                                key={mp.id}
-                                type="button"
-                                onClick={() => {
-                                  setForm((p) => {
-                                    const st = [...p.hotelStays];
-                                    st[idx].mealPlan = mp.id;
-                                    return { ...p, hotelStays: st };
-                                  });
-                                }}
-                                className={`px-3 py-1 rounded-xl text-[11.5px] font-black transition-all border ${
-                                  isSel
-                                    ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
-                                    : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                                }`}
-                              >
-                                {mp.label} <span className="text-[9.5px] font-normal opacity-85">({mp.sub})</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-6 space-y-1.5">
-                        <label className="block text-[11px] font-bold text-slate-600">Room Category</label>
-                        <input
-                          type="text"
-                          value={stay.roomType}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setForm((p) => {
-                              const st = [...p.hotelStays];
-                              st[idx].roomType = val;
-                              return { ...p, hotelStays: st };
-                            });
-                          }}
-                          placeholder="e.g. Deluxe AC Room"
-                          className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-[12.5px] font-bold text-slate-800"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* ── 4. Hotel Accommodation Portfolio ── */}
+            <QuickAccommodationSection
+              hotelStays={form.hotelStays || []}
+              onChange={(updated) => setForm((p) => ({ ...p, hotelStays: updated }))}
+              totalNights={form.tripDetails.nights}
+              primaryDestination={form.tripDetails.destination}
+            />
 
             {/* 4. Dedicated Transport */}
             <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-4">
@@ -1226,6 +1285,119 @@ export default function NewQuickQuotationPage() {
                 </div>
               </div>
 
+              {/* 🌟 Advance Payment Option (Absolute by default OR Percentage) */}
+              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[12px] font-black text-amber-950 flex items-center gap-1">
+                    <IndianRupee className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Advance Payment</span>
+                  </label>
+
+                  {/* Mode Switcher: Absolute (Default) vs Percentage */}
+                  <div className="flex items-center bg-white p-0.5 rounded-xl border border-amber-300 text-[11px] font-black shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, advanceType: "absolute" } }))}
+                      className={`px-2.5 py-0.5 rounded-lg transition-all ${
+                        advanceType === "absolute"
+                          ? "bg-amber-500 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      ₹ Fixed (Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, advanceType: "percentage" } }))}
+                      className={`px-2.5 py-0.5 rounded-lg transition-all ${
+                        advanceType === "percentage"
+                          ? "bg-amber-500 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      % Percent
+                    </button>
+                  </div>
+                </div>
+
+                {advanceType === "absolute" ? (
+                  /* Absolute Amount Input Mode (Default) */
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-700 font-bold text-[13px]">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={finalPrice}
+                        value={form.pricing.advanceAmount !== undefined && form.pricing.advanceAmount !== null ? form.pricing.advanceAmount : advancePayment}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : parseFloat(e.target.value);
+                          setForm((p) => ({ ...p, pricing: { ...p.pricing, advanceAmount: val } }));
+                        }}
+                        placeholder="e.g. 10000"
+                        className="w-full pl-7 pr-3 py-2 rounded-xl border border-amber-300 bg-white font-black text-[14px] text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-right font-mono"
+                      />
+                    </div>
+
+                    {/* Quick Preset Buttons for Absolute Amount */}
+                    <div className="flex items-center gap-1 overflow-x-auto pt-0.5">
+                      {[5000, 10000, 15000, 20000, 25000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, advanceAmount: amt } }))}
+                          className="px-2 py-0.5 rounded-md bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10.5px] font-bold whitespace-nowrap transition-colors"
+                        >
+                          ₹{(amt / 1000)}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Percentage Input Mode */
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.pricing.advancePercentage !== undefined ? form.pricing.advancePercentage : 25}
+                        onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, advancePercentage: parseFloat(e.target.value) || 0 } }))}
+                        placeholder="25"
+                        className="w-full pl-3 pr-7 py-2 rounded-xl border border-amber-300 bg-white font-black text-[14px] text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-right font-mono"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-700 font-bold text-[13px]">%</span>
+                    </div>
+
+                    {/* Quick Preset Buttons for Percentage */}
+                    <div className="flex items-center gap-1 overflow-x-auto pt-0.5">
+                      {[20, 25, 30, 40, 50].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, advancePercentage: pct } }))}
+                          className="px-2 py-0.5 rounded-md bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10.5px] font-bold whitespace-nowrap transition-colors"
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Advance vs Balance Live Breakdown */}
+                <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between text-[11.5px]">
+                  <div>
+                    <span className="text-amber-800 font-medium">To Collect:</span>{" "}
+                    <span className="font-black text-amber-950">₹{advancePayment.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium">Balance:</span>{" "}
+                    <span className="font-bold text-slate-700">₹{balancePayment.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Final Summary Box */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white space-y-3 shadow-lg">
                 <div>
@@ -1257,8 +1429,8 @@ export default function NewQuickQuotationPage() {
                 </div>
 
                 <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-amber-200">
-                  <span>25% Advance Token:</span>
-                  <span className="font-black">₹{advanceToken.toLocaleString("en-IN")}</span>
+                  <span>Advance Token:</span>
+                  <span className="font-black">₹{advancePayment.toLocaleString("en-IN")}</span>
                 </div>
               </div>
 
@@ -1295,6 +1467,13 @@ export default function NewQuickQuotationPage() {
         onClose={() => setInstructionsModalOpen(false)}
         instructions={form.specialInstructions || []}
         onSave={(updated) => setForm((p) => ({ ...p, specialInstructions: updated }))}
+      />
+
+      {/* Travel Package Auto-Fetch & Import Modal */}
+      <QuickPackageFetchModal
+        isOpen={packageModalOpen}
+        onClose={() => setPackageModalOpen(false)}
+        onSelectPackage={handleSelectPackage}
       />
     </div>
   );

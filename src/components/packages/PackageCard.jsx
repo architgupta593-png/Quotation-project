@@ -92,19 +92,27 @@ export default function PackageCard({ pkg, onDelete, isAdmin = false }) {
 
       {/* Footer Actions */}
       <div className="px-4 pb-4 pt-0 space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Link
             href={`/dashboard/packages/${pkg._id}`}
-            className="flex-1 text-center px-3 py-2 rounded-xl bg-slate-100 text-slate-800 text-[12.5px] font-bold hover:bg-slate-200 transition-colors"
+            className="flex-1 text-center px-2.5 py-2 rounded-xl bg-slate-100 text-slate-800 text-[11.5px] font-bold hover:bg-slate-200 transition-colors"
           >
-            View Details
+            Details
+          </Link>
+
+          <Link
+            href={`/dashboard/quick-quotations/new?packageId=${pkg._id}`}
+            className="flex-1 text-center px-2.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[11.5px] font-black transition-all shadow-xs"
+            title="Fast 60-Second Quick Quotation with this package prefilled"
+          >
+            ⚡ Quick Quote
           </Link>
 
           <Link
             href={`/dashboard/quotations/new?clonePkgId=${pkg._id}`}
-            className="flex-1 text-center px-3 py-2 rounded-xl bg-indigo-600 text-white text-[12.5px] font-extrabold hover:bg-indigo-700 transition-all shadow-xs"
+            className="flex-1 text-center px-2.5 py-2 rounded-xl bg-indigo-600 text-white text-[11.5px] font-extrabold hover:bg-indigo-700 transition-all shadow-xs"
           >
-            + Create Quote
+            Full Quote
           </Link>
 
           {isAdmin && (

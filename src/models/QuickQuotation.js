@@ -2,17 +2,46 @@ import mongoose from "mongoose";
 
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 
+const QuickItineraryDaySchema = new mongoose.Schema(
+  {
+    day: { type: Number, required: true, min: 1 },
+    title: { type: String, default: "", trim: true },
+    description: { type: String, trim: true, default: "" },
+    activities: { type: [String], default: [] },
+    meals: {
+      breakfast: { type: Boolean, default: true },
+      lunch: { type: Boolean, default: false },
+      dinner: { type: Boolean, default: false },
+    },
+  },
+  { _id: false }
+);
+
 const HotelStaySchema = new mongoose.Schema(
   {
     nightNumber: { type: Number, required: true, min: 1 },
     cityName: { type: String, trim: true, default: "" },
     hotelName: { type: String, trim: true, default: "" },
-    starRating: { type: Number, min: 1, max: 5, default: 3 },
+    starRating: {
+      type: Number,
+      min: 1,
+      max: 5,
+      default: 3,
+      set: (v) => Math.max(1, Math.min(5, parseInt(v, 10) || 3)),
+    },
     roomType: { type: String, trim: true, default: "Deluxe AC Room" },
     mealPlan: {
       type: String,
-      enum: ["EP", "CP", "MAP", "AP", ""],
       default: "CP",
+      set: (v) => {
+        if (!v) return "CP";
+        const u = String(v).toUpperCase().trim();
+        if (["EP", "CP", "MAP", "AP"].includes(u)) return u;
+        if (u.includes("MAP") || (u.includes("BREAKFAST") && u.includes("DINNER"))) return "MAP";
+        if (u.includes("AP") || u.includes("ALL")) return "AP";
+        if (u.includes("EP") || u.includes("ROOM")) return "EP";
+        return "CP";
+      },
     },
     pricePerNight: { type: Number, min: 0, default: 0 },
     notes: { type: String, trim: true, default: "" },
@@ -24,12 +53,11 @@ const VehicleSchema = new mongoose.Schema(
   {
     vehicleType: {
       type: String,
-      enum: ["Sedan", "SUV", "MUV", "Tempo Traveller", "Mini Bus", "Bus", "Other"],
       default: "Sedan",
     },
     model: { type: String, trim: true, default: "" },
     seats: { type: Number, min: 1, default: 4 },
-    acType: { type: String, enum: ["AC", "Non-AC"], default: "AC" },
+    acType: { type: String, default: "AC" },
     vehiclePrice: { type: Number, min: 0, default: 0 },
     notes: { type: String, trim: true, default: "" },
   },
@@ -70,8 +98,20 @@ const QuickQuotationSchema = new mongoose.Schema(
       destination: { type: String, required: [true, "Destination is required"], trim: true },
       theme: {
         type: String,
-        enum: ["honeymoon", "mountain", "beach", "heritage", "safari", "adventure", "general"],
-        default: "general",
+        default: "honeymoon",
+        set: (v) => {
+          if (!v) return "honeymoon";
+          const l = String(v).toLowerCase().trim();
+          const valid = ["honeymoon", "mountain", "beach", "heritage", "safari", "adventure", "general"];
+          if (valid.includes(l)) return l;
+          if (l.includes("honey") || l.includes("romantic")) return "honeymoon";
+          if (l.includes("mount") || l.includes("hill")) return "mountain";
+          if (l.includes("beach") || l.includes("coast") || l.includes("island")) return "beach";
+          if (l.includes("heritage") || l.includes("cultur") || l.includes("temple")) return "heritage";
+          if (l.includes("safari") || l.includes("wild") || l.includes("jungle")) return "safari";
+          if (l.includes("advent") || l.includes("trek")) return "adventure";
+          return "general";
+        },
       },
       startDate: { type: Date, required: [true, "Start date is required"] },
       endDate: { type: Date, required: [true, "End date is required"] },
@@ -93,6 +133,16 @@ const QuickQuotationSchema = new mongoose.Schema(
     // ── Hotel Stays & Accommodation ──
     hotelStays: {
       type: [HotelStaySchema],
+      default: [],
+    },
+
+    // ── Day-by-Day Tour Itinerary ──
+    showItinerary: {
+      type: Boolean,
+      default: true,
+    },
+    itinerary: {
+      type: [QuickItineraryDaySchema],
       default: [],
     },
 
@@ -151,36 +201,43 @@ const QuickQuotationSchema = new mongoose.Schema(
       finalPrice: { type: Number, min: 0, default: 0 },
       perPersonPrice: { type: Number, min: 0, default: 0 },
       perCouplePrice: { type: Number, min: 0, default: 0 },
-      advancePercentage: { type: Number, default: 25 },
+      advanceType: {
+        type: String,
+        enum: ["absolute", "percentage"],
+        default: "absolute",
+      },
+      advanceAmount: { type: Number, min: 0, default: 0 },
+      advancePercentage: { type: Number, min: 0, max: 100, default: 25 },
+      advancePayment: { type: Number, min: 0, default: 0 },
+      balancePayment: { type: Number, min: 0, default: 0 },
     },
 
-    // ── Status & Workflow ──
+    // ── Pipeline Lifecycle Status ──
     status: {
       type: String,
-      enum: ["draft", "sent", "viewed", "accepted", "converted", "cancelled"],
+      enum: ["draft", "sent", "viewed", "accepted", "converted", "expired", "cancelled"],
       default: "draft",
     },
 
-    // Reference to full Quotation if converted
+    // Reference to full quotation if converted
     convertedQuotationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Quotation",
       default: null,
     },
 
-    // Quick Agent Remarks / Internal Notes
-    internalNotes: { type: String, trim: true, default: "" },
-
-    // Tracking & Analytics
-    viewsCount: { type: Number, default: 0 },
+    // View & Engagement Analytics
+    viewCount: { type: Number, default: 0 },
     lastViewedAt: { type: Date, default: null },
+
+    // Expiry Date (default 7 days)
     expiresAt: { type: Date, default: null },
 
-    // Creator
+    // Agent Ownership
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null,
+      required: true,
     },
   },
   {
@@ -188,39 +245,51 @@ const QuickQuotationSchema = new mongoose.Schema(
   }
 );
 
-// ── Indexes ───────────────────────────────────────────────────────────────────
-QuickQuotationSchema.index({ quickQuoteCode: 1 }, { unique: true });
-QuickQuotationSchema.index({ "client.phone": 1 });
-QuickQuotationSchema.index({ "client.email": 1 });
-QuickQuotationSchema.index({ status: 1, createdAt: -1 });
+// ── Auto-Calculate Pricing & Advance Matrix on Save ───────────────────────────
+QuickQuotationSchema.pre("save", function (next) {
+  if (this.pricing) {
+    const total = this.pricing.totalPrice || 0;
+    const discount = this.pricing.discountAmount || 0;
+    this.pricing.finalPrice = Math.max(0, total - discount);
 
-// ── Helper method to auto-generate code ───────────────────────────────────────
+    const advType = this.pricing.advanceType || "absolute";
+    if (advType === "percentage") {
+      const pct = this.pricing.advancePercentage !== undefined ? this.pricing.advancePercentage : 25;
+      this.pricing.advancePayment = Math.round((this.pricing.finalPrice * pct) / 100);
+    } else {
+      if (this.pricing.advanceAmount !== undefined && this.pricing.advanceAmount > 0) {
+        this.pricing.advancePayment = Math.min(this.pricing.finalPrice, this.pricing.advanceAmount);
+      } else if (!this.pricing.advancePayment) {
+        this.pricing.advancePayment = Math.round(this.pricing.finalPrice * 0.25);
+      }
+    }
+    this.pricing.balancePayment = Math.max(0, this.pricing.finalPrice - (this.pricing.advancePayment || 0));
+  }
+  next();
+});
+
+// ── Static Method: Generate QQ-YYYY-XXXX code ────────────────────────────────
 QuickQuotationSchema.statics.generateQuickQuoteCode = async function () {
   const year = new Date().getFullYear();
   let code = "";
-  let exists = true;
-  while (exists) {
+  let isUnique = false;
+  let attempts = 0;
+
+  while (!isUnique && attempts < 15) {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     code = `QQ-${year}-${randomNum}`;
-    const found = await this.findOne({ quickQuoteCode: code });
-    if (!found) exists = false;
+    const existing = await this.findOne({ quickQuoteCode: code }).lean();
+    if (!existing) {
+      isUnique = true;
+    }
+    attempts++;
   }
-  return code;
+
+  return code || `QQ-${year}-${Date.now().toString().slice(-4)}`;
 };
 
-// ── Pre-save Calculations ─────────────────────────────────────────────────────
-QuickQuotationSchema.pre("save", function () {
-  const p = this.pricing || {};
-  const total = Number(p.totalPrice || p.baseCost || p.finalPrice) || 0;
-  const discount = Number(p.discountAmount) || 0;
-  const final = Math.max(0, total - discount);
-
-  const adults = Math.max(1, this.passengers?.adults || 2);
-  p.totalPrice = total;
-  p.finalPrice = final;
-  p.perCouplePrice = final;
-  p.perPersonPrice = Math.round(final / adults);
-});
-
-export default mongoose.models.QuickQuotation ||
+const QuickQuotation =
+  mongoose.models.QuickQuotation ||
   mongoose.model("QuickQuotation", QuickQuotationSchema);
+
+export default QuickQuotation;
