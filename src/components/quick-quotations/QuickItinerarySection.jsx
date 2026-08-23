@@ -196,6 +196,7 @@ export default function QuickItinerarySection({
     onChange(reindexed);
   }
 
+  
   function handleRemoveDay(index) {
     if (itinerary.length <= 1) return;
     const updated = itinerary
