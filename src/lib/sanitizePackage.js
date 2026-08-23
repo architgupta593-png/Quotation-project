@@ -105,13 +105,15 @@ export function sanitizePackagePayload(body) {
   // Sanitize instructions
   if (Array.isArray(sanitized.instructions)) {
     sanitized.instructions = sanitized.instructions.map((block) => {
-      const headingText = (block.heading || block.title || "").trim();
+      const headingText = typeof block.heading === "string" ? block.heading.trim() : typeof block.title === "string" ? block.title.trim() : String(block.heading || block.title || "").trim();
       return {
         heading: headingText,
         title: headingText,
         format: ["bullet", "numbered", "alphabetic", "paragraph"].includes(block.format) ? block.format : "bullet",
-        items: Array.isArray(block.items) ? block.items.filter(Boolean) : [],
-        content: (block.content || "").trim(),
+        items: Array.isArray(block.items)
+          ? block.items.map((it) => (typeof it === "string" ? it.trim() : typeof it === "object" && it !== null ? (it.text || it.name || it.title || "").trim() : String(it || "").trim())).filter(Boolean)
+          : [],
+        content: typeof block.content === "string" ? block.content.trim() : String(block.content || "").trim(),
       };
     });
   } else {
@@ -122,10 +124,19 @@ export function sanitizePackagePayload(body) {
   if (Array.isArray(sanitized.itinerary)) {
     sanitized.itinerary = sanitized.itinerary.map((day, idx) => ({
       day: day.day || idx + 1,
-      title: (day.title || "").trim() || `Day ${day.day || idx + 1} Schedule`,
+      title: (typeof day.title === "string" ? day.title.trim() : String(day.title || "").trim()) || `Day ${day.day || idx + 1} Schedule`,
       // description is stored as HTML from the rich-text editor — preserve as-is
-      description: (day.description || "").trim(),
-      activities: Array.isArray(day.activities) ? day.activities.map((a) => (a || "").trim()).filter(Boolean) : [],
+      description: typeof day.description === "string" ? day.description.trim() : String(day.description || "").trim(),
+      activities: Array.isArray(day.activities)
+        ? day.activities
+            .map((a) => {
+              if (!a) return "";
+              if (typeof a === "string") return a.trim();
+              if (typeof a === "object") return (a.name || a.title || a.activityName || a.activity || a.text || "").trim();
+              return String(a).trim();
+            })
+            .filter(Boolean)
+        : [],
       meals: {
         breakfast: Boolean(day.meals?.breakfast),
         lunch: Boolean(day.meals?.lunch),

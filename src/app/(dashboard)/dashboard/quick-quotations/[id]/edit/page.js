@@ -242,6 +242,9 @@ export default function EditQuickQuotationPage({ params }) {
             ...qq.pricing,
             totalPrice: qq.pricing?.totalPrice || qq.pricing?.baseCost || qq.pricing?.finalPrice || 0,
             discountAmount: qq.pricing?.discountAmount || 0,
+            advanceType: qq.pricing?.advanceType || "absolute",
+            advanceAmount: qq.pricing?.advanceAmount !== undefined ? qq.pricing?.advanceAmount : (qq.pricing?.advancePayment || 0),
+            advancePercentage: qq.pricing?.advancePercentage || 25,
           },
         });
       })
