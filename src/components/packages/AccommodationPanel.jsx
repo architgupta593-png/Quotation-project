@@ -266,11 +266,30 @@ export default function AccommodationPanel({
     const rooms = roomsMap[primaryNight.hotelId] || [];
     const room = rooms.find((r) => r._id === roomId);
 
+    const mealPrices = {};
+    if (room) {
+      (room.seasonalPricing || []).forEach((season) => {
+        (season.meals || []).forEach((m) => {
+          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
+            mealPrices[m.plan] = Number(m.price);
+          }
+        });
+      });
+    }
+
+    const availableMealPlans = Object.keys(mealPrices);
+    const defaultMealPlan = availableMealPlans.includes("CP")
+      ? "CP"
+      : availableMealPlans[0] || "";
+    const defaultPrice = mealPrices[defaultMealPlan] || (room ? room.basePrice : 0) || 0;
+
     updateLegFields(leg, {
       roomId,
       roomType: room ? room.roomType : "",
-      mealPlan: "",
-      pricePerNight: 0,
+      mealPlan: defaultMealPlan,
+      availableMealPlans: availableMealPlans.length > 0 ? availableMealPlans : undefined,
+      mealPrices: Object.keys(mealPrices).length > 0 ? mealPrices : undefined,
+      pricePerNight: defaultPrice,
     });
   }
 
@@ -279,7 +298,20 @@ export default function AccommodationPanel({
     const room = rooms.find((r) => r._id === primaryNight.roomId);
     let price = 0;
 
-    if (room && mealPlan) {
+    const mealPrices = primaryNight.mealPrices || {};
+    if (room && Object.keys(mealPrices).length === 0) {
+      (room.seasonalPricing || []).forEach((season) => {
+        (season.meals || []).forEach((m) => {
+          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
+            mealPrices[m.plan] = Number(m.price);
+          }
+        });
+      });
+    }
+
+    if (mealPrices[mealPlan]) {
+      price = Number(mealPrices[mealPlan]);
+    } else if (room && mealPlan) {
       for (const season of room.seasonalPricing || []) {
         const meal = (season.meals || []).find((m) => m.plan === mealPlan);
         if (meal && meal.price > 0) {
@@ -287,16 +319,16 @@ export default function AccommodationPanel({
           break;
         }
       }
-      if (price === 0 && room.seasonalPricing?.length > 0) {
-        const firstMeal = (room.seasonalPricing[0]?.meals || []).find((m) => m.plan === mealPlan);
-        if (firstMeal) price = firstMeal.price || 0;
-      }
       if (price === 0 && room.basePrice) {
         price = room.basePrice;
       }
     }
 
-    updateLegFields(leg, { mealPlan, pricePerNight: price });
+    updateLegFields(leg, {
+      mealPlan,
+      mealPrices: Object.keys(mealPrices).length > 0 ? mealPrices : undefined,
+      pricePerNight: price,
+    });
   }
 
   function copyHotelToSameCityLegs(sourceLeg) {
@@ -312,6 +344,8 @@ export default function AccommodationPanel({
           roomId: primaryNight.roomId,
           roomType: primaryNight.roomType,
           mealPlan: primaryNight.mealPlan,
+          availableMealPlans: primaryNight.availableMealPlans,
+          mealPrices: primaryNight.mealPrices,
           starRating: primaryNight.starRating,
           pricePerNight: primaryNight.pricePerNight,
         };
@@ -536,18 +570,18 @@ export default function AccommodationPanel({
                   <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
                     Meal Plan
                   </label>
-                  <select
-                    value={primaryNight.mealPlan || ""}
-                    onChange={(e) => handleLegMealPlanChange(leg, e.target.value, primaryNight)}
-                    disabled={!primaryNight.roomId}
-                    className={`${selectCls} ${!primaryNight.roomId ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
+                      <select
+                        value={primaryNight.mealPlan || ""}
+                        onChange={(e) => handleLegMealPlanChange(leg, e.target.value, primaryNight)}
+                        disabled={!primaryNight.roomId}
+                        className={`${selectCls} ${!primaryNight.roomId ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
                     {MEAL_PLANS.map((mp) => (
-                      <option key={mp.value} value={mp.value}>
-                        {mp.label}
-                      </option>
-                    ))}
-                  </select>
+                          <option key={mp.value} value={mp.value}>
+                            {mp.label}
+                          </option>
+                        ))}
+                      </select>
                 </div>
 
                 {/* Star Rating */}

@@ -76,6 +76,17 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
       ? `, ${passengers.childrenCount || passengers.childrenAges.length} Child (${(passengers.childrenAges || []).join(", ")} yrs)`
       : "";
 
+    const options = (quickQuote?.accommodationOptions && quickQuote.accommodationOptions.length > 0)
+      ? quickQuote.accommodationOptions
+      : [{ label: "Standard Accommodation", hotelStays: hotelStays }];
+
+    const formattedHotelSection = options.length > 1
+      ? options.map((opt, i) =>
+          `[ ${opt.label || `Option ${i + 1}`} ]\n` +
+          (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, Room: ${s.roomType || "Deluxe AC"}, Meal Plan: ${s.mealPlan || "CP"})`).join("\n")
+        ).join("\n\n")
+      : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [Room: ${s.roomType || "Deluxe AC"} | Meal Plan: ${s.mealPlan || "CP"}]`).join("\n");
+
     const body = `Dear ${client?.name || "Valued Traveler"},
 
 Greetings from Mandate Holidays!
@@ -94,7 +105,7 @@ TRIP SUMMARY & PARAMETERS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HOTEL ACCOMMODATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${hotelStays.map((s) => `• Night ${s.nightNumber} (${s.cityName}): ${s.hotelName || "Quality Hotel"} [Room: ${s.roomType || "Deluxe AC"} | Meal Plan: ${s.mealPlan || "CP"}]`).join("\n")}
+${formattedHotelSection}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMERCIAL PROPOSAL & PAYMENT MILESTONES
@@ -102,7 +113,7 @@ COMMERCIAL PROPOSAL & PAYMENT MILESTONES
 ${discountBlock}
 • Rate Per Couple: ₹${perCouple.toLocaleString("en-IN")}
 • Rate Per Person: ₹${perPerson.toLocaleString("en-IN")}
-• Advance Token to Confirm (25%): ₹${advanceToken.toLocaleString("en-IN")}
+• Advance Token to Confirm (${advancePct}%): ₹${advanceToken.toLocaleString("en-IN")}
 • Balance: ₹${(finalPrice - advanceToken).toLocaleString("en-IN")} (Payable prior to departure)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

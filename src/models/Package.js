@@ -60,6 +60,8 @@ const AccommodationNightSchema = new mongoose.Schema(
     },
     starRating: { type: Number, min: 1, max: 5, default: null },
     pricePerNight: { type: Number, min: 0, default: 0 },
+    availableMealPlans: { type: [String], default: undefined },
+    mealPrices: { type: mongoose.Schema.Types.Mixed, default: undefined },
     notes: { type: String, trim: true, default: "" },
   },
   { _id: false }

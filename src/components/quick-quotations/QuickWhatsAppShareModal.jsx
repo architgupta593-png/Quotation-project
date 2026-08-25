@@ -103,6 +103,17 @@ ${publicUrl}
 Feel free to reply for any customization! ${EMOJI.STAR}`;
     }
 
+    const options = (quickQuote?.accommodationOptions && quickQuote.accommodationOptions.length > 0)
+      ? quickQuote.accommodationOptions
+      : [{ label: "Standard Accommodation", hotelStays: hotelStays }];
+
+    const formattedHotelSection = options.length > 1
+      ? options.map((opt, i) =>
+          `*${opt.label || `Option ${i + 1}`}*\n` +
+          (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, ${s.roomType || "Deluxe AC"}, ${s.mealPlan || "CP"})`).join("\n")
+        ).join("\n\n")
+      : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [${s.roomType || "Deluxe AC"} - ${s.mealPlan || "CP"}]`).join("\n");
+
     if (templateType === "honeymoon") {
       return `*MANDATE HOLIDAYS — ROMANTIC HONEYMOON PROPOSAL* ${EMOJI.HEARTS} ${EMOJI.CHEERS}
 Ref: *${quickQuoteCode}*
@@ -115,13 +126,13 @@ ${EMOJI.CALENDAR} *Travel Dates:* ${startDateStr} to ${endDateStr}
 ${EMOJI.CAR} *Private Cab:* Dedicated AC ${vehicle?.vehicleType || "Sedan"} with Chauffeur
 
 ${EMOJI.HOTEL} *Curated Stays:*
-${hotelStays.map((s) => `• Night ${s.nightNumber} (${s.cityName}): ${s.hotelName || "Quality Hotel"} [${s.roomType || "Deluxe AC"} - ${s.mealPlan || "CP"}]`).join("\n")}
+${formattedHotelSection}
 
 ${EMOJI.SPARKLES} *Inclusions:* Daily Breakfast, Sightseeing Transfers, Tolls, Fuel & Chauffeur Allowance.${discountText}
 
 ${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}
 ${EMOJI.COUPLE} *Rate Per Couple:* ₹${perCouple.toLocaleString("en-IN")}
-${EMOJI.CASH} *25% Advance Token to Confirm:* ₹${advanceToken.toLocaleString("en-IN")}
+${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toLocaleString("en-IN")}
 
 ${EMOJI.POINT_RIGHT} *Review Itinerary & Accept Online:*
 ${publicUrl}
@@ -146,7 +157,7 @@ ${EMOJI.PEOPLE} *Party:* ${numPax} Adults${childrenText} (${passengers?.totalRoo
 ${EMOJI.CAR} *Private Transport:* AC ${vehicle?.vehicleType || "Sedan"} (${vehicle?.model || "Commercial Cab"} with chauffeur, tolls & parking)
 
 ${EMOJI.HOTEL} *Hotel Accommodation:*
-${hotelStays.map((s) => `• Night ${s.nightNumber} (${s.cityName}): ${s.hotelName || "Quality Hotel"} [${s.mealPlan || "CP"}]`).join("\n")}${discountText}
+${formattedHotelSection}${discountText}
 
 ${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}
 ${EMOJI.COUPLE} *Rate Per Couple:* ₹${perCouple.toLocaleString("en-IN")}

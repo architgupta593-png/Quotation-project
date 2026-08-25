@@ -19,8 +19,10 @@ const QuickItineraryDaySchema = new mongoose.Schema(
 
 const HotelStaySchema = new mongoose.Schema(
   {
-    nightNumber: { type: Number, required: true, min: 1 },
+    nightNumber: { type: Number, default: 1 },
+    nights: { type: Number, min: 1, default: 1 },
     cityName: { type: String, trim: true, default: "" },
+    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
     hotelName: { type: String, trim: true, default: "" },
     starRating: {
       type: Number,
@@ -43,8 +45,20 @@ const HotelStaySchema = new mongoose.Schema(
         return "CP";
       },
     },
+    availableMealPlans: { type: [String], default: undefined },
+    mealPrices: { type: mongoose.Schema.Types.Mixed, default: undefined },
     pricePerNight: { type: Number, min: 0, default: 0 },
     notes: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+// ── Multi-Tier Accommodation Option (e.g. Option 1: Standard, Option 2: Deluxe, Option 3: Luxury) ──
+const AccommodationOptionSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, default: "Option 1 (Standard)" },
+    hotelStays: { type: [HotelStaySchema], default: [] },
+    totalPrice: { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );
@@ -135,6 +149,11 @@ const QuickQuotationSchema = new mongoose.Schema(
       type: [HotelStaySchema],
       default: [],
     },
+    // ── Multi-Option Accommodation Tiers (e.g. Standard, Deluxe, Luxury) ──
+    accommodationOptions: {
+      type: [AccommodationOptionSchema],
+      default: [],
+    },
 
     // ── Day-by-Day Tour Itinerary ──
     showItinerary: {
@@ -196,6 +215,8 @@ const QuickQuotationSchema = new mongoose.Schema(
     pricing: {
       totalPrice: { type: Number, min: 0, default: 0 },
       baseCost: { type: Number, min: 0, default: 0 },
+      markupAmount: { type: Number, min: 0, default: 0 },
+      markupReason: { type: String, trim: true, default: "" },
       discountAmount: { type: Number, min: 0, default: 0 },
       discountReason: { type: String, trim: true, default: "" },
       finalPrice: { type: Number, min: 0, default: 0 },
@@ -245,29 +266,6 @@ const QuickQuotationSchema = new mongoose.Schema(
   }
 );
 
-// ── Auto-Calculate Pricing & Advance Matrix on Save ───────────────────────────
-QuickQuotationSchema.pre("save", function (next) {
-  if (this.pricing) {
-    const total = this.pricing.totalPrice || 0;
-    const discount = this.pricing.discountAmount || 0;
-    this.pricing.finalPrice = Math.max(0, total - discount);
-
-    const advType = this.pricing.advanceType || "absolute";
-    if (advType === "percentage") {
-      const pct = this.pricing.advancePercentage !== undefined ? this.pricing.advancePercentage : 25;
-      this.pricing.advancePayment = Math.round((this.pricing.finalPrice * pct) / 100);
-    } else {
-      if (this.pricing.advanceAmount !== undefined && this.pricing.advanceAmount > 0) {
-        this.pricing.advancePayment = Math.min(this.pricing.finalPrice, this.pricing.advanceAmount);
-      } else if (!this.pricing.advancePayment) {
-        this.pricing.advancePayment = Math.round(this.pricing.finalPrice * 0.25);
-      }
-    }
-    this.pricing.balancePayment = Math.max(0, this.pricing.finalPrice - (this.pricing.advancePayment || 0));
-  }
-  next();
-});
-
 // ── Static Method: Generate QQ-YYYY-XXXX code ────────────────────────────────
 QuickQuotationSchema.statics.generateQuickQuoteCode = async function () {
   const year = new Date().getFullYear();
@@ -287,6 +285,10 @@ QuickQuotationSchema.statics.generateQuickQuoteCode = async function () {
 
   return code || `QQ-${year}-${Date.now().toString().slice(-4)}`;
 };
+
+if (mongoose.models && mongoose.models.QuickQuotation) {
+  delete mongoose.models.QuickQuotation;
+}
 
 const QuickQuotation =
   mongoose.models.QuickQuotation ||

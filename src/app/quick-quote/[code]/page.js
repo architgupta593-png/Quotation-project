@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useMemo } from "react";
 import Image from "next/image";
 import {
   Zap, Calendar, Users, MapPin, Hotel, Car, Check, AlertCircle,
   IndianRupee, MessageSquare, Mail, Printer, Sparkles, Heart,
   Mountain, Palmtree, Castle, Trees, Flame, Compass, ChevronRight,
   ShieldCheck, Clock, CheckCircle2, Phone, X, Award, ExternalLink,
-  ChevronDown, Star,
+  ChevronDown, Star, Layers,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
 
@@ -89,6 +89,7 @@ export default function QuickQuotationPublicPage({ params }) {
   const [accepting, setAccepting] = useState(false);
   const [acceptedSuccess, setAcceptedSuccess] = useState(false);
   const [clientNotes, setClientNotes] = useState("");
+  const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
 
   useEffect(() => {
     fetch(`/api/quick-quotations/code/${code}`)
@@ -100,6 +101,60 @@ export default function QuickQuotationPublicPage({ params }) {
       .catch((err) => setError(err.message || "Failed to load proposal"))
       .finally(() => setLoading(false));
   }, [code]);
+
+  const availableOptions = useMemo(() => {
+    if (quickQuote?.accommodationOptions && quickQuote.accommodationOptions.length > 0) {
+      return quickQuote.accommodationOptions;
+    }
+    return [
+      {
+        label: "Option 1 (Standard 3★)",
+        hotelStays: quickQuote?.hotelStays || [],
+      },
+    ];
+  }, [quickQuote?.accommodationOptions, quickQuote?.hotelStays]);
+
+  const activeStays = useMemo(() => {
+    const opt = availableOptions[selectedOptionIdx] || availableOptions[0];
+    return opt?.hotelStays && opt.hotelStays.length > 0 ? opt.hotelStays : (quickQuote?.hotelStays || []);
+  }, [availableOptions, selectedOptionIdx, quickQuote?.hotelStays]);
+
+  // Normalized Destination / City wise stays
+  const displayStayLegs = useMemo(() => {
+    if (!activeStays || activeStays.length === 0) return [];
+
+    const hasExplicitNights = activeStays.some((s) => s.nights !== undefined && s.nights > 1);
+    if (hasExplicitNights) {
+      return activeStays.map((s, i) => ({
+        cityName: s.cityName || quickQuote?.tripDetails?.destination || `Destination ${i + 1}`,
+        nights: Math.max(1, parseInt(s.nights, 10) || 1),
+        hotelName: s.hotelName || "Quality Certified Hotel",
+        starRating: Math.max(1, Math.min(5, parseInt(s.starRating, 10) || 3)),
+        roomType: s.roomType || "Deluxe AC Room",
+        mealPlan: s.mealPlan || "CP",
+      }));
+    }
+
+    const grouped = [];
+    activeStays.forEach((s) => {
+      const city = s.cityName || quickQuote?.tripDetails?.destination || "Destination";
+      const last = grouped[grouped.length - 1];
+      if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === s.hotelName || !last.hotelName || !s.hotelName)) {
+        last.nights += (s.nights || 1);
+        if (!last.hotelName && s.hotelName) last.hotelName = s.hotelName;
+      } else {
+        grouped.push({
+          cityName: city,
+          nights: Math.max(1, parseInt(s.nights, 10) || 1),
+          hotelName: s.hotelName || "Quality Certified Hotel",
+          starRating: Math.max(1, Math.min(5, parseInt(s.starRating, 10) || 3)),
+          roomType: s.roomType || "Deluxe AC Room",
+          mealPlan: s.mealPlan || "CP",
+        });
+      }
+    });
+    return grouped;
+  }, [activeStays, quickQuote?.tripDetails?.destination]);
 
   if (loading) {
     return (
@@ -433,37 +488,68 @@ export default function QuickQuotationPublicPage({ params }) {
 
             {/* Hotel Accommodation Showcase */}
             <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
                     <Hotel className="w-5 h-5" />
                   </div>
                   <div>
                     <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
-                    <p className="text-[12px] text-slate-500 font-semibold">Certified quality hotel stays reserved for your dates</p>
+                    <p className="text-[12px] text-slate-500 font-semibold">Destination / City wise hotel accommodations reserved for your dates</p>
                   </div>
                 </div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                  {hotelStays.length} Stays Logged
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                    {displayStayLegs.length} Destination {displayStayLegs.length === 1 ? "Stay" : "Stays"}
+                  </span>
+                </div>
               </div>
 
+              {/* Multi-Tier Interactive Selector Tabs (If multiple options provided) */}
+              {availableOptions.length > 1 && (
+                <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                  <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
+                    <Layers className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Select Tier:</span>
+                  </div>
+                  {availableOptions.map((opt, oIdx) => {
+                    const isSelected = selectedOptionIdx === oIdx;
+                    return (
+                      <button
+                        key={oIdx}
+                        type="button"
+                        onClick={() => setSelectedOptionIdx(oIdx)}
+                        className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                          isSelected
+                            ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
+                            : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                        }`}
+                      >
+                        <span>{opt.label || `Option ${oIdx + 1}`}</span>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="space-y-3.5">
-                {hotelStays.map((stay, idx) => (
+                {displayStayLegs.map((stay, idx) => (
                   <div
                     key={idx}
                     className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
                   >
                     <div className="flex items-start gap-3.5">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
-                        <span className="text-[9px] uppercase tracking-tighter">Night</span>
-                        <span className="text-[14px] leading-none">{stay.nightNumber}</span>
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
+                        <span className="text-[14px] leading-none font-mono">{stay.nights}N</span>
+                        <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
                       </div>
 
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 px-2 py-0.2 rounded border border-amber-200">
-                            {stay.cityName || tripDetails?.destination}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-amber-700" />
+                            <span>{stay.cityName} • {stay.nights} {stay.nights > 1 ? "Nights" : "Night"}</span>
                           </span>
                           <div className="flex text-amber-400">
                             {[...Array(stay.starRating || 3)].map((_, i) => (
@@ -482,11 +568,13 @@ export default function QuickQuotationPublicPage({ params }) {
                       </div>
                     </div>
 
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-                      <span className="px-3 py-1 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-[11.5px] font-black">
-                        {MEAL_PLANS[stay.mealPlan] || stay.mealPlan || "CP (Breakfast)"}
-                      </span>
-                    </div>
+                    {stay.mealPlan && (
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+                        <span className="px-3 py-1 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-[11.5px] font-black">
+                          {MEAL_PLANS[stay.mealPlan] || stay.mealPlan}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

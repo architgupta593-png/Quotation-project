@@ -15,6 +15,7 @@ import InstructionsEditorModal from "@/components/quick-quotations/InstructionsE
 import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFetchModal";
 import QuickItinerarySection from "@/components/quick-quotations/QuickItinerarySection";
 import QuickAccommodationSection from "@/components/quick-quotations/QuickAccommodationSection";
+import CustomDatePicker from "@/components/quick-quotations/CustomDatePicker";
 
 const THEMES = [
   { id: "general", label: "General Tour", icon: Compass, color: "border-slate-300 text-slate-700 bg-slate-50" },
@@ -52,8 +53,32 @@ export default function EditQuickQuotationPage({ params }) {
   function handleSelectPackage(pkg) {
     if (!pkg || !form) return;
 
-    const nights = pkg.duration?.nights || pkg.nights || (pkg.destinations && pkg.destinations.reduce((acc, d) => acc + (d.nights || 1), 0)) || form.tripDetails?.nights || 4;
-    const days = pkg.duration?.days || pkg.days || nights + 1;
+    // Accurately resolve exact nights & days from package
+    const nights = Math.max(
+      1,
+      parseInt(
+        pkg.nights ||
+        pkg.duration?.nights ||
+        (pkg.accommodationOptions && pkg.accommodationOptions[0]?.nights?.length) ||
+        (pkg.accommodation && pkg.accommodation[0]?.nights?.length) ||
+        (pkg.destinations && pkg.destinations.reduce((acc, d) => acc + (parseInt(d.nights, 10) || 1), 0)) ||
+        (pkg.itinerary && pkg.itinerary.length > 1 ? pkg.itinerary.length - 1 : 0) ||
+        form.tripDetails?.nights ||
+        4,
+        10
+      )
+    );
+
+    const days = Math.max(
+      nights + 1,
+      parseInt(
+        pkg.days ||
+        pkg.duration?.days ||
+        (pkg.itinerary && pkg.itinerary.length > 0 ? pkg.itinerary.length : 0) ||
+        nights + 1,
+        10
+      )
+    );
 
     // Calculate return date based on current departure date and package nights
     const s = form.tripDetails?.startDate || new Date().toISOString().split("T")[0];
@@ -67,6 +92,7 @@ export default function EditQuickQuotationPage({ params }) {
       form.tripDetails?.destination || "Destination";
 
     // Extract hotel stays from package
+    // Extract hotel stays from package grouped by destination / city
     let stays = [];
     const sourceStays =
       (pkg.accommodationOptions && pkg.accommodationOptions[0]?.nights) ||
@@ -74,48 +100,111 @@ export default function EditQuickQuotationPage({ params }) {
       [];
 
     if (sourceStays.length > 0) {
-      stays = sourceStays.map((st, i) => ({
-        nightNumber: st.night || i + 1,
-        cityName: st.cityName || primaryDest,
-        hotelName: st.hotelName || "",
-        starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
-        roomType: st.roomType || "Deluxe AC Room",
-        mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
-        pricePerNight: st.pricePerNight || 0,
-        notes: st.notes || "",
-      }));
-    } else if (pkg.destinations && pkg.destinations.length > 0) {
-      let nightCounter = 1;
-      pkg.destinations.forEach((dest) => {
-        const destNights = dest.nights || 1;
-        for (let k = 0; k < destNights; k++) {
+      // Group continuous nights in the same city & hotel
+      sourceStays.forEach((st) => {
+        const city = st.cityName || primaryDest;
+        const hotel = st.hotelName || "";
+        const last = stays[stays.length - 1];
+        if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === hotel || !last.hotelName || !hotel)) {
+          last.nights += 1;
+          if (!last.hotelName && hotel) last.hotelName = hotel;
+          if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
+        } else {
           stays.push({
-            nightNumber: nightCounter++,
-            cityName: dest.cityName || primaryDest,
-            hotelName: "",
-            starRating: 3,
-            roomType: "Deluxe AC Room",
-            mealPlan: "CP",
-            pricePerNight: 0,
-            notes: "",
+            cityName: city,
+            nights: 1,
+            hotelId: st.hotelId || null,
+            hotelName: hotel,
+            roomId: st.roomId || null,
+            starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
+            roomType: st.roomType || "Deluxe AC Room",
+            mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
+            availableMealPlans: st.availableMealPlans || (st.mealPlan === "EP" ? ["EP", "CP", "MAP", "AP"] : ["CP", "MAP", "AP"]),
+            pricePerNight: st.pricePerNight || 0,
+            mealPrices: st.mealPrices || null,
+            notes: st.notes || "",
           });
         }
       });
-    }
-
-    if (stays.length === 0) {
-      for (let i = 0; i < nights; i++) {
+    } else if (pkg.destinations && pkg.destinations.length > 0) {
+      pkg.destinations.forEach((dest) => {
         stays.push({
-          nightNumber: i + 1,
-          cityName: primaryDest,
+          cityName: dest.cityName || primaryDest,
+          nights: Math.max(1, parseInt(dest.nights, 10) || 1),
+          hotelId: null,
           hotelName: "",
+          roomId: null,
           starRating: 3,
           roomType: "Deluxe AC Room",
           mealPlan: "CP",
           pricePerNight: 0,
           notes: "",
         });
-      }
+      });
+    }
+
+    if (stays.length === 0) {
+      stays.push({
+        cityName: primaryDest,
+        nights: nights,
+        hotelId: null,
+        hotelName: "",
+        roomId: null,
+        starRating: 3,
+        roomType: "Deluxe AC Room",
+        mealPlan: "CP",
+        pricePerNight: 0,
+        notes: "",
+      });
+    }
+
+    // Extract multi-tier accommodation options from package if available
+    let allAccommodationOptions = [];
+    if (pkg.accommodationOptions && Array.isArray(pkg.accommodationOptions) && pkg.accommodationOptions.length > 0) {
+      allAccommodationOptions = pkg.accommodationOptions.map((opt, oIdx) => {
+        let optStays = [];
+        const sourceNights = opt.nights || [];
+        if (sourceNights.length > 0) {
+          sourceNights.forEach((st) => {
+            const city = st.cityName || primaryDest;
+            const hotel = st.hotelName || "";
+            const last = optStays[optStays.length - 1];
+            if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === hotel || !last.hotelName || !hotel)) {
+              last.nights += 1;
+              if (!last.hotelName && hotel) last.hotelName = hotel;
+              if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
+            } else {
+              optStays.push({
+                cityName: city,
+                nights: 1,
+                hotelId: st.hotelId || null,
+                hotelName: hotel,
+                roomId: st.roomId || null,
+                starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
+                roomType: st.roomType || "Deluxe AC Room",
+                mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
+                availableMealPlans: st.availableMealPlans || (st.mealPlan === "EP" ? ["EP", "CP", "MAP", "AP"] : ["CP", "MAP", "AP"]),
+                pricePerNight: st.pricePerNight || 0,
+                mealPrices: st.mealPrices || null,
+                notes: st.notes || "",
+              });
+            }
+          });
+        }
+        return {
+          label: opt.label || `Option ${oIdx + 1}`,
+          hotelStays: optStays.length > 0 ? optStays : stays,
+          totalPrice: opt.totalPrice || 0,
+        };
+      });
+    }
+
+    if (allAccommodationOptions.length === 0) {
+      allAccommodationOptions.push({
+        label: "Option 1 (Standard 3★)",
+        hotelStays: stays,
+        totalPrice: 0,
+      });
     }
 
     // Extract day-by-day itinerary from package
@@ -192,6 +281,7 @@ export default function EditQuickQuotationPage({ params }) {
         days: days,
       },
       hotelStays: stays,
+      accommodationOptions: allAccommodationOptions,
       itinerary: itineraryDays,
       vehicle: {
         vehicleType: pkg.vehicle?.vehicleType || prev.vehicle?.vehicleType || "Sedan",
@@ -220,6 +310,16 @@ export default function EditQuickQuotationPage({ params }) {
         const sDate = qq.tripDetails?.startDate ? new Date(qq.tripDetails.startDate).toISOString().split("T")[0] : "";
         const eDate = qq.tripDetails?.endDate ? new Date(qq.tripDetails.endDate).toISOString().split("T")[0] : "";
 
+        const loadedOptions = (qq.accommodationOptions && qq.accommodationOptions.length > 0)
+          ? qq.accommodationOptions
+          : [
+              {
+                label: "Option 1 (Standard 3★)",
+                hotelStays: qq.hotelStays || [],
+                totalPrice: 0,
+              },
+            ];
+
         setForm({
           ...qq,
           tripDetails: {
@@ -227,6 +327,7 @@ export default function EditQuickQuotationPage({ params }) {
             startDate: sDate,
             endDate: eDate,
           },
+          accommodationOptions: loadedOptions,
           passengers: {
             ...qq.passengers,
             childrenCount: qq.passengers?.childrenCount || qq.passengers?.childrenAges?.length || 0,
@@ -271,49 +372,61 @@ export default function EditQuickQuotationPage({ params }) {
     );
   }
 
-  // Date calculation helper
-  function handleDateChange(start, end) {
-    const s = new Date(start);
-    const e = new Date(end);
+  // When user changes Departure Date (startDate), automatically shift Return Date (endDate) while preserving existing nights duration
+  function handleStartDateChange(newStartDate) {
+    if (!newStartDate) return;
+    const currentNights = Math.max(1, form.tripDetails?.nights || 4);
+    const s = new Date(newStartDate);
+    s.setDate(s.getDate() + currentNights);
+    const newEndDate = s.toISOString().split("T")[0];
+
+    setForm((prev) => ({
+      ...prev,
+      tripDetails: {
+        ...prev.tripDetails,
+        startDate: newStartDate,
+        endDate: newEndDate,
+      },
+    }));
+  }
+
+  // When user manually adjusts Return Date (endDate), recalculate nights & days duration
+  function handleEndDateChange(newEndDate) {
+    if (!newEndDate) return;
+    const startDate = form.tripDetails?.startDate || new Date().toISOString().split("T")[0];
+    const s = new Date(startDate);
+    const e = new Date(newEndDate);
     let diffDays = Math.round((e - s) / (1000 * 60 * 60 * 24));
     if (isNaN(diffDays) || diffDays < 1) diffDays = 1;
 
-    setForm((prev) => {
-      let updatedStays = [...(prev.hotelStays || [])];
-      if (updatedStays.length < diffDays) {
-        for (let i = updatedStays.length; i < diffDays; i++) {
-          const lastCity = updatedStays[updatedStays.length - 1]?.cityName || prev.tripDetails.destination;
-          updatedStays.push({
-            nightNumber: i + 1,
-            cityName: lastCity,
-            hotelName: "",
-            starRating: 3,
-            roomType: "Deluxe AC Room",
-            mealPlan: "CP",
-            notes: "",
-          });
-        }
-      }
-      return {
-        ...prev,
-        tripDetails: {
-          ...prev.tripDetails,
-          startDate: start,
-          endDate: end,
-          nights: diffDays,
-          days: diffDays + 1,
-        },
-        hotelStays: updatedStays,
-      };
-    });
+    setForm((prev) => ({
+      ...prev,
+      tripDetails: {
+        ...prev.tripDetails,
+        startDate: startDate,
+        endDate: newEndDate,
+        nights: diffDays,
+        days: diffDays + 1,
+      },
+    }));
   }
 
   function applyDurationPreset(nights) {
-    const s = form.tripDetails.startDate || new Date().toISOString().split("T")[0];
+    const s = form.tripDetails?.startDate || new Date().toISOString().split("T")[0];
     const d = new Date(s);
     d.setDate(d.getDate() + nights);
     const end = d.toISOString().split("T")[0];
-    handleDateChange(s, end);
+
+    setForm((prev) => ({
+      ...prev,
+      tripDetails: {
+        ...prev.tripDetails,
+        startDate: s,
+        endDate: end,
+        nights: nights,
+        days: nights + 1,
+      },
+    }));
   }
 
   // Children count and individual ages handler
@@ -352,9 +465,9 @@ export default function EditQuickQuotationPage({ params }) {
   }
 
   // Pricing calculations
-  const totalPrice = Number(form.pricing?.totalPrice) || 0;
-  const discountAmt = Math.max(0, Number(form.pricing?.discountAmount) || 0);
-  const finalPrice = Math.max(0, totalPrice - discountAmt);
+  const basePrice = Number(form.pricing?.totalPrice) || 0;
+  const markupAmount = Math.max(0, Number(form.pricing?.markupAmount) || 0);
+  const finalPrice = Math.max(0, basePrice + markupAmount);
   const numPax = Math.max(1, form.passengers?.adults || 2);
   const perPersonPrice = Math.round(finalPrice / numPax);
   const perCouplePrice = finalPrice;
@@ -428,11 +541,27 @@ export default function EditQuickQuotationPage({ params }) {
     setError("");
     setSaving(true);
     try {
+      const normalizedStays = (form.hotelStays || []).map((s, i) => ({
+        ...s,
+        nightNumber: s.nightNumber || i + 1,
+      }));
+
+      const normalizedOptions = (form.accommodationOptions || []).map((opt) => ({
+        ...opt,
+        hotelStays: (opt.hotelStays || []).map((s, i) => ({
+          ...s,
+          nightNumber: s.nightNumber || i + 1,
+        })),
+      }));
+
       const payload = {
         ...form,
+        hotelStays: normalizedStays,
+        accommodationOptions: normalizedOptions.length > 0 ? normalizedOptions : undefined,
         pricing: {
           ...form.pricing,
-          totalPrice,
+          totalPrice: basePrice,
+          markupAmount,
           finalPrice,
           perPersonPrice,
           perCouplePrice,
@@ -674,64 +803,95 @@ export default function EditQuickQuotationPage({ params }) {
                 </div>
               </div>
 
-              {/* Direct Travel Dates */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              {/* Direct Travel Dates & Duration */}
+              <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-50/50 via-white to-slate-50 border border-amber-200/90 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-amber-600" /> Travel Duration &amp; Dates
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { label: "3N/4D", n: 3 },
-                      { label: "4N/5D", n: 4 },
-                      { label: "5N/6D", n: 5 },
-                      { label: "6N/7D", n: 6 },
-                      { label: "7N/8D", n: 7 },
-                    ].map((ps) => (
-                      <button
-                        key={ps.n}
-                        type="button"
-                        onClick={() => applyDurationPreset(ps.n)}
-                        className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold border transition-all ${
-                          form.tripDetails?.nights === ps.n
-                            ? "bg-amber-500 text-white border-amber-600 shadow-xs"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                        }`}
-                      >
-                        {ps.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-[11px] shadow-xs">
+                      <Calendar className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-[12px] font-black text-slate-900 tracking-wide">
+                      Travel Duration &amp; Departure Date
+                    </span>
                   </div>
+                  {form.tripDetails?.startDate && (
+                    <span className="text-[11px] font-bold text-amber-900 bg-amber-100/70 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      🏁 Return: {(() => {
+                        try {
+                          const parts = (form.tripDetails.startDate || "").split("-");
+                          if (parts.length !== 3) return "";
+                          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                          d.setDate(d.getDate() + (parseInt(form.tripDetails.nights, 10) || 1));
+                          return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+                        } catch {
+                          return "";
+                        }
+                      })()}
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Departure Date</label>
-                    <input
-                      type="date"
-                      value={form.tripDetails?.startDate || ""}
-                      onChange={(e) => handleDateChange(e.target.value, form.tripDetails?.endDate)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-[13px] text-slate-800"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Custom Interactive Departure Date Picker */}
+                  <CustomDatePicker
+                    value={form.tripDetails?.startDate || ""}
+                    onChange={(newDate) => handleStartDateChange(newDate)}
+                  />
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Return Date</label>
-                    <input
-                      type="date"
-                      value={form.tripDetails?.endDate || ""}
-                      min={form.tripDetails?.startDate}
-                      onChange={(e) => handleDateChange(form.tripDetails?.startDate, e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold text-[13px] text-slate-800"
-                    />
-                  </div>
+                  {/* Trip Duration Controls with Stepper */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs space-y-1.5 focus-within:border-amber-500 transition-all">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-extrabold text-slate-600">
+                        Trip Duration
+                      </label>
+                      <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        {form.tripDetails?.days || 5} Days Total
+                      </span>
+                    </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Calculated Duration</label>
-                    <div className="w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/70 font-black text-[13px] text-amber-900 text-center flex items-center justify-center gap-1">
-                      <span>{form.tripDetails?.nights || 4} Nights</span>
-                      <span>/</span>
-                      <span>{form.tripDetails?.days || 5} Days</span>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = Math.max(1, (parseInt(form.tripDetails?.nights, 10) || 1) - 1);
+                          applyDurationPreset(val);
+                        }}
+                        className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[16px] flex items-center justify-center transition-all active:scale-95 border border-slate-200"
+                        title="Decrease 1 Night"
+                      >
+                        -
+                      </button>
+
+                      <div className="flex-1 flex items-center justify-center gap-1.5 bg-slate-50/80 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <input
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={form.tripDetails?.nights || 4}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            applyDurationPreset(val);
+                          }}
+                          className="w-12 font-mono font-black text-[16px] text-slate-900 text-center bg-transparent focus:outline-none"
+                        />
+                        <span className="text-[13px] font-black text-slate-700">Nights</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = Math.min(60, (parseInt(form.tripDetails?.nights, 10) || 1) + 1);
+                          applyDurationPreset(val);
+                        }}
+                        className="w-9 h-9 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-[16px] flex items-center justify-center transition-all active:scale-95 border border-amber-300"
+                        title="Increase 1 Night"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="text-[10.5px] text-slate-400 font-semibold text-center pt-0.5">
+                      Calculates exact itinerary &amp; destination stay nights
                     </div>
                   </div>
                 </div>
@@ -837,10 +997,23 @@ export default function EditQuickQuotationPage({ params }) {
 
             {/* ── 4. Hotel Accommodation Portfolio ── */}
             <QuickAccommodationSection
+              accommodationOptions={form.accommodationOptions || []}
+              onOptionsChange={(opts) => setForm((p) => ({ ...p, accommodationOptions: opts }))}
               hotelStays={form.hotelStays || []}
               onChange={(updated) => setForm((p) => ({ ...p, hotelStays: updated }))}
               totalNights={form.tripDetails?.nights || 4}
               primaryDestination={form.tripDetails?.destination || ""}
+              startDate={form.tripDetails?.startDate}
+              totalRooms={form.passengers?.totalRooms || 1}
+              onPriceAdjustment={(delta) => {
+                setForm((p) => ({
+                  ...p,
+                  pricing: {
+                    ...p.pricing,
+                    totalPrice: Math.max(0, (p.pricing?.totalPrice || 0) + delta),
+                  },
+                }));
+              }}
             />
 
             {/* 4. Dedicated Transport */}
@@ -1062,22 +1235,22 @@ export default function EditQuickQuotationPage({ params }) {
                 </div>
               </div>
 
-              {/* Night-by-Night Accommodation Timeline Review */}
+              {/* Destination / City Wise Accommodation Timeline Review */}
               <div className="pt-2 border-t border-white/10 space-y-2 relative z-10">
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Accommodation Itinerary ({(form.hotelStays || []).length} Stays):</p>
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Accommodation Portfolio ({(form.hotelStays || []).length} Destination {(form.hotelStays || []).length === 1 ? "Stay" : "Stays"}):</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(form.hotelStays || []).map((s, i) => (
                     <div key={i} className="flex items-center justify-between bg-white/5 px-3.5 py-2 rounded-xl border border-white/5 text-[12px]">
                       <div className="flex items-center gap-2 truncate">
-                        <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-black text-[10px] flex items-center justify-center flex-shrink-0">
-                          N{s.nightNumber}
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-black text-[10.5px] flex items-center justify-center flex-shrink-0">
+                          {s.nights || 1}N
                         </span>
                         <span className="text-slate-300 font-bold truncate">
                           {s.cityName || form.tripDetails?.destination}: <span className="text-white font-black">{s.hotelName || "Quality Hotel"}</span>
                         </span>
                       </div>
                       <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-white/10 text-amber-300 border border-white/10 flex-shrink-0">
-                        {s.mealPlan}
+                        {s.mealPlan || "CP"}
                       </span>
                     </div>
                   ))}
@@ -1094,7 +1267,7 @@ export default function EditQuickQuotationPage({ params }) {
                     <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">Commercial Snapshot</p>
                     <p className="text-[15px] font-black text-white">
                       ₹{finalPrice.toLocaleString("en-IN")} Total Value
-                      {discountAmt > 0 && <span className="text-amber-300 text-[12px] font-bold ml-2">(₹{discountAmt.toLocaleString("en-IN")} Discount Applied)</span>}
+                      {markupAmount > 0 && <span className="text-emerald-300 text-[12px] font-bold ml-2">(₹{basePrice.toLocaleString("en-IN")} Target + ₹{markupAmount.toLocaleString("en-IN")} Buffer)</span>}
                     </p>
                   </div>
                 </div>
@@ -1123,11 +1296,14 @@ export default function EditQuickQuotationPage({ params }) {
                 <span className="text-[11px] font-bold text-slate-400">1-Minute Entry</span>
               </div>
 
-              {/* Direct Total Package Price Input */}
+              {/* 1. Base Target Package Price Input */}
               <div className="space-y-1.5">
-                <label className="block text-[12px] font-black text-slate-800">
-                  Total Package Price (₹) *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[12px] font-black text-slate-800">
+                    Target / Base Package Price (₹) *
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-400">Your Net Target</span>
+                </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₹</span>
                   <input
@@ -1135,35 +1311,96 @@ export default function EditQuickQuotationPage({ params }) {
                     min="0"
                     value={form.pricing?.totalPrice || ""}
                     onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, totalPrice: parseFloat(e.target.value) || 0 } }))}
-                    placeholder="e.g. 45000"
+                    placeholder="e.g. 25000"
                     className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-300 font-black text-[16px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-right font-mono"
                   />
                 </div>
               </div>
 
-              {/* Direct Discount / Offer Input */}
-              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-2">
+              {/* 2. 🎯 Negotiation Price Buffer / Markup (+₹) */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-amber-50/60 border-2 border-emerald-200/90 shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11.5px] font-black text-rose-800 flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5 text-rose-500" /> Special Discount (₹)
-                  </span>
-                  {discountAmt > 0 && (
-                    <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-rose-200 text-rose-900">
-                      Save ₹{discountAmt.toLocaleString("en-IN")}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[14px]">🎯</span>
+                    <span className="text-[12px] font-black text-emerald-950">
+                      Negotiation Buffer (+₹)
+                    </span>
+                  </div>
+                  {markupAmount > 0 && (
+                    <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      +₹{markupAmount.toLocaleString("en-IN")} Buffer
                     </span>
                   )}
                 </div>
+
+                <p className="text-[10.5px] text-slate-500 font-medium leading-tight">
+                  Add buffer to quote higher (e.g. ₹27,000) so when the client bargains down, you still sell at your ₹{basePrice > 0 ? basePrice.toLocaleString("en-IN") : "25,000"} target.
+                </p>
+
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-500 font-bold text-[12px]">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-[13px]">+₹</span>
                   <input
                     type="number"
                     min="0"
-                    value={form.pricing?.discountAmount || ""}
-                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountAmount: parseFloat(e.target.value) || 0 } }))}
+                    value={form.pricing?.markupAmount || ""}
+                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: parseFloat(e.target.value) || 0 } }))}
                     placeholder="0"
-                    className="w-full pl-7 pr-3 py-2 rounded-xl border border-rose-200 bg-white text-[14px] font-bold text-right text-rose-900"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-emerald-300 bg-white text-[14.5px] font-black text-right text-emerald-950 font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
+
+                {/* Fast Buffer Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] font-black uppercase text-slate-400 mr-0.5">Quick Add:</span>
+                  {[1000, 2000, 3000, 5000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: amt } }))}
+                      className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
+                        markupAmount === amt
+                          ? "bg-emerald-600 text-white border-emerald-700 font-black shadow-2xs"
+                          : "bg-white hover:bg-emerald-50 text-emerald-900 border-emerald-200"
+                      }`}
+                    >
+                      +₹{amt.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                  {markupAmount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: 0 } }))}
+                      className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Final Quoted Proposal Price Sent to Client */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white space-y-1.5 shadow-md border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-black uppercase tracking-widest text-amber-400">
+                    Quoted Proposal Price
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">
+                    Sent to Client
+                  </span>
+                </div>
+                <div className="text-[26px] font-black text-white font-mono leading-none pt-1">
+                  ₹{finalPrice.toLocaleString("en-IN")}
+                </div>
+                {markupAmount > 0 ? (
+                  <div className="pt-1.5 text-[10.5px] text-amber-200 font-medium border-t border-white/10 flex items-center justify-between">
+                    <span>Target Sale: ₹{basePrice.toLocaleString("en-IN")}</span>
+                    <span className="text-emerald-400 font-bold">Negotiation Room: -₹{markupAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                ) : (
+                  <div className="pt-1 text-[10.5px] text-slate-400">
+                    Net price without buffer
+                  </div>
+                )}
               </div>
 
               {/* 🌟 Advance Payment Option (Absolute by default OR Percentage) */}
@@ -1282,13 +1519,13 @@ export default function EditQuickQuotationPage({ params }) {
               {/* Final Summary Box */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white space-y-3 shadow-lg">
                 <div>
-                  {discountAmt > 0 && (
+                  {markupAmount > 0 && (
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[12px] text-slate-400 line-through font-bold">
-                        ₹{totalPrice.toLocaleString("en-IN")}
+                      <span className="text-[11.5px] text-slate-300 font-mono">
+                        Target: ₹{basePrice.toLocaleString("en-IN")}
                       </span>
                       <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        Discount Applied
+                        +₹{markupAmount.toLocaleString("en-IN")} Buffer
                       </span>
                     </div>
                   )}

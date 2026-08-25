@@ -46,14 +46,15 @@ export async function POST(req, { params }) {
     const stays = qq.hotelStays || [];
     if (stays.length > 0) {
       stays.forEach((st) => {
+        const stayNights = Math.max(1, parseInt(st.nights, 10) || 1);
         const last = destinations[destinations.length - 1];
         if (last && last.cityName === st.cityName) {
-          last.nights += 1;
+          last.nights += stayNights;
         } else {
           destinations.push({
             cityName: st.cityName || qq.tripDetails.destination,
             state: "",
-            nights: 1,
+            nights: stayNights,
           });
         }
       });
@@ -98,17 +99,24 @@ export async function POST(req, { params }) {
       }
     }
 
-    // Build 3 Accommodation Tiers from hotelStays
-    const nightsArr = (qq.hotelStays || []).map((s, idx) => ({
-      night: s.nightNumber || idx + 1,
-      cityName: s.cityName || qq.tripDetails.destination,
-      hotelName: s.hotelName || "Quality Certified Hotel",
-      starRating: s.starRating || 3,
-      roomType: s.roomType || "Deluxe AC Room",
-      mealPlan: s.mealPlan || "CP",
-      pricePerNight: s.pricePerNight || 0,
-      notes: s.notes || "",
-    }));
+    // Build nightsArr from hotelStays (expanding multi-night destination stays into individual night slots for Full Quotation schema)
+    const nightsArr = [];
+    let currentNight = 1;
+    (qq.hotelStays || []).forEach((s) => {
+      const stayNights = Math.max(1, parseInt(s.nights, 10) || 1);
+      for (let k = 0; k < stayNights; k++) {
+        nightsArr.push({
+          night: currentNight++,
+          cityName: s.cityName || qq.tripDetails.destination,
+          hotelName: s.hotelName || "Quality Certified Hotel",
+          starRating: s.starRating || 3,
+          roomType: s.roomType || "Deluxe AC Room",
+          mealPlan: s.mealPlan || "CP",
+          pricePerNight: s.pricePerNight || 0,
+          notes: s.notes || "",
+        });
+      }
+    });
 
     const accommodationOptions = [
       {

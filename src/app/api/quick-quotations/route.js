@@ -90,6 +90,24 @@ export async function POST(req) {
 
     const body = await req.json();
 
+    // Ensure all hotel stays have nightNumber populated
+    if (body.hotelStays && Array.isArray(body.hotelStays)) {
+      body.hotelStays = body.hotelStays.map((s, i) => ({
+        ...s,
+        nightNumber: s.nightNumber || i + 1,
+      }));
+    }
+
+    if (body.accommodationOptions && Array.isArray(body.accommodationOptions)) {
+      body.accommodationOptions = body.accommodationOptions.map((opt) => ({
+        ...opt,
+        hotelStays: (opt.hotelStays || []).map((s, i) => ({
+          ...s,
+          nightNumber: s.nightNumber || i + 1,
+        })),
+      }));
+    }
+
     // Generate unique code if not provided
     if (!body.quickQuoteCode) {
       body.quickQuoteCode = await QuickQuotation.generateQuickQuoteCode();
