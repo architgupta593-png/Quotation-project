@@ -79,7 +79,7 @@ const AccommodationOptionSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const VehicleSchema = new mongoose.Schema(
+const VehicleEntrySchema = new mongoose.Schema(
   {
     vehicleType: {
       type: String,
@@ -88,12 +88,26 @@ const VehicleSchema = new mongoose.Schema(
     },
     model: { type: String, trim: true, default: "" },
     seats: { type: Number, min: 1, default: 4 },
+    quantity: { type: Number, min: 1, default: 1 },
     acType: { type: String, enum: ["AC", "Non-AC"], default: "AC" },
-    vehiclePrice: { type: Number, min: 0, default: 0 },
+    price: { type: Number, min: 0, default: 5000 },
+    vehiclePrice: { type: Number, min: 0, default: 5000 },
     notes: { type: String, trim: true, default: "" },
   },
   { _id: false }
 );
+
+const VehiclePeriodSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true, default: "Standard Season" },
+    startDate: { type: String, trim: true, default: "" },
+    endDate: { type: String, trim: true, default: "" },
+    vehicles: { type: [VehicleEntrySchema], default: [] },
+  },
+  { _id: false }
+);
+
+const VehicleSchema = VehicleEntrySchema;
 
 const PricingSchema = new mongoose.Schema(
   {
@@ -191,6 +205,16 @@ const PackageSchema = new mongoose.Schema(
       type: [AccommodationOptionSchema],
       default: [],
     },
+    // Multiple date periods with individual vehicle fleets & prices
+    vehiclePeriods: {
+      type: [VehiclePeriodSchema],
+      default: [],
+    },
+    // Multi-vehicle transport support (e.g. combo fleet or multi-cab)
+    vehicles: {
+      type: [VehicleSchema],
+      default: [],
+    },
     vehicle: {
       type: VehicleSchema,
       default: () => ({}),
@@ -230,6 +254,30 @@ PackageSchema.pre("save", function () {
   // Auto-compute destination string from destinations array
   if (this.isModified("destinations") && this.destinations.length > 0) {
     this.destination = this.destinations.map((d) => d.cityName).filter(Boolean).join(" → ");
+  }
+  // Sync vehiclePeriods, vehicles, and vehicle for full backward and forward compatibility
+  if (Array.isArray(this.vehiclePeriods) && this.vehiclePeriods.length > 0) {
+    const firstPeriodVehicles = this.vehiclePeriods[0].vehicles || [];
+    if (firstPeriodVehicles.length > 0) {
+      this.vehicles = firstPeriodVehicles;
+      this.vehicle = firstPeriodVehicles[0];
+    }
+  } else if (Array.isArray(this.vehicles) && this.vehicles.length > 0) {
+    this.vehicle = this.vehicles[0];
+    this.vehiclePeriods = [{
+      name: "Standard Season",
+      startDate: "",
+      endDate: "",
+      vehicles: this.vehicles,
+    }];
+  } else if (this.vehicle && this.vehicle.vehicleType) {
+    this.vehicles = [this.vehicle];
+    this.vehiclePeriods = [{
+      name: "Standard Season",
+      startDate: "",
+      endDate: "",
+      vehicles: [this.vehicle],
+    }];
   }
 });
 

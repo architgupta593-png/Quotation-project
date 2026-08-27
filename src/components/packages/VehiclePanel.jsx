@@ -1,15 +1,67 @@
 "use client";
 
-import { Car, Users, Check, Sparkles, ShieldCheck } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import {
+  Calendar, Users, Plus, Trash2, Tag, ArrowRight,
+} from "lucide-react";
 
 export const VEHICLE_TYPES = [
-  { type: "Sedan", label: "Sedan", defaultSeats: 4, dailyRate: 2500, image: "/vehicle-sedan.png", models: "Dzire, Etios, Amaze" },
-  { type: "SUV", label: "SUV", defaultSeats: 6, dailyRate: 3500, image: "/vehicle-suv.png", models: "Innova, Ertiga, Scorpio" },
-  { type: "MUV", label: "MUV", defaultSeats: 7, dailyRate: 4000, image: "/vehicle-muv.png", models: "Innova Crysta, Carens" },
-  { type: "Tempo Traveller", label: "Tempo (12S)", defaultSeats: 12, dailyRate: 5500, image: "/vehicle-tempo.png", models: "Force Traveller 12-17 Seater" },
-  { type: "Mini Bus", label: "Mini Bus", defaultSeats: 21, dailyRate: 8500, image: "/vehicle-minibus.png", models: "21-27 Seater Coach" },
-  { type: "Bus", label: "Bus", defaultSeats: 40, dailyRate: 14000, image: "/vehicle-bus.png", models: "40-50 Seater Luxury Coach" },
-  { type: "Other", label: "Other", defaultSeats: 4, dailyRate: 3000, image: "/vehicle-sedan.png", models: "Custom Vehicle" },
+  {
+    type: "Sedan",
+    label: "Sedan",
+    defaultSeats: 4,
+    image: "/vehicle-sedan.png",
+    models: "Dzire / Etios",
+    defaultPrice: 5000,
+  },
+  {
+    type: "SUV",
+    label: "SUV",
+    defaultSeats: 6,
+    image: "/vehicle-suv.png",
+    models: "Innova / Ertiga",
+    defaultPrice: 7000,
+  },
+  {
+    type: "MUV",
+    label: "MUV / Premium",
+    defaultSeats: 7,
+    image: "/vehicle-muv.png",
+    models: "Innova Crysta",
+    defaultPrice: 8500,
+  },
+  {
+    type: "Tempo Traveller",
+    label: "Tempo (12-17S)",
+    defaultSeats: 12,
+    image: "/vehicle-tempo.png",
+    models: "Force Traveller",
+    defaultPrice: 12000,
+  },
+  {
+    type: "Mini Bus",
+    label: "Mini Bus (21S)",
+    defaultSeats: 21,
+    image: "/vehicle-minibus.png",
+    models: "21-Seater Coach",
+    defaultPrice: 18000,
+  },
+  {
+    type: "Bus",
+    label: "Bus (40S)",
+    defaultSeats: 40,
+    image: "/vehicle-bus.png",
+    models: "40-Seater Coach",
+    defaultPrice: 28000,
+  },
+  {
+    type: "Other",
+    label: "Custom",
+    defaultSeats: 4,
+    image: "/vehicle-sedan.png",
+    models: "Custom Cab",
+    defaultPrice: 6000,
+  },
 ];
 
 export function getVehicleImage(vehicleType = "") {
@@ -23,259 +75,569 @@ export function getVehicleImage(vehicleType = "") {
   return "/vehicle-sedan.png";
 }
 
-const PRESET_INCLUSIONS = [
-  "Fuel Included",
-  "Driver Allowance Included",
-  "Tolls & Parking Included",
-  "Permit Taxes Included",
-];
+function createDefaultVehicle(type = "Sedan", defaultPrice) {
+  const cfg = VEHICLE_TYPES.find((v) => v.type === type) || VEHICLE_TYPES[0];
+  const p = defaultPrice !== undefined ? defaultPrice : cfg.defaultPrice;
+  return {
+    vehicleType: cfg.type,
+    model: cfg.models,
+    seats: cfg.defaultSeats,
+    quantity: 1,
+    acType: "AC",
+    price: p,
+    vehiclePrice: p,
+    notes: "Includes fuel, driver allowance, tolls & parking",
+  };
+}
+
+function createDefaultPeriod(name = "Standard Season", startDate = "", endDate = "") {
+  return {
+    name,
+    startDate,
+    endDate,
+    vehicles: [createDefaultVehicle("Sedan")],
+  };
+}
 
 /**
- * VehiclePanel — Lightweight, Compact & Visual Transport Panel with Vehicle PNGs
+ * VehiclePanel — Custom Date Periods with Multi-Vehicle Dynamic Pricing
  */
-export default function VehiclePanel({ vehicle: propVehicle, value = {}, days = 1, onChange }) {
-  const inputVehicle = propVehicle || value || {};
-  const vehicle = {
-    vehicleType: inputVehicle.vehicleType || "Sedan",
-    model: inputVehicle.model || "",
-    seats: inputVehicle.seats || 4,
-    acType: inputVehicle.acType || "AC",
-    vehiclePrice: inputVehicle.vehiclePrice || 0,
-    notes: inputVehicle.notes || "",
-  };
-
-  const currentTypeConfig =
-    VEHICLE_TYPES.find((v) => v.type === vehicle.vehicleType) || VEHICLE_TYPES[0];
-
-  function update(patch) {
-    onChange({ ...vehicle, ...patch });
-  }
-
-  function handleTypeSelect(opt) {
-    const estPrice = (days || 1) * (opt.dailyRate || 2500);
-    update({
-      vehicleType: opt.type,
-      seats: opt.defaultSeats,
-      model: vehicle.model || opt.models,
-      vehiclePrice: vehicle.vehiclePrice === 0 ? estPrice : vehicle.vehiclePrice,
-    });
-  }
-
-  function autoCalcStandardPrice() {
-    const estPrice = (days || 1) * (currentTypeConfig.dailyRate || 2500);
-    update({ vehiclePrice: estPrice });
-  }
-
-  function togglePresetNote(preset) {
-    const currentNotes = vehicle.notes || "";
-    if (currentNotes.includes(preset)) {
-      const updated = currentNotes
-        .split("\n")
-        .filter((line) => line.trim() !== preset)
-        .join("\n")
-        .trim();
-      update({ notes: updated });
-    } else {
-      const updated = currentNotes ? `${currentNotes}\n${preset}` : preset;
-      update({ notes: updated });
+export default function VehiclePanel({
+  vehiclePeriods: propVehiclePeriods,
+  vehicles: propVehicles,
+  vehicle: propVehicle,
+  value = {},
+  onChange,
+}) {
+  // Normalize incoming periods safely
+  const rawPeriods = useMemo(() => {
+    if (Array.isArray(propVehiclePeriods) && propVehiclePeriods.length > 0) {
+      return propVehiclePeriods;
     }
+    if (Array.isArray(value?.vehiclePeriods) && value.vehiclePeriods.length > 0) {
+      return value.vehiclePeriods;
+    }
+    if (Array.isArray(propVehicles) && propVehicles.length > 0) {
+      return [{
+        name: "Standard Season",
+        startDate: "",
+        endDate: "",
+        vehicles: propVehicles,
+      }];
+    }
+    if (Array.isArray(value?.vehicles) && value.vehicles.length > 0) {
+      return [{
+        name: "Standard Season",
+        startDate: "",
+        endDate: "",
+        vehicles: value.vehicles,
+      }];
+    }
+    if (propVehicle && propVehicle.vehicleType) {
+      return [{
+        name: "Standard Season",
+        startDate: "",
+        endDate: "",
+        vehicles: [propVehicle],
+      }];
+    }
+    return [createDefaultPeriod()];
+  }, [propVehiclePeriods, value?.vehiclePeriods, propVehicles, value?.vehicles, propVehicle]);
+
+  const [activePeriodIdx, setActivePeriodIdx] = useState(0);
+
+  // Normalize periods structure with safe defaults
+  const periods = useMemo(() => {
+    return rawPeriods.map((p, pIdx) => {
+      const vList = Array.isArray(p?.vehicles) && p.vehicles.length > 0
+        ? p.vehicles
+        : [createDefaultVehicle("Sedan")];
+
+      const normalizedVehicles = vList.map((v) => {
+        const typeCfg = VEHICLE_TYPES.find((t) => t.type === v?.vehicleType) || VEHICLE_TYPES[0];
+        const rawPrice = v?.vehiclePrice !== undefined && v?.vehiclePrice !== null
+          ? v.vehiclePrice
+          : (v?.price !== undefined && v?.price !== null ? v.price : (v?.dailyRate !== undefined && v?.dailyRate !== null ? v.dailyRate : typeCfg.defaultPrice));
+        const qty = Math.max(1, parseInt(v?.quantity, 10) || 1);
+
+        return {
+          ...v,
+          vehicleType: v?.vehicleType || "Sedan",
+          model: v?.model || typeCfg.models,
+          seats: Math.max(1, parseInt(v?.seats, 10) || typeCfg.defaultSeats),
+          quantity: qty,
+          acType: v?.acType || "AC",
+          price: rawPrice,
+          vehiclePrice: rawPrice,
+          notes: v?.notes || "Includes fuel, driver allowance, tolls & parking",
+        };
+      });
+
+      return {
+        name: p?.name || `Period ${pIdx + 1}`,
+        startDate: p?.startDate || "",
+        endDate: p?.endDate || "",
+        vehicles: normalizedVehicles,
+      };
+    });
+  }, [rawPeriods]);
+
+  const safeActiveIdx = Math.min(Math.max(0, activePeriodIdx), Math.max(0, periods.length - 1));
+  const activePeriod = periods[safeActiveIdx] || periods[0] || createDefaultPeriod();
+  const activeVehicles = Array.isArray(activePeriod?.vehicles) && activePeriod.vehicles.length > 0
+    ? activePeriod.vehicles
+    : [createDefaultVehicle("Sedan")];
+
+  const triggerChange = useCallback((updatedPeriods, currentActiveIdx = safeActiveIdx) => {
+    const targetIdx = Math.min(Math.max(0, currentActiveIdx), Math.max(0, updatedPeriods.length - 1));
+    const curPeriod = updatedPeriods[targetIdx] || updatedPeriods[0] || createDefaultPeriod();
+    const curVehicles = (curPeriod?.vehicles || []).map((v) => ({
+      ...v,
+      vehiclePrice: Number(v?.vehiclePrice) || 0,
+      price: Number(v?.vehiclePrice) || 0,
+    }));
+    const total = curVehicles.reduce(
+      (sum, v) => sum + ((Number(v.vehiclePrice) || 0) * (parseInt(v.quantity, 10) || 1)),
+      0
+    );
+    const primary = curVehicles[0] || createDefaultVehicle("Sedan");
+
+    if (typeof onChange === "function") {
+      onChange({
+        vehiclePeriods: updatedPeriods,
+        vehicles: curVehicles,
+        vehicle: primary,
+        vehicleTotal: total,
+        vehiclePrice: total,
+      });
+    }
+  }, [onChange, safeActiveIdx]);
+
+  // Add Date Period
+  function handleAddPeriod(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const newPeriod = createDefaultPeriod(
+      `Period ${periods.length + 1}`,
+      "",
+      ""
+    );
+    if (activeVehicles && activeVehicles.length > 0) {
+      newPeriod.vehicles = activeVehicles.map((v) => ({ ...v }));
+    }
+    const updated = [...periods, newPeriod];
+    const newIdx = updated.length - 1;
+    setActivePeriodIdx(newIdx);
+    triggerChange(updated, newIdx);
   }
 
-  const inputCls =
-    "w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 transition-all shadow-xs";
+  // Remove Date Period
+  function handleRemovePeriod(pIdx, e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (periods.length <= 1) return;
+    const updated = periods.filter((_, i) => i !== pIdx);
+    const newIdx = Math.max(0, pIdx >= updated.length ? updated.length - 1 : pIdx);
+    setActivePeriodIdx(newIdx);
+    triggerChange(updated, newIdx);
+  }
+
+  // Update Period Metadata (Name, Start Date, End Date)
+  function handleUpdatePeriodMeta(patch) {
+    const updated = periods.map((p, idx) => {
+      if (idx !== safeActiveIdx) return p;
+      return { ...p, ...patch };
+    });
+    triggerChange(updated);
+  }
+
+  // Vehicle operations in active period
+  function handleUpdateVehicle(vIdx, patch) {
+    const updatedPeriods = periods.map((p, pIdx) => {
+      if (pIdx !== safeActiveIdx) return p;
+      const nextVehicles = (p?.vehicles || []).map((veh, i) => {
+        if (i !== vIdx) return veh;
+        const updated = { ...veh, ...patch };
+
+        if (patch.vehicleType && patch.vehicleType !== veh.vehicleType) {
+          const typeCfg = VEHICLE_TYPES.find((t) => t.type === patch.vehicleType) || VEHICLE_TYPES[0];
+          updated.seats = typeCfg.defaultSeats;
+          updated.model = typeCfg.models;
+          updated.price = typeCfg.defaultPrice;
+          updated.vehiclePrice = typeCfg.defaultPrice;
+        }
+
+        if (patch.vehiclePrice !== undefined) {
+          updated.vehiclePrice = patch.vehiclePrice;
+          updated.price = patch.vehiclePrice;
+        }
+
+        if (patch.quantity !== undefined) {
+          updated.quantity = Math.max(1, parseInt(patch.quantity, 10) || 1);
+        }
+
+        return updated;
+      });
+      return { ...p, vehicles: nextVehicles };
+    });
+    triggerChange(updatedPeriods);
+  }
+
+  function handleAddVehicleToPeriod(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const selectedTypes = activeVehicles.map((v) => v.vehicleType);
+    const nextAvailable = VEHICLE_TYPES.find((t) => !selectedTypes.includes(t.type)) || VEHICLE_TYPES.find((t) => t.type === "Other") || VEHICLE_TYPES[0];
+
+    const updatedPeriods = periods.map((p, pIdx) => {
+      if (pIdx !== safeActiveIdx) return p;
+      return {
+        ...p,
+        vehicles: [...(p?.vehicles || []), createDefaultVehicle(nextAvailable.type)],
+      };
+    });
+    triggerChange(updatedPeriods);
+  }
+
+  function handleRemoveVehicleFromPeriod(vIdx, e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (activeVehicles.length <= 1) return;
+    const updatedPeriods = periods.map((p, pIdx) => {
+      if (pIdx !== safeActiveIdx) return p;
+      return {
+        ...p,
+        vehicles: (p?.vehicles || []).filter((_, i) => i !== vIdx),
+      };
+    });
+    triggerChange(updatedPeriods);
+  }
+
+  const periodGrandTotal = activeVehicles.reduce(
+    (sum, v) => sum + ((Number(v.vehiclePrice) || 0) * (parseInt(v.quantity, 10) || 1)),
+    0
+  );
+  const periodTotalFleet = activeVehicles.reduce((sum, v) => sum + (parseInt(v.quantity, 10) || 1), 0);
+  const periodTotalSeats = activeVehicles.reduce(
+    (sum, v) => sum + ((parseInt(v.seats, 10) || 4) * (parseInt(v.quantity, 10) || 1)),
+    0
+  );
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 space-y-5 shadow-xs">
-      {/* ── Category Pill Group with Vehicle Thumbnails ── */}
-      <div>
-        <label className="block text-[11.5px] font-bold text-slate-600 uppercase tracking-wider mb-2.5">
-          Vehicle Category &amp; Fleet Model
-        </label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {VEHICLE_TYPES.slice(0, 6).map((opt) => {
-            const isSelected = vehicle.vehicleType === opt.type;
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 space-y-4 shadow-xs">
+      {/* ── Top Bar: Date Period Tabs ── */}
+      <div className="space-y-2.5 pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            <span className="text-[13px] font-bold text-slate-800">
+              Seasonal Date Periods &amp; Vehicles
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-[12px] font-bold text-slate-500 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-slate-400" />
+              {periodTotalFleet} Cab{periodTotalFleet > 1 ? "s" : ""} ({periodTotalSeats} Pax)
+            </span>
+            <span className="text-[14px] font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200 shadow-2xs">
+              ₹{periodGrandTotal.toLocaleString("en-IN")}
+            </span>
+          </div>
+        </div>
+
+        {/* Period Pill Tabs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {periods.map((p, idx) => {
+            const isSelected = safeActiveIdx === idx;
+            const hasDates = p?.startDate || p?.endDate;
             return (
               <button
-                key={opt.type}
+                key={idx}
                 type="button"
-                onClick={() => handleTypeSelect(opt)}
-                className={`p-2.5 rounded-2xl border-2 flex flex-col items-center justify-between text-center transition-all ${
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setActivePeriodIdx(idx);
+                  triggerChange(periods, idx);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all flex items-center gap-1.5 ${
                   isSelected
-                    ? "border-indigo-600 bg-indigo-50/70 shadow-sm ring-2 ring-indigo-500/20"
-                    : "border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-white"
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={opt.image}
-                  alt={opt.label}
-                  className="h-12 w-auto object-contain my-1 transition-transform group-hover:scale-105"
-                />
-                <span className={`text-[12px] font-black ${isSelected ? "text-indigo-950" : "text-slate-800"}`}>
-                  {opt.label}
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                  ₹{opt.dailyRate.toLocaleString("en-IN")}/day
-                </span>
+                <Tag className={`w-3 h-3 ${isSelected ? "text-indigo-200" : "text-slate-400"}`} />
+                <span>{p?.name || `Period ${idx + 1}`}</span>
+                {hasDates && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                    isSelected ? "bg-indigo-700 text-indigo-100" : "bg-slate-200 text-slate-600"
+                  }`}>
+                    {p?.startDate ? p.startDate.slice(5) : ""}
+                    {p?.startDate && p?.endDate ? " → " : ""}
+                    {p?.endDate ? p.endDate.slice(5) : ""}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          <button
+            type="button"
+            onClick={handleAddPeriod}
+            className="px-3 py-1.5 rounded-xl text-[12px] font-bold border border-dashed border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 transition-all flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Date Period</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Visual Vehicle Showcase Banner ── */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50/50 to-sky-50 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-20 h-16 rounded-xl bg-white p-1 border border-sky-100 flex items-center justify-center shadow-xs flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentTypeConfig.image}
-              alt={vehicle.vehicleType}
-              className="h-14 w-auto object-contain"
-            />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[14.5px] font-black text-sky-950">
-                AC {vehicle.vehicleType} ({vehicle.model || currentTypeConfig.models})
-              </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
-                {vehicle.acType}
-              </span>
-            </div>
-            <p className="text-[12px] text-sky-800 font-semibold mt-0.5">
-              Standard Seating: Up to {vehicle.seats} Guests • Chauffeur Driven
-            </p>
-          </div>
-        </div>
-
-        <div className="text-[11.5px] text-sky-900 font-bold sm:text-right">
-          <p>Standard Rate: ₹{currentTypeConfig.dailyRate.toLocaleString("en-IN")} / day</p>
-          <p className="text-slate-500 font-medium">Estimated {days || 1} Days Tour Total</p>
-        </div>
-      </div>
-
-      {/* ── Compact Inputs Grid ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Model */}
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-            Model / Make (optional)
-          </label>
-          <input
-            type="text"
-            value={vehicle.model}
-            onChange={(e) => update({ model: e.target.value })}
-            placeholder="e.g. Innova Crysta"
-            className={inputCls}
-          />
-        </div>
-
-        {/* Seats */}
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-            Seats Capacity
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={60}
-            value={vehicle.seats}
-            onWheel={(e) => e.target.blur()}
-            onChange={(e) => update({ seats: parseInt(e.target.value, 10) || 1 })}
-            className={`${inputCls} font-bold`}
-          />
-        </div>
-
-        {/* AC / Non-AC Switch */}
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-            Air Conditioning
-          </label>
-          <div className="flex gap-1.5">
-            {["AC", "Non-AC"].map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => update({ acType: opt })}
-                className={`flex-1 py-2 rounded-xl border text-[12.5px] font-bold transition-all ${
-                  vehicle.acType === opt
-                    ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Total Transport Price ── */}
-      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700">
-              Total Transport Rate (₹)
+      {/* ── Active Date Period Configuration Bar ── */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 via-indigo-50/30 to-purple-50/20 border border-slate-200/90 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          {/* Period Title Input */}
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+              Period / Season Name
             </label>
-            <p className="text-[11px] text-slate-500">
-              Total calculated vehicle &amp; driver cost for {days || 1} tour days
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={autoCalcStandardPrice}
-              className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11.5px] transition-colors flex items-center gap-1 shadow-2xs"
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Auto-Calculate Rate
-            </button>
-
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[13px]">
-                ₹
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 font-bold text-[13px] select-none pointer-events-none">
+                🏷️
               </span>
               <input
-                type="number"
-                min={0}
-                value={vehicle.vehiclePrice === 0 ? "" : vehicle.vehiclePrice}
-                onWheel={(e) => e.target.blur()}
-                onChange={(e) => update({ vehiclePrice: parseFloat(e.target.value) || 0 })}
-                placeholder="0"
-                className="w-36 pl-7 pr-3 py-1.5 rounded-xl border border-slate-300 bg-white text-[14px] font-black text-slate-900 focus:outline-none focus:border-indigo-600 shadow-xs"
+                type="text"
+                value={activePeriod?.name || ""}
+                onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                onChange={(e) => handleUpdatePeriodMeta({ name: e.target.value })}
+                placeholder="e.g. Summer Rush, Diwali Peak, Monsoon..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 focus:border-indigo-600 bg-white font-extrabold text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 shadow-2xs transition-all"
               />
             </div>
           </div>
+
+          {/* Date Range Selector */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Start Date */}
+            <div className="min-w-[135px]">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                Valid From
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={activePeriod?.startDate || ""}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                  onChange={(e) => handleUpdatePeriodMeta({ startDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-indigo-600 bg-white font-bold text-[12px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 shadow-2xs cursor-pointer transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Arrow Divider */}
+            <div className="self-end pb-2 hidden sm:block">
+              <div className="w-6 h-6 rounded-full bg-slate-200/80 flex items-center justify-center text-slate-500">
+                <ArrowRight className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            {/* End Date */}
+            <div className="min-w-[135px]">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                Valid Till
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  min={activePeriod?.startDate || undefined}
+                  value={activePeriod?.endDate || ""}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                  onChange={(e) => handleUpdatePeriodMeta({ endDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-indigo-600 bg-white font-bold text-[12px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 shadow-2xs cursor-pointer transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Delete Period Button */}
+          {periods.length > 1 && (
+            <div className="self-end lg:self-center lg:pt-4">
+              <button
+                type="button"
+                onClick={(e) => handleRemovePeriod(safeActiveIdx, e)}
+                className="px-3 py-2 rounded-xl text-[12px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 hover:border-rose-300 transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Period</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Fast Inclusions Quick Pills ── */}
-      <div>
-        <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
-          Quick Inclusions (Click to toggle)
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {PRESET_INCLUSIONS.map((preset) => {
-            const hasPreset = (vehicle.notes || "").includes(preset);
-            return (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => togglePresetNote(preset)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
-                  hasPreset
-                    ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
-                }`}
-              >
-                {hasPreset ? "✓ " : "+ "}
-                {preset}
-              </button>
-            );
-          })}
-        </div>
+      {/* ── Vehicle Fleet in Active Period ── */}
+      <div className="space-y-2.5">
+        {activeVehicles.map((veh, vIdx) => {
+          const typeCfg = VEHICLE_TYPES.find((v) => v.type === veh?.vehicleType) || VEHICLE_TYPES[0];
+          const unitPrice = Number(veh?.vehiclePrice) || 0;
+          const rowSubtotal = unitPrice * (parseInt(veh?.quantity, 10) || 1);
+
+          return (
+            <div
+              key={vIdx}
+              className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-white hover:bg-slate-50/60 border border-slate-200 transition-all shadow-2xs"
+            >
+              {/* Left: Category Icon + Dropdown + Model & Seats */}
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={typeCfg.image}
+                  alt={veh?.vehicleType || "Vehicle"}
+                  className="w-11 h-8 object-contain flex-shrink-0"
+                />
+
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  {/* Category Selector */}
+                  <select
+                    value={veh?.vehicleType || "Sedan"}
+                    onChange={(e) => handleUpdateVehicle(vIdx, { vehicleType: e.target.value })}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white font-black text-[12px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                  >
+                    {VEHICLE_TYPES.filter((t) => {
+                      if (t.type === veh?.vehicleType) return true;
+                      if (t.type === "Other") return true;
+                      return !activeVehicles.some((otherVeh, otherIdx) => otherIdx !== vIdx && otherVeh?.vehicleType === t.type);
+                    }).map((t) => (
+                      <option key={t.type} value={t.type}>
+                        {t.label} ({t.defaultSeats} Seats)
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Model input */}
+                  <input
+                    type="text"
+                    value={veh?.model || ""}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                    onChange={(e) => handleUpdateVehicle(vIdx, { model: e.target.value })}
+                    placeholder="Model (e.g. Dzire)"
+                    className="w-28 sm:w-36 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-semibold text-[12px] text-slate-800 focus:outline-none focus:border-indigo-500"
+                  />
+
+                  {/* AC toggle */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleUpdateVehicle(vIdx, { acType: veh?.acType === "AC" ? "Non-AC" : "AC" });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all ${
+                      veh?.acType === "AC"
+                        ? "bg-sky-50 text-sky-800 border-sky-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {veh?.acType || "AC"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Right: Quantity, Price Input, Subtotal, Delete */}
+              <div className="flex items-center justify-between md:justify-end gap-3.5 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                {/* Quantity Stepper */}
+                <div>
+                  <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                    Cabs
+                  </span>
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUpdateVehicle(vIdx, { quantity: Math.max(1, (veh?.quantity || 1) - 1) });
+                      }}
+                      disabled={(veh?.quantity || 1) <= 1}
+                      className="w-6 h-6 rounded-lg hover:bg-white disabled:opacity-20 flex items-center justify-center font-black text-[13px] text-slate-700 transition-all shadow-2xs"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center font-black text-[12.5px] text-slate-900">
+                      {veh?.quantity || 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUpdateVehicle(vIdx, { quantity: (veh?.quantity || 1) + 1 });
+                      }}
+                      className="w-6 h-6 rounded-lg hover:bg-white flex items-center justify-center font-black text-[13px] text-slate-700 transition-all shadow-2xs"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Direct Price Input without Stepper Arrows */}
+                <div>
+                  <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                    Rate per Cab
+                  </span>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-2.5 text-indigo-600 font-black text-[12px] select-none pointer-events-none">
+                      ₹
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={veh?.vehiclePrice !== undefined && veh?.vehiclePrice !== null ? veh.vehiclePrice : ""}
+                      placeholder="0"
+                      onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, "");
+                        handleUpdateVehicle(vIdx, { vehiclePrice: raw });
+                      }}
+                      className="w-28 pl-6 pr-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 focus:border-indigo-600 bg-white font-black text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtotal */}
+                <div className="text-right min-w-[85px]">
+                  <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                    Total
+                  </span>
+                  <span className="text-[14px] font-black text-slate-900 block leading-tight">
+                    ₹{rowSubtotal.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                {/* Remove button */}
+                {activeVehicles.length > 1 && (
+                  <div className="pt-3 md:pt-0">
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveVehicleFromPeriod(vIdx, e)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all"
+                      title="Remove vehicle"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {/* ── Add Vehicle to Active Period Button ── */}
+      <button
+        type="button"
+        onClick={handleAddVehicleToPeriod}
+        className="w-full py-2.5 rounded-xl border border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 font-bold text-[12px] transition-all flex items-center justify-center gap-1.5"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        <span>+ Add Another Vehicle to &quot;{activePeriod?.name || "this period"}&quot;</span>
+      </button>
     </div>
   );
 }

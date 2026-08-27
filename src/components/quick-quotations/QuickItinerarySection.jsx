@@ -9,6 +9,7 @@ import {
   FileText, CheckCircle2, ArrowUp, ArrowDown, Copy,
   Eye, EyeOff,
 } from "lucide-react";
+import DescriptionEditorDialog from "@/components/packages/DescriptionEditorDialog";
 
 const THEME_PRESETS = {
   honeymoon: [
@@ -58,6 +59,21 @@ const ACTIVITY_SUGGESTIONS = [
   "Departure Airport Drop",
 ];
 
+export function getActivityIcon(text = "") {
+  const t = (text || "").toLowerCase();
+  if (t.includes("pickup") || t.includes("drop") || t.includes("transfer") || t.includes("cab") || t.includes("drive")) return "🚗";
+  if (t.includes("check-in") || t.includes("check-out") || t.includes("hotel") || t.includes("resort") || t.includes("stay")) return "🏨";
+  if (t.includes("boat") || t.includes("cruise") || t.includes("shikara") || t.includes("ferry") || t.includes("water") || t.includes("snorkel")) return "🚤";
+  if (t.includes("sightseeing") || t.includes("monument") || t.includes("temple") || t.includes("fort") || t.includes("photo") || t.includes("point")) return "📸";
+  if (t.includes("dinner") || t.includes("lunch") || t.includes("breakfast") || t.includes("food") || t.includes("meal")) return "🍽️";
+  if (t.includes("tea") || t.includes("spice") || t.includes("market") || t.includes("shop") || t.includes("bazaar")) return "🛍️";
+  if (t.includes("sunset") || t.includes("sunrise")) return "🌅";
+  if (t.includes("trek") || t.includes("mountain") || t.includes("hill") || t.includes("safari")) return "🏔️";
+  if (t.includes("beach") || t.includes("island") || t.includes("sea")) return "🏖️";
+  if (t.includes("spa") || t.includes("wellness") || t.includes("candlelight")) return "🕯️";
+  return "✨";
+}
+
 export default function QuickItinerarySection({
   itinerary = [],
   onChange,
@@ -70,6 +86,7 @@ export default function QuickItinerarySection({
 }) {
   const [activeTabDay, setActiveTabDay] = useState("all"); // "all" | number (0-indexed)
   const [editingDayIndex, setEditingDayIndex] = useState(null); // index of day being edited in modal
+  const [richEditorDayIdx, setRichEditorDayIdx] = useState(null); // index of day being edited in TipTap rich text modal
   const [newActivityInput, setNewActivityInput] = useState("");
 
   // Auto-generate realistic itinerary based on destination, duration and theme
@@ -370,8 +387,8 @@ export default function QuickItinerarySection({
             })}
           </div>
 
-          {/* ── Minimalist Timeline Stream Layout ── */}
-          <div className="relative pl-6 sm:pl-7 before:absolute before:left-3 before:top-3 before:bottom-3 before:w-0.5 before:bg-gradient-to-b before:from-indigo-600 before:via-amber-400 before:to-purple-600 space-y-4">
+          {/* ── Luxury Journey Stream Layout ── */}
+          <div className="space-y-4">
             {displayedDays.map((dayItem, realIdx) => {
               const idx = activeTabDay === "all" ? realIdx : activeTabDay;
               const meals = dayItem.meals || { breakfast: true, lunch: false, dinner: false };
@@ -381,146 +398,180 @@ export default function QuickItinerarySection({
               return (
                 <div
                   key={idx}
-                  className="relative group"
+                  className="group relative rounded-3xl bg-white border border-slate-200/90 hover:border-amber-400/80 p-4 sm:p-6 shadow-xs hover:shadow-md transition-all space-y-4 overflow-hidden"
                 >
-                  {/* Timeline Milestone Circular Node */}
-                  <div className="absolute -left-[29px] sm:-left-[33px] top-3.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-950 border-2 border-white text-amber-400 font-mono font-black text-[10px] sm:text-[11px] flex items-center justify-center shadow-xs ring-2 ring-indigo-100 z-10">
-                    {dayItem.day || idx + 1}
-                  </div>
+                  {/* Subtle top ambient gradient line */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
 
-                  {/* Day Content Card (Minimalist) */}
-                  <div className="bg-slate-50/70 hover:bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 hover:border-indigo-300 transition-all shadow-2xs space-y-2.5">
-                    {/* Top Row: Title, City, Meals & Edit Button */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 font-mono font-black text-[10.5px] whitespace-nowrap">
-                          DAY {dayItem.day || idx + 1}
+                  {/* Header Row: Hero Day Tile + Title + Location + Meals & Actions */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                      {/* Hero Day Number Squircle Tile */}
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
+                        <span className="font-mono font-black text-[16px] sm:text-[18px] leading-none">
+                          {String(dayItem.day || idx + 1).padStart(2, "0")}
                         </span>
+                        <span className="text-[8.5px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
+                          DAY
+                        </span>
+                      </div>
 
-                        {cityLeg && (
-                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200/80 font-bold text-[10.5px] flex items-center gap-1 flex-shrink-0">
-                            <MapPin className="w-2.5 h-2.5 text-amber-600" />
-                            <span>{cityLeg}</span>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {cityLeg && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
+                              <MapPin className="w-3 h-3 text-amber-600" />
+                              <span>{cityLeg}</span>
+                            </span>
+                          )}
+                          <span className="text-[10.5px] font-bold text-slate-400">
+                            Milestone #{dayItem.day || idx + 1}
                           </span>
-                        )}
+                        </div>
 
                         <h4
                           onClick={() => setEditingDayIndex(idx)}
-                          className="text-[14px] font-black text-slate-900 truncate cursor-pointer hover:text-indigo-600 transition-colors"
-                          title="Click to edit day details"
+                          className="text-[15px] sm:text-[16px] font-black text-slate-900 hover:text-indigo-600 transition-colors cursor-pointer leading-snug"
+                          title="Click to edit day title & narrative"
                         >
                           {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
                         </h4>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
-                        {/* Compact Meals Badge */}
-                        <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 text-[10.5px] font-bold">
-                          <button
-                            type="button"
-                            onClick={() => handleMealToggle(idx, "breakfast")}
-                            className={`px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5 ${
-                              meals.breakfast ? "bg-amber-100 text-amber-950 font-bold" : "text-slate-300 hover:text-slate-600"
-                            }`}
-                            title="Breakfast"
-                          >
-                            <span>🌅</span> <span>BF</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMealToggle(idx, "lunch")}
-                            className={`px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5 ${
-                              meals.lunch ? "bg-orange-100 text-orange-950 font-bold" : "text-slate-300 hover:text-slate-600"
-                            }`}
-                            title="Lunch"
-                          >
-                            <span>☀️</span> <span>LN</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMealToggle(idx, "dinner")}
-                            className={`px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5 ${
-                              meals.dinner ? "bg-purple-100 text-purple-950 font-bold" : "text-slate-300 hover:text-slate-600"
-                            }`}
-                            title="Dinner"
-                          >
-                            <span>🌙</span> <span>DN</span>
-                          </button>
-                        </div>
+                    {/* Meal Pills & Actions Toolbar */}
+                    <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-50">
+                      {/* Interactive Meal Inclusion Pills */}
+                      <div className="flex items-center gap-1.5 bg-slate-50/90 p-1 rounded-2xl border border-slate-200/80 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => handleMealToggle(idx, "breakfast")}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
+                            meals.breakfast
+                              ? "bg-amber-400 text-slate-950 border-amber-500 font-black shadow-2xs"
+                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
+                          }`}
+                          title="Click to toggle Breakfast inclusion"
+                        >
+                          <span>🌅</span>
+                          <span>Breakfast</span>
+                        </button>
 
-                        {/* ✏️ Minimalist Edit Day Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleMealToggle(idx, "lunch")}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
+                            meals.lunch
+                              ? "bg-orange-400 text-slate-950 border-orange-500 font-black shadow-2xs"
+                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
+                          }`}
+                          title="Click to toggle Lunch inclusion"
+                        >
+                          <span>☀️</span>
+                          <span>Lunch</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleMealToggle(idx, "dinner")}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
+                            meals.dinner
+                              ? "bg-purple-600 text-white border-purple-700 font-black shadow-2xs"
+                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
+                          }`}
+                          title="Click to toggle Dinner inclusion"
+                        >
+                          <span>🌙</span>
+                          <span>Dinner</span>
+                        </button>
+                      </div>
+
+                      {/* Day Action Buttons */}
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => setEditingDayIndex(idx)}
-                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
-                          title="Click to edit day title, schedule narrative & activities"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
+                          title="Edit Day Details in Studio Modal"
                         >
-                          <Edit3 className="w-3 h-3 text-indigo-600" />
+                          <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
                           <span>Edit</span>
                         </button>
 
-                        {/* Reorder / Delete */}
-                        <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200">
+                        <div className="flex items-center bg-slate-50 p-0.5 rounded-xl border border-slate-200">
                           <button
                             type="button"
                             onClick={() => handleMoveDay(idx, -1)}
                             disabled={idx === 0}
-                            className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20"
-                            title="Move Up"
+                            className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                            title="Move Day Up"
                           >
-                            <ArrowUp className="w-3 h-3" />
+                            <ArrowUp className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleMoveDay(idx, 1)}
                             disabled={idx === itinerary.length - 1}
-                            className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20"
-                            title="Move Down"
+                            className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                            title="Move Day Down"
                           >
-                            <ArrowDown className="w-3 h-3" />
+                            <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                           {itinerary.length > 1 && (
                             <button
                               type="button"
                               onClick={() => handleRemoveDay(idx)}
-                              className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                               title="Delete Day"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Day Narrative Description (Minimalist Line-clamp Preview) */}
+                  {/* Narrative Story Description */}
+                  <div
+                    onClick={() => setEditingDayIndex(idx)}
+                    className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 hover:bg-amber-50/40 border border-slate-200/80 hover:border-amber-300 transition-all cursor-pointer space-y-1"
+                  >
                     {dayItem.description ? (
-                      <p
-                        onClick={() => setEditingDayIndex(idx)}
-                        className="text-[12.5px] text-slate-600 leading-relaxed font-normal cursor-pointer hover:text-slate-900 transition-colors pl-0.5 line-clamp-2"
-                        title="Click to edit narrative"
-                      >
-                        {dayItem.description}
-                      </p>
+                      <div
+                        className="text-[13px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
+                        dangerouslySetInnerHTML={{ __html: dayItem.description }}
+                      />
                     ) : (
+                      <p className="text-[13px] text-slate-400 italic">
+                        Click to add a detailed morning-to-evening sightseeing narrative for this day...
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Visual Activity Chips */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400">
+                        Planned Highlights &amp; Activities:
+                      </span>
                       <button
                         type="button"
                         onClick={() => setEditingDayIndex(idx)}
-                        className="text-[11.5px] font-bold text-slate-400 hover:text-indigo-600 p-2 rounded-xl border border-dashed border-slate-200 w-full text-left bg-white/60"
+                        className="text-[11px] font-bold text-indigo-600 hover:underline"
                       >
-                        + Click to write Day {dayItem.day || idx + 1} schedule details...
+                        + Add Custom
                       </button>
-                    )}
+                    </div>
 
-                    {/* Activity Chips (Minimalist) */}
-                    {dayItem.activities && dayItem.activities.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1 pl-0.5 border-t border-slate-100">
-                        {dayItem.activities.map((act, actIdx) => (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {dayItem.activities && dayItem.activities.length > 0 ? (
+                        dayItem.activities.map((act, actIdx) => (
                           <span
                             key={actIdx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-indigo-950 border border-slate-200 text-[10.5px] font-semibold"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs transition-all hover:scale-102"
                           >
-                            <Check className="w-2.5 h-2.5 text-indigo-600" />
+                            <span className="text-[12px]">{getActivityIcon(act)}</span>
                             <span>{act}</span>
                             <button
                               type="button"
@@ -528,22 +579,17 @@ export default function QuickItinerarySection({
                                 e.stopPropagation();
                                 handleRemoveActivity(idx, actIdx);
                               }}
-                              className="text-slate-400 hover:text-rose-600 ml-0.5"
+                              className="text-slate-400 hover:text-rose-600 ml-0.5 rounded-full hover:bg-rose-50 p-0.5 transition-colors"
                               title="Remove activity"
                             >
-                              <X className="w-2.5 h-2.5" />
+                              <X className="w-3 h-3" />
                             </button>
                           </span>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setEditingDayIndex(idx)}
-                          className="text-[10.5px] font-bold text-indigo-600 hover:underline px-1"
-                        >
-                          + Add
-                        </button>
-                      </div>
-                    )}
+                        ))
+                      ) : (
+                        <span className="text-[11.5px] text-slate-400 italic">No activity tags added yet</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -672,16 +718,36 @@ export default function QuickItinerarySection({
 
               {/* Day Description Narrative */}
               <div>
-                <label className="block text-[11.5px] font-bold text-slate-700 mb-1">
-                  Sightseeing Schedule &amp; Narrative *
-                </label>
-                <textarea
-                  rows={4}
-                  value={editingDay.description || ""}
-                  onChange={(e) => handleDayChange(editingDayIndex, "description", e.target.value)}
-                  placeholder="Describe pickup time, transfer routes, sightseeing spots, viewpoints, leisure time..."
-                  className="w-full p-3.5 rounded-xl border border-slate-300 font-medium text-[13px] text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11.5px] font-bold text-slate-700">
+                    Sightseeing Schedule &amp; Narrative *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setRichEditorDayIdx(editingDayIndex)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11.5px] font-black hover:bg-indigo-100 transition-all shadow-2xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Open Rich Text Editor (Bold, Lists)</span>
+                  </button>
+                </div>
+
+                {editingDay.description ? (
+                  <div
+                    onClick={() => setRichEditorDayIdx(editingDayIndex)}
+                    className="w-full min-h-[90px] p-3.5 rounded-xl border border-slate-300 bg-slate-50/70 text-[13px] text-slate-800 leading-relaxed cursor-pointer hover:bg-white hover:border-indigo-400 transition-all itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold shadow-2xs"
+                    title="Click to edit with rich formatting toolbar"
+                    dangerouslySetInnerHTML={{ __html: editingDay.description }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setRichEditorDayIdx(editingDayIndex)}
+                    className="w-full p-4 rounded-xl border border-dashed border-slate-300 text-[12.5px] text-slate-400 text-center hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/40 transition-all"
+                  >
+                    + Click to add rich narrative description — bold headings, bullet points (•), daily timings, etc.
+                  </button>
+                )}
               </div>
 
               {/* Activities / Experiences */}
@@ -783,6 +849,19 @@ export default function QuickItinerarySection({
           </div>
         </div>
       )}
+
+      {/* ── TipTap Rich Description Editor Dialog Modal ── */}
+      <DescriptionEditorDialog
+        isOpen={richEditorDayIdx !== null}
+        dayLabel={richEditorDayIdx !== null ? `Day ${itinerary[richEditorDayIdx]?.day || richEditorDayIdx + 1}` : ""}
+        value={richEditorDayIdx !== null ? (itinerary[richEditorDayIdx]?.description || "") : ""}
+        onSave={(html) => {
+          if (richEditorDayIdx !== null) {
+            handleDayChange(richEditorDayIdx, "description", html);
+          }
+        }}
+        onClose={() => setRichEditorDayIdx(null)}
+      />
     </div>
   );
 }

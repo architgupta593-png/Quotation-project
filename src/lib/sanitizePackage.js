@@ -68,17 +68,69 @@ export function sanitizePackagePayload(body) {
     sanitized.accommodationOptions = [];
   }
 
-  // Sanitize vehicle
+  // Sanitize vehicle, multi-vehicle fleet & date periods
   const VALID_VEHICLES = ["Sedan", "SUV", "MUV", "Tempo Traveller", "Mini Bus", "Bus", "Other"];
-  const vehicle = sanitized.vehicle || {};
-  sanitized.vehicle = {
-    vehicleType: VALID_VEHICLES.includes(vehicle.vehicleType) ? vehicle.vehicleType : "Sedan",
-    model: (vehicle.model || "").trim(),
-    seats: Math.max(1, parseInt(vehicle.seats, 10) || 4),
-    acType: ["AC", "Non-AC"].includes(vehicle.acType) ? vehicle.acType : "AC",
-    vehiclePrice: Math.max(0, parseFloat(vehicle.vehiclePrice) || 0),
-    notes: (vehicle.notes || "").trim(),
-  };
+
+  function sanitizeSingleVehicle(v = {}) {
+    const p = Math.max(0, parseFloat(v.vehiclePrice ?? v.price ?? v.dailyRate) || 0);
+    return {
+      vehicleType: VALID_VEHICLES.includes(v.vehicleType) ? v.vehicleType : "Sedan",
+      model: (v.model || "").trim(),
+      seats: Math.max(1, parseInt(v.seats, 10) || 4),
+      quantity: Math.max(1, parseInt(v.quantity, 10) || 1),
+      acType: ["AC", "Non-AC"].includes(v.acType) ? v.acType : "AC",
+      price: p,
+      vehiclePrice: p,
+      notes: (v.notes || "").trim(),
+    };
+  }
+
+  function sanitizePeriod(period = {}) {
+    const pVehicles = Array.isArray(period.vehicles) && period.vehicles.length > 0
+      ? period.vehicles.map(sanitizeSingleVehicle)
+      : [sanitizeSingleVehicle({})];
+    return {
+      name: (period.name || "Standard Season").trim(),
+      startDate: (period.startDate || "").trim(),
+      endDate: (period.endDate || "").trim(),
+      vehicles: pVehicles,
+    };
+  }
+
+  if (Array.isArray(sanitized.vehiclePeriods) && sanitized.vehiclePeriods.length > 0) {
+    sanitized.vehiclePeriods = sanitized.vehiclePeriods.map(sanitizePeriod);
+    sanitized.vehicles = sanitized.vehiclePeriods[0].vehicles;
+    sanitized.vehicle = sanitized.vehicles[0];
+  } else if (Array.isArray(sanitized.vehicles) && sanitized.vehicles.length > 0) {
+    sanitized.vehicles = sanitized.vehicles.map(sanitizeSingleVehicle);
+    sanitized.vehicle = sanitized.vehicles[0];
+    sanitized.vehiclePeriods = [{
+      name: "Standard Season",
+      startDate: "",
+      endDate: "",
+      vehicles: sanitized.vehicles,
+    }];
+  } else if (sanitized.vehicle && (sanitized.vehicle.vehicleType || sanitized.vehicle.model)) {
+    const single = sanitizeSingleVehicle(sanitized.vehicle);
+    sanitized.vehicle = single;
+    sanitized.vehicles = [single];
+    sanitized.vehiclePeriods = [{
+      name: "Standard Season",
+      startDate: "",
+      endDate: "",
+      vehicles: [single],
+    }];
+  } else {
+    const defaultVeh = sanitizeSingleVehicle({});
+    sanitized.vehicle = defaultVeh;
+    sanitized.vehicles = [defaultVeh];
+    sanitized.vehiclePeriods = [{
+      name: "Standard Season",
+      startDate: "",
+      endDate: "",
+      vehicles: [defaultVeh],
+    }];
+  }
 
   // Sanitize pricing
   const pricing = sanitized.pricing || {};

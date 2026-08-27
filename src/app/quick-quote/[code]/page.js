@@ -10,6 +10,7 @@ import {
   ChevronDown, Star, Layers,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
+import { getActivityIcon } from "@/components/quick-quotations/QuickItinerarySection";
 
 const THEMES = {
   honeymoon: {
@@ -409,79 +410,107 @@ export default function QuickQuotationPublicPage({ params }) {
                   </span>
                 </div>
 
-                {/* Timeline Stream */}
-                <div className="relative pl-6 sm:pl-9 before:absolute before:left-3 sm:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-indigo-600 before:via-amber-400 before:to-purple-600 space-y-6">
-                  {quickQuote.itinerary.map((dayItem, idx) => (
-                    <div
-                      key={idx}
-                      className="relative group"
-                    >
-                      {/* Timeline Milestone Circular Node */}
-                      <div className="absolute -left-[31px] sm:-left-[43px] top-4 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-950 border-2 border-white text-amber-400 font-mono font-black text-[10.5px] sm:text-[11.5px] flex items-center justify-center shadow-md ring-4 ring-indigo-100 z-10">
-                        {String(dayItem.day || idx + 1).padStart(2, "0")}
-                      </div>
+                {/* Luxury Journey Stream Layout */}
+                <div className="space-y-4">
+                  {quickQuote.itinerary.map((dayItem, idx) => {
+                    const cityLeg = dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName;
+                    const meals = dayItem.meals || { breakfast: true, lunch: false, dinner: false };
 
-                      {/* Day Content Card */}
-                      <div className="bg-gradient-to-br from-slate-50/90 via-white to-indigo-50/20 p-5 sm:p-6 rounded-3xl border border-slate-200/90 hover:border-indigo-400/80 transition-all space-y-3 shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-100 text-indigo-950 font-mono font-black text-[11px] uppercase tracking-wider shadow-2xs">
-                              DAY {dayItem.day || idx + 1}
-                            </span>
-                            {(dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName) && (
-                              <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-bold text-[11px] flex items-center gap-1 shadow-2xs">
-                                <MapPin className="w-3 h-3 text-amber-600" />
-                                <span>{dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName}</span>
+                    return (
+                      <div
+                        key={idx}
+                        className="group relative rounded-3xl bg-white border border-slate-200/90 hover:border-amber-400/80 p-5 sm:p-6 shadow-xs hover:shadow-md transition-all space-y-4 overflow-hidden"
+                      >
+                        {/* Subtle top ambient gradient accent */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+
+                        {/* Top Row: Hero Day Number + Title + City & Meals */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3 border-b border-slate-100">
+                          <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                            {/* Hero Day Squircle Tile */}
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
+                              <span className="font-mono font-black text-[16px] sm:text-[18px] leading-none">
+                                {String(dayItem.day || idx + 1).padStart(2, "0")}
                               </span>
-                            )}
-                            <h3 className="text-[16px] font-black text-slate-900">
-                              {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
-                            </h3>
+                              <span className="text-[8.5px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
+                                DAY
+                              </span>
+                            </div>
+
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {cityLeg && (
+                                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
+                                    <MapPin className="w-3 h-3 text-amber-600" />
+                                    <span>{cityLeg}</span>
+                                  </span>
+                                )}
+                                <span className="text-[10.5px] font-bold text-slate-400">
+                                  Milestone #{dayItem.day || idx + 1}
+                                </span>
+                              </div>
+
+                              <h3 className="text-[16px] sm:text-[17px] font-black text-slate-900 leading-snug">
+                                {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
+                              </h3>
+                            </div>
                           </div>
 
-                          {/* Meals badges */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {dayItem.meals?.breakfast && (
-                              <span className="text-[11px] font-bold text-amber-950 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-2xs flex items-center gap-1">
-                                <span>🌅</span> <span>Breakfast</span>
+                          {/* Meals Included Pills */}
+                          <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
+                            {meals.breakfast && (
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-950 border border-amber-200 shadow-2xs flex items-center gap-1">
+                                <span>🌅</span>
+                                <span>Breakfast</span>
                               </span>
                             )}
-                            {dayItem.meals?.lunch && (
-                              <span className="text-[11px] font-bold text-orange-950 bg-orange-50 px-2.5 py-0.5 rounded-lg border border-orange-200 shadow-2xs flex items-center gap-1">
-                                <span>☀️</span> <span>Lunch</span>
+                            {meals.lunch && (
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-orange-50 text-orange-950 border border-orange-200 shadow-2xs flex items-center gap-1">
+                                <span>☀️</span>
+                                <span>Lunch</span>
                               </span>
                             )}
-                            {dayItem.meals?.dinner && (
-                              <span className="text-[11px] font-bold text-purple-950 bg-purple-50 px-2.5 py-0.5 rounded-lg border border-purple-200 shadow-2xs flex items-center gap-1">
-                                <span>🌙</span> <span>Dinner</span>
+                            {meals.dinner && (
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 text-purple-950 border border-purple-200 shadow-2xs flex items-center gap-1">
+                                <span>🌙</span>
+                                <span>Dinner</span>
                               </span>
                             )}
                           </div>
                         </div>
 
+                        {/* Narrative Story Description */}
                         {dayItem.description && (
-                          <p className="text-[13.5px] text-slate-700 leading-relaxed font-medium pl-1">
-                            {dayItem.description}
-                          </p>
+                          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1">
+                            <div
+                              className="text-[13.5px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
+                              dangerouslySetInnerHTML={{ __html: dayItem.description }}
+                            />
+                          </div>
                         )}
 
-                        {/* Activities tags */}
+                        {/* Planned Highlights & Activities Tags */}
                         {dayItem.activities && dayItem.activities.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5 pt-1 pl-1">
-                            {dayItem.activities.map((act, aIdx) => (
-                              <span
-                                key={aIdx}
-                                className="text-[11.5px] font-bold text-indigo-950 bg-indigo-50/90 px-3 py-1 rounded-xl border border-indigo-200/80 shadow-2xs flex items-center gap-1"
-                              >
-                                <Check className="w-3 h-3 text-indigo-600" />
-                                <span>{act}</span>
-                              </span>
-                            ))}
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
+                              Day Highlights &amp; Inclusions:
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {dayItem.activities.map((act, aIdx) => (
+                                <span
+                                  key={aIdx}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs"
+                                >
+                                  <span className="text-[12px]">{getActivityIcon(act)}</span>
+                                  <span>{act}</span>
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}

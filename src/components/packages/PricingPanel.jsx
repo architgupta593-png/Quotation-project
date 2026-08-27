@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  IndianRupee, Plus, Trash2, Percent, Calculator, Layers, CheckCircle2, XCircle, Users, HeartHandshake, Receipt,
+  IndianRupee, Plus, Trash2, Percent, Calculator, Layers, CheckCircle2, XCircle, Users, HeartHandshake, Receipt, Car,
 } from "lucide-react";
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED"];
@@ -17,13 +17,52 @@ export default function PricingPanel({
   onChange,
   onAccommodationOptionsChange,
   accommodationOptions = [],
+  vehiclePeriods = [],
+  vehicles = [],
+  vehicle = {},
   vehicleTotal = 0,
   vehiclePrice = 0,
   activitiesTotal = 0,
   activityTotal = 0,
 }) {
+  const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0);
+  const [selectedVehicleIdx, setSelectedVehicleIdx] = useState(0);
+
+  const activePeriodsList = (Array.isArray(vehiclePeriods) && vehiclePeriods.length > 0)
+    ? vehiclePeriods
+    : [{
+        name: "Standard Season",
+        startDate: "",
+        endDate: "",
+        vehicles: (Array.isArray(vehicles) && vehicles.length > 0) ? vehicles : (vehicle?.vehicleType ? [vehicle] : []),
+      }];
+
+  const safePeriodIdx = Math.min(Math.max(0, selectedPeriodIdx), Math.max(0, activePeriodsList.length - 1));
+  const currentPeriod = activePeriodsList[safePeriodIdx] || activePeriodsList[0];
+  const currentPeriodVehicles = (currentPeriod?.vehicles && currentPeriod.vehicles.length > 0)
+    ? currentPeriod.vehicles
+    : ((Array.isArray(vehicles) && vehicles.length > 0) ? vehicles : (vehicle?.vehicleType ? [vehicle] : []));
+
+  const currentPeriodTotal = currentPeriodVehicles.reduce(
+    (sum, v) => sum + ((Number(v?.vehiclePrice ?? v?.price) || 0) * (parseInt(v?.quantity, 10) || 1)),
+    0
+  );
+
+  // Determine active vehicle cost based on user selection
+  const safeVehIdx = typeof selectedVehicleIdx === "number"
+    ? Math.min(Math.max(0, selectedVehicleIdx), Math.max(0, currentPeriodVehicles.length - 1))
+    : "all";
+
+  const chosenVehicle = safeVehIdx !== "all" && currentPeriodVehicles[safeVehIdx]
+    ? currentPeriodVehicles[safeVehIdx]
+    : currentPeriodVehicles[0];
+
+  const chosenVehicleSubtotal = chosenVehicle
+    ? (Number(chosenVehicle.vehiclePrice ?? chosenVehicle.price) || 0) * (parseInt(chosenVehicle.quantity, 10) || 1)
+    : 0;
+
   const inputPricing = propPricing || value || {};
-  const vTotal = vehicleTotal || vehiclePrice || 0;
+  const vTotal = safeVehIdx === "all" ? currentPeriodTotal : (chosenVehicleSubtotal || vehicleTotal || vehiclePrice || 0);
   const actTotal = activitiesTotal || activityTotal || inputPricing.activitiesTotal || inputPricing.activityTotal || 0;
 
   const selectedIdx = Math.min(
@@ -37,6 +76,7 @@ export default function PricingPanel({
 
   const pricing = {
     selectedOptionIndex: selectedIdx,
+    selectedVehicleIndex: safeVehIdx,
     accommodationTotal: 0,
     vehicleTotal: vTotal,
     subtotal: 0,
@@ -44,11 +84,11 @@ export default function PricingPanel({
     margin: activeMargin,
     includeGst: false,
     gstPercentage: 5,
-    rateBasis: "per_couple", // "per_couple" (default) or "per_person"
+    rateBasis: "per_couple",
     finalPrice: 0,
     perPersonPrice: 0,
     perCouplePrice: 0,
-    numberOfPersons: 2, // default 2 persons (1 couple)
+    numberOfPersons: 2,
     currency: "INR",
     includes: [],
     excludes: [],
@@ -76,7 +116,6 @@ export default function PricingPanel({
   const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
   const discountAmount = pricing.discountAmount || 0;
   const rawFinalPrice = Math.max(0, preTaxTotal + gstAmount - discountAmount);
-  // Round off to nearest 100 (e.g. 12768 -> 12800, 12740 -> 12700)
   const finalPrice = Math.round(rawFinalPrice / 100) * 100;
 
   useEffect(() => {
@@ -96,6 +135,7 @@ export default function PricingPanel({
       onChange({
         ...pricing,
         selectedOptionIndex: selectedIdx,
+        selectedVehicleIndex: safeVehIdx,
         accommodationTotal: baseAccomTotal,
         vehicleTotal: vTotal,
         activitiesTotal: actTotal,
@@ -108,7 +148,6 @@ export default function PricingPanel({
         perCouplePrice: perCouplePriceCalc,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     baseAccomTotal,
     vTotal,
@@ -118,23 +157,34 @@ export default function PricingPanel({
     activeMarginType,
     pricing.includeGst,
     pricing.gstPercentage,
+    pricing.numberOfPersons,
+    pricing.discountAmount,
     selectedIdx,
+    safeVehIdx,
   ]);
 
   function update(patch) {
-    onChange({ ...pricing, ...patch });
+    onChange({
+      ...pricing,
+      ...patch,
+    });
   }
 
   function updateMargin(patch) {
     const newMarginType = patch.marginType !== undefined ? patch.marginType : activeMarginType;
     const newMargin = patch.margin !== undefined ? patch.margin : activeMargin;
 
-    if (onAccommodationOptionsChange && accommodationOptions.length > 0) {
-      const updatedOptions = accommodationOptions.map((opt, i) =>
-        i === selectedIdx
-          ? { ...opt, marginType: newMarginType, margin: newMargin }
-          : opt
-      );
+    if (accommodationOptions.length > 0 && typeof onAccommodationOptionsChange === "function") {
+      const updatedOptions = accommodationOptions.map((opt, i) => {
+        if (i === selectedIdx) {
+          return {
+            ...opt,
+            marginType: newMarginType,
+            margin: newMargin,
+          };
+        }
+        return opt;
+      });
       onAccommodationOptionsChange(updatedOptions);
     }
 
@@ -158,23 +208,11 @@ export default function PricingPanel({
     });
   }
 
-  function addItem(field, val, setter) {
-    const trimmed = val.trim();
-    if (!trimmed) return;
-    update({ [field]: [...pricing[field], trimmed] });
-    setter("");
-  }
-
-  function removeItem(field, idx) {
-    update({ [field]: pricing[field].filter((_, i) => i !== idx) });
-  }
-
   const inputCls =
     "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-[13.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all shadow-xs";
 
   return (
     <div className="space-y-6">
-      {/* Cost Calculation Card */}
       <div className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-xs space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-xs">
@@ -182,20 +220,20 @@ export default function PricingPanel({
           </div>
           <div>
             <h3 className="text-[16px] font-extrabold text-slate-900">Cost & Margin Calculator</h3>
-            <p className="text-[12.5px] text-slate-500">Auto-calculated with per-option margin support</p>
+            <p className="text-[12.5px] text-slate-500">Choose accommodation option and vehicle to calculate exact package rates</p>
           </div>
         </div>
 
-        {/* Accommodation Tier Selector with Per-Option Margins */}
+        {/* Accommodation Tier Selector */}
         {accommodationOptions.length > 0 && (
           <div className="p-4.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
                 <Layers className="w-4 h-4 text-indigo-600" />
-                Accommodation Options & Configured Margins:
+                1. Select Accommodation Tier ({accommodationOptions.length} Options):
               </label>
               <span className="text-[11px] text-indigo-700 font-semibold">
-                Each option can have its own custom margin price
+                Click an option to calculate with its margin
               </span>
             </div>
 
@@ -258,6 +296,126 @@ export default function PricingPanel({
           </div>
         )}
 
+        {/* 2. Clickable Vehicle Option Selector */}
+        {currentPeriodVehicles.length > 0 && (
+          <div className="p-4.5 rounded-2xl border border-sky-100 bg-sky-50/50 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="text-[12px] font-bold text-sky-900 uppercase tracking-wider flex items-center gap-2">
+                <Car className="w-4 h-4 text-sky-600" />
+                2. Select Vehicle Option ({currentPeriodVehicles.length} Available):
+              </label>
+              {activePeriodsList.length > 1 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10.5px] font-bold text-slate-500">Season:</span>
+                  {activePeriodsList.map((p, pIdx) => (
+                    <button
+                      key={pIdx}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPeriodIdx(pIdx);
+                        setSelectedVehicleIdx(0);
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition-all ${
+                        safePeriodIdx === pIdx
+                          ? "bg-sky-600 text-white border-sky-600 shadow-2xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      {p.name || `Period ${pIdx + 1}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {currentPeriodVehicles.map((veh, vi) => {
+                const qty = Math.max(1, parseInt(veh?.quantity, 10) || 1);
+                const unitRate = Number(veh?.vehiclePrice ?? veh?.price) || 0;
+                const rowTot = unitRate * qty;
+                const isSelected = safeVehIdx === vi;
+
+                return (
+                  <button
+                    key={vi}
+                    type="button"
+                    onClick={() => setSelectedVehicleIdx(vi)}
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all ${
+                      isSelected
+                        ? "bg-gradient-to-br from-sky-600 via-sky-700 to-blue-700 border-sky-600 text-white shadow-md shadow-sky-500/20 scale-[1.01]"
+                        : "bg-white border-slate-200/90 text-slate-800 hover:border-sky-300 hover:bg-white/80"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-black">
+                          {qty > 1 ? `${qty}x ` : ""}{veh?.vehicleType || "Sedan"}
+                        </span>
+                        {veh?.model && (
+                          <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded ${
+                            isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {veh.model}
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                      )}
+                    </div>
+
+                    <div className="space-y-0.5 text-[11px] my-1">
+                      <div className="flex justify-between">
+                        <span className={isSelected ? "text-sky-100" : "text-slate-500"}>Rate:</span>
+                        <span className="font-bold">₹{unitRate.toLocaleString("en-IN")} / cab</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={isSelected ? "text-sky-100" : "text-slate-500"}>AC Type:</span>
+                        <span className="font-bold">{veh?.acType || "AC"}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 mt-1 border-t border-white/20 flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase ${isSelected ? "text-sky-100" : "text-slate-400"}`}>
+                        Transport Cost
+                      </span>
+                      <span className="text-[14px] font-black">₹{rowTot.toLocaleString("en-IN")}</span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {currentPeriodVehicles.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedVehicleIdx("all")}
+                  className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all ${
+                    safeVehIdx === "all"
+                      ? "bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 border-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-[1.01]"
+                      : "bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300 hover:bg-white/80"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-[13px] font-black">All Fleet Combined</span>
+                    {safeVehIdx === "all" && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                    )}
+                  </div>
+                  <p className={`text-[11px] my-1 ${safeVehIdx === "all" ? "text-indigo-100" : "text-slate-500"}`}>
+                    Total for all {currentPeriodVehicles.length} cabs
+                  </p>
+                  <div className="pt-2 mt-1 border-t border-white/20 flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase ${safeVehIdx === "all" ? "text-indigo-100" : "text-slate-400"}`}>
+                      Combined Total
+                    </span>
+                    <span className="text-[14px] font-black">₹{currentPeriodTotal.toLocaleString("en-IN")}</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Financial Breakdown Table */}
         <div className="rounded-2xl border border-slate-200/80 overflow-hidden divide-y divide-slate-100 text-[13.5px] shadow-xs">
           <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
@@ -267,7 +425,9 @@ export default function PricingPanel({
             <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/40">
-            <span className="text-slate-700 font-semibold flex items-center gap-2">🚗 Vehicle Transport</span>
+            <span className="text-slate-700 font-semibold flex items-center gap-2">
+              🚗 Vehicle Transport ({safeVehIdx === "all" ? "All Fleet" : (chosenVehicle?.vehicleType || "Sedan")})
+            </span>
             <span className="font-extrabold text-slate-900">₹{vTotal.toLocaleString("en-IN")}</span>
           </div>
           {actTotal > 0 && (

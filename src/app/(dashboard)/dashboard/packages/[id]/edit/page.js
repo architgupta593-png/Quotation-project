@@ -54,7 +54,9 @@ export default function EditPackagePage() {
             coverImage: p.coverImage || null,
             itinerary: p.itinerary || [],
             accommodationOptions: p.accommodationOptions || [],
-            vehicle: p.vehicle || { vehicleType: "Sedan", model: "", seats: 4, acType: "AC", vehiclePrice: 0, notes: "" },
+            vehiclePeriods: p.vehiclePeriods || [],
+            vehicles: p.vehicles && p.vehicles.length > 0 ? p.vehicles : (p.vehicle?.vehicleType ? [p.vehicle] : []),
+            vehicle: p.vehicle || (p.vehicles && p.vehicles[0]) || { vehicleType: "Sedan", model: "", seats: 4, quantity: 1, acType: "AC", price: 5000, vehiclePrice: 5000, notes: "" },
             pricing: p.pricing || {
               selectedOptionIndex: 0,
               accommodationTotal: 0,
@@ -184,7 +186,16 @@ export default function EditPackagePage() {
     return baseAccom * roomsRequired;
   }, [form, selectedOptIdx]);
 
-  const vehicleTotal = useMemo(() => form?.vehicle?.vehiclePrice || 0, [form?.vehicle]);
+  const vehicleTotal = useMemo(() => {
+    if (Array.isArray(form?.vehiclePeriods) && form.vehiclePeriods.length > 0) {
+      const firstVehicles = form.vehiclePeriods[0].vehicles || [];
+      return firstVehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
+    }
+    if (Array.isArray(form?.vehicles) && form.vehicles.length > 0) {
+      return form.vehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
+    }
+    return form?.vehicle?.vehiclePrice || 0;
+  }, [form?.vehiclePeriods, form?.vehicles, form?.vehicle]);
 
   const destinationSummary = useMemo(() => {
     if (!form || !form.destinations) return "";
@@ -621,13 +632,23 @@ export default function EditPackagePage() {
               <div className="bg-white rounded-3xl border border-slate-200/90 p-7 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-6">
                 <SectionHeader
                   title="Vehicle & Transport Fleet"
-                  description="Select vehicle type and set transport pricing."
+                  description="Select vehicle type, manage multi-vehicle fleet, and configure seasonal pricing."
                 />
                 <VehiclePanel
+                  vehiclePeriods={form.vehiclePeriods}
+                  vehicles={form.vehicles}
                   vehicle={form.vehicle}
-                  value={form.vehicle}
-                  days={form.days}
-                  onChange={(vehicle) => updateForm({ vehicle })}
+                  onChange={(vehData) => {
+                    updateForm({
+                      vehiclePeriods: vehData.vehiclePeriods,
+                      vehicle: vehData.vehicle,
+                      vehicles: vehData.vehicles,
+                      pricing: {
+                        ...form.pricing,
+                        vehicleTotal: vehData.vehicleTotal,
+                      },
+                    });
+                  }}
                 />
               </div>
             )}
@@ -641,8 +662,11 @@ export default function EditPackagePage() {
                 />
                 <PricingPanel
                   accommodationOptions={form.accommodationOptions}
-                  vehicleTotal={form.vehicle?.vehiclePrice || 0}
-                  vehiclePrice={form.vehicle?.vehiclePrice || 0}
+                  vehiclePeriods={form.vehiclePeriods}
+                  vehicles={form.vehicles}
+                  vehicle={form.vehicle}
+                  vehicleTotal={vehicleTotal}
+                  vehiclePrice={vehicleTotal}
                   pricing={form.pricing}
                   value={form.pricing}
                   onChange={(pricing) => updateForm({ pricing })}
@@ -789,7 +813,7 @@ export default function EditPackagePage() {
                   <span className="font-bold text-white">₹{accommodationTotal.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
-                  <span>Transport ({form.vehicle?.vehicleType || "Vehicle"})</span>
+                  <span>Transport ({form.vehicles && form.vehicles.length > 0 ? `${form.vehicles.length} Cab(s)` : (form.vehicle?.vehicleType || "Vehicle")})</span>
                   <span className="font-bold text-white">₹{vehicleTotal.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-slate-300 font-bold pt-2 border-t border-slate-800/80">

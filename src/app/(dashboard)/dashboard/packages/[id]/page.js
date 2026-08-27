@@ -20,6 +20,17 @@ const MEAL_PLAN_LABELS = {
 
 const MEAL_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙" };
 
+function getVehicleImage(vehicleType = "") {
+  const type = (vehicleType || "").toLowerCase();
+  if (type.includes("sedan") || type.includes("dzire") || type.includes("etios")) return "/vehicle-sedan.png";
+  if (type.includes("suv") || type.includes("innova") || type.includes("crysta")) return "/vehicle-suv.png";
+  if (type.includes("muv") || type.includes("ertiga") || type.includes("carens")) return "/vehicle-muv.png";
+  if (type.includes("tempo") || type.includes("traveller") || type.includes("van")) return "/vehicle-tempo.png";
+  if (type.includes("mini bus") || type.includes("minibus") || type.includes("coach")) return "/vehicle-minibus.png";
+  if (type.includes("bus")) return "/vehicle-bus.png";
+  return "/vehicle-sedan.png";
+}
+
 export default function PackageViewPage() {
   const { id } = useParams();
   const [pkg, setPkg] = useState(null);
@@ -27,6 +38,8 @@ export default function PackageViewPage() {
   const [error, setError] = useState("");
   const [openDay, setOpenDay] = useState(0);
   const [activeAccomTab, setActiveAccomTab] = useState(0);
+  const [activeVehiclePeriodTab, setActiveVehiclePeriodTab] = useState(0);
+  const [selectedVehicleIdx, setSelectedVehicleIdx] = useState(0);
 
   useEffect(() => {
     fetch(`/api/packages/${id}`)
@@ -63,11 +76,61 @@ export default function PackageViewPage() {
     );
   }
 
-  const currency = pkg.pricing?.currency || "INR";
   const pax = Math.max(1, pkg.pricing?.numberOfPersons || 2);
-  const finalPrice = pkg.pricing?.finalPrice || 0;
-  const perPersonPrice = pkg.pricing?.perPersonPrice || (pax > 0 ? Math.round(finalPrice / pax) : finalPrice);
-  const perCouplePrice = pkg.pricing?.perCouplePrice || (pax >= 2 ? Math.round((finalPrice / pax) * 2) : finalPrice);
+
+  // Period and vehicle calculation
+  const periodsList = (Array.isArray(pkg.vehiclePeriods) && pkg.vehiclePeriods.length > 0)
+    ? pkg.vehiclePeriods
+    : [{
+        name: "Standard Season",
+        startDate: "",
+        endDate: "",
+        vehicles: (Array.isArray(pkg.vehicles) && pkg.vehicles.length > 0) ? pkg.vehicles : (pkg.vehicle?.vehicleType ? [pkg.vehicle] : []),
+      }];
+
+  const safePeriodTab = Math.min(Math.max(0, activeVehiclePeriodTab), Math.max(0, periodsList.length - 1));
+  const curPeriod = periodsList[safePeriodTab] || periodsList[0];
+  const fleetList = (curPeriod?.vehicles && curPeriod.vehicles.length > 0)
+    ? curPeriod.vehicles
+    : ((Array.isArray(pkg.vehicles) && pkg.vehicles.length > 0) ? pkg.vehicles : (pkg.vehicle?.vehicleType ? [pkg.vehicle] : []));
+
+  const periodGrandTransportTotal = fleetList.reduce(
+    (sum, v) => sum + ((Number(v?.vehiclePrice ?? v?.price) || 0) * (parseInt(v?.quantity, 10) || 1)),
+    0
+  );
+
+  const safeVehIdx = typeof selectedVehicleIdx === "number"
+    ? Math.min(Math.max(0, selectedVehicleIdx), Math.max(0, fleetList.length - 1))
+    : "all";
+
+  const chosenVeh = safeVehIdx !== "all" && fleetList[safeVehIdx]
+    ? fleetList[safeVehIdx]
+    : fleetList[0];
+
+  const chosenVehCost = chosenVeh
+    ? (Number(chosenVeh.vehiclePrice ?? chosenVeh.price) || 0) * (parseInt(chosenVeh.quantity, 10) || 1)
+    : 0;
+
+  const activeTransportCost = safeVehIdx === "all" ? periodGrandTransportTotal : (chosenVehCost || pkg.pricing?.vehicleTotal || 0);
+
+  // Hotel option calculation
+  const selectedAccomOption = pkg.accommodationOptions?.[activeAccomTab] || pkg.accommodationOptions?.[0];
+  const activeAccomCost = selectedAccomOption
+    ? (selectedAccomOption.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0)
+    : (pkg.pricing?.accommodationTotal || 0);
+
+  const actTotal = pkg.pricing?.activitiesTotal || 0;
+  const liveSubtotal = activeAccomCost + activeTransportCost + actTotal;
+
+  const marginVal = selectedAccomOption?.margin ?? pkg.pricing?.margin ?? 0;
+  const marginType = selectedAccomOption?.marginType || pkg.pricing?.marginType || "absolute";
+  const marginAmount = marginType === "percentage" ? (liveSubtotal * marginVal) / 100 : marginVal;
+
+  const preTax = liveSubtotal + marginAmount;
+  const gstAmount = pkg.pricing?.includeGst ? Math.round(preTax * ((pkg.pricing?.gstPercentage || 5) / 100)) : 0;
+  const liveFinalPrice = Math.round((preTax + gstAmount) / 100) * 100;
+  const livePerPerson = Math.round(liveFinalPrice / pax);
+  const livePerCouple = Math.round(livePerPerson * 2);
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] font-sans text-slate-900">
@@ -164,7 +227,7 @@ export default function PackageViewPage() {
                 <HeartHandshake className="w-3 h-3" /> Per Couple
               </p>
               <p className="text-[22px] font-black text-emerald-300 leading-none">
-                ₹{perCouplePrice.toLocaleString("en-IN")}
+                ₹{livePerCouple.toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-emerald-400/70 mt-0.5">for 2 persons</p>
             </div>
@@ -173,7 +236,7 @@ export default function PackageViewPage() {
                 <Users className="w-3 h-3" /> Per Person
               </p>
               <p className="text-[22px] font-black text-indigo-300 leading-none">
-                ₹{perPersonPrice.toLocaleString("en-IN")}
+                ₹{livePerPerson.toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-indigo-400/70 mt-0.5">per pax</p>
             </div>
@@ -182,7 +245,7 @@ export default function PackageViewPage() {
                 <Sparkles className="w-3 h-3" /> Package Total
               </p>
               <p className="text-[22px] font-black text-amber-300 leading-none">
-                ₹{finalPrice.toLocaleString("en-IN")}
+                ₹{liveFinalPrice.toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-amber-400/70 mt-0.5">all inclusive</p>
             </div>
@@ -502,94 +565,223 @@ export default function PackageViewPage() {
           </section>
         )}
 
-        {/* Vehicle */}
-        {pkg.vehicle?.vehicleType && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-[16px] font-black text-slate-900 flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-xl bg-sky-100 flex items-center justify-center">
-                <Car className="w-4 h-4 text-sky-600" />
+        {/* Vehicle & Transport Fleet */}
+        {((pkg.vehiclePeriods && pkg.vehiclePeriods.length > 0) || (pkg.vehicles && pkg.vehicles.length > 0) || pkg.vehicle?.vehicleType) && (() => {
+          return (
+            <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h2 className="text-[17px] font-black text-slate-900 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-sky-100 flex items-center justify-center">
+                      <Car className="w-4.5 h-4.5 text-sky-600" />
+                    </div>
+                    Vehicle &amp; Transport Fleet
+                  </h2>
+                  <p className="text-[12px] font-semibold text-slate-400 mt-0.5">
+                    Select a vehicle option or season to calculate package rates in real time
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Active Transport Cost</span>
+                  <span className="text-[20px] font-black text-sky-950">₹{activeTransportCost.toLocaleString("en-IN")}</span>
+                </div>
               </div>
-              Vehicle & Transport
-            </h2>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-sky-50/60 border border-sky-200/60">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[20px] font-black text-sky-900">{pkg.vehicle.vehicleType}</span>
-                  {pkg.vehicle.model && (
-                    <span className="text-[12.5px] font-bold text-sky-700 bg-white px-3 py-0.5 rounded-full border border-sky-200">
-                      {pkg.vehicle.model}
-                    </span>
-                  )}
-                  <span className={`text-[11.5px] font-bold px-2.5 py-0.5 rounded-full border ${
-                    pkg.vehicle.acType === "AC"
-                      ? "bg-cyan-50 border-cyan-200 text-cyan-800"
-                      : "bg-slate-100 border-slate-200 text-slate-600"
-                  }`}>
-                    ❄️ {pkg.vehicle.acType || "AC"}
-                  </span>
+              {/* Date Period Tabs */}
+              {periodsList.length > 1 && (
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <span className="text-[11.5px] font-bold text-slate-500 mr-1">Travel Season:</span>
+                  {periodsList.map((p, pIdx) => {
+                    const isSel = safePeriodTab === pIdx;
+                    return (
+                      <button
+                        key={pIdx}
+                        type="button"
+                        onClick={() => {
+                          setActiveVehiclePeriodTab(pIdx);
+                          setSelectedVehicleIdx(0);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border transition-all flex items-center gap-1.5 ${
+                          isSel
+                            ? "bg-sky-600 text-white border-sky-600 shadow-sm"
+                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        <span>{p.name || `Period ${pIdx + 1}`}</span>
+                        {(p.startDate || p.endDate) && (
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                            isSel ? "bg-sky-700 text-sky-100" : "bg-slate-200 text-slate-600"
+                          }`}>
+                            {p.startDate ? p.startDate.slice(5) : ""}
+                            {p.startDate && p.endDate ? " → " : ""}
+                            {p.endDate ? p.endDate.slice(5) : ""}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center gap-3 text-[12.5px] font-semibold text-slate-600">
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-sky-500" />
-                    {pkg.vehicle.seats || 4} Persons
-                  </span>
-                </div>
-                {pkg.vehicle.notes && (
-                  <p className="text-[12px] text-sky-800 italic">📌 {pkg.vehicle.notes}</p>
+              )}
+
+              {/* Selectable Vehicle Options Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 pt-1">
+                {fleetList.map((veh, vIdx) => {
+                  const qty = Math.max(1, parseInt(veh.quantity, 10) || 1);
+                  const price = Number(veh.vehiclePrice ?? veh.price) || 0;
+                  const rowSubtotal = price * qty;
+                  const isSel = safeVehIdx === vIdx;
+                  const imgPath = getVehicleImage(veh.vehicleType);
+
+                  return (
+                    <button
+                      key={vIdx}
+                      type="button"
+                      onClick={() => setSelectedVehicleIdx(vIdx)}
+                      className={`flex flex-col justify-between p-4.5 rounded-2xl border text-left transition-all relative ${
+                        isSel
+                          ? "bg-gradient-to-br from-sky-600 via-sky-700 to-blue-700 border-sky-600 text-white shadow-md shadow-sky-500/20 scale-[1.01]"
+                          : "bg-white border-slate-200/90 text-slate-800 hover:border-sky-300 hover:bg-sky-50/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[14px] font-black">
+                            {qty > 1 ? `${qty}x ` : ""}{veh.vehicleType || "Sedan"}
+                          </span>
+                          {veh.model && (
+                            <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${
+                              isSel ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {veh.model}
+                            </span>
+                          )}
+                        </div>
+                        {isSel ? (
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Click to Select</span>
+                        )}
+                      </div>
+
+                      <div className="h-16 w-full flex items-center justify-center my-1">
+                        <img
+                          src={imgPath}
+                          alt={veh.vehicleType}
+                          className="max-h-14 max-w-full object-contain filter drop-shadow-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-[11px] my-2">
+                        <div className="flex justify-between">
+                          <span className={isSel ? "text-sky-100" : "text-slate-500"}>Rate:</span>
+                          <span className="font-bold">₹{price.toLocaleString("en-IN")} / cab</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className={isSel ? "text-sky-100" : "text-slate-500"}>Capacity:</span>
+                          <span className="font-bold">{veh.seats || 4} Guests • {veh.acType || "AC"}</span>
+                        </div>
+                        {veh.notes && (
+                          <p className={`text-[10.5px] truncate pt-0.5 ${isSel ? "text-sky-100" : "text-slate-400"}`}>
+                            📌 {veh.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2 mt-1 border-t border-white/20 flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase ${isSel ? "text-sky-100" : "text-slate-400"}`}>
+                          Transport Subtotal
+                        </span>
+                        <span className="text-[15px] font-black">₹{rowSubtotal.toLocaleString("en-IN")}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {fleetList.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVehicleIdx("all")}
+                    className={`flex flex-col justify-between p-4.5 rounded-2xl border text-left transition-all ${
+                      safeVehIdx === "all"
+                        ? "bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 border-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-[1.01]"
+                        : "bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300 hover:bg-white/80"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-2">
+                      <span className="text-[14px] font-black">All Fleet Combined</span>
+                      {safeVehIdx === "all" && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse" />
+                      )}
+                    </div>
+                    <p className={`text-[11.5px] my-auto ${safeVehIdx === "all" ? "text-indigo-100" : "text-slate-500"}`}>
+                      Full combined package price for all {fleetList.length} transport vehicles
+                    </p>
+                    <div className="pt-2 mt-3 border-t border-white/20 flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase ${safeVehIdx === "all" ? "text-indigo-100" : "text-slate-400"}`}>
+                        Combined Total
+                      </span>
+                      <span className="text-[15px] font-black">₹{periodGrandTransportTotal.toLocaleString("en-IN")}</span>
+                    </div>
+                  </button>
                 )}
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Transport Total</p>
-                <p className="text-[22px] font-black text-sky-900">₹{(pkg.vehicle.vehiclePrice || 0).toLocaleString("en-IN")}</p>
-              </div>
-            </div>
-          </section>
-        )}
+            </section>
+          );
+        })()}
 
         {/* Pricing & Inclusions */}
         {pkg.pricing && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
-            <h2 className="text-[16px] font-black text-slate-900 flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <IndianRupee className="w-4 h-4 text-emerald-600" />
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-6">
+            <h2 className="text-[17px] font-black text-slate-900 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <IndianRupee className="w-4.5 h-4.5 text-emerald-600" />
               </div>
-              Pricing Breakdown
+              Live Pricing Breakdown
             </h2>
 
             {/* Cost breakdown table */}
-            <div className="rounded-2xl border border-slate-200/80 overflow-hidden text-[13px]">
-              {[
-                { label: "🏨 Accommodation", value: pkg.pricing.accommodationTotal || 0, color: "bg-violet-50/60" },
-                { label: "🚗 Vehicle & Transport", value: pkg.pricing.vehicleTotal || 0, color: "bg-sky-50/60" },
-                ...(pkg.pricing.activitiesTotal > 0 ? [{ label: "⚡ Activities Cost", value: pkg.pricing.activitiesTotal, color: "bg-rose-50/60" }] : []),
-                { label: "📊 Subtotal", value: pkg.pricing.subtotal || 0, bold: true, color: "bg-slate-100" },
-                { label: `📈 Profit Margin (${pkg.pricing.marginType === "percentage" ? `${pkg.pricing.margin}%` : "Absolute"})`, value: pkg.pricing.margin || 0, color: "bg-amber-50/60", isMargin: true, marginType: pkg.pricing.marginType },
-              ].map((row, ri) => (
-                <div key={ri} className={`flex items-center justify-between px-4 py-3 ${row.color} ${ri > 0 ? "border-t border-slate-100" : ""}`}>
-                  <span className={`${row.bold ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>{row.label}</span>
-                  <span className={`${row.bold ? "font-extrabold text-slate-900 text-[14px]" : "font-bold text-slate-800"}`}>
-                    {row.isMargin && row.marginType === "percentage"
-                      ? `${row.value}%`
-                      : `₹${Number(row.value).toLocaleString("en-IN")}`}
-                  </span>
+            <div className="rounded-2xl border border-slate-200/80 overflow-hidden text-[13px] shadow-2xs">
+              <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/60">
+                <span className="font-semibold text-slate-700">
+                  🏨 Accommodation ({selectedAccomOption?.label || "Option 1"})
+                </span>
+                <span className="font-extrabold text-slate-900">₹{activeAccomCost.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/60 border-t border-slate-100">
+                <span className="font-semibold text-slate-700">
+                  🚗 Vehicle Transport ({safeVehIdx === "all" ? "All Fleet" : (chosenVeh?.vehicleType || "Sedan")})
+                </span>
+                <span className="font-extrabold text-slate-900">₹{activeTransportCost.toLocaleString("en-IN")}</span>
+              </div>
+              {actTotal > 0 && (
+                <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/60 border-t border-slate-100">
+                  <span className="font-semibold text-slate-700">⚡ Activities Cost</span>
+                  <span className="font-extrabold text-slate-900">₹{actTotal.toLocaleString("en-IN")}</span>
                 </div>
-              ))}
+              )}
+              <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100 border-t border-slate-100">
+                <span className="font-extrabold text-slate-900">📊 Base Subtotal</span>
+                <span className="font-extrabold text-slate-900 text-[14.5px]">₹{liveSubtotal.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="flex items-center justify-between px-5 py-3.5 bg-amber-50/60 border-t border-slate-100">
+                <span className="font-semibold text-slate-700">
+                  📈 Profit Margin ({marginType === "percentage" ? `${marginVal}%` : "Absolute"})
+                </span>
+                <span className="font-extrabold text-amber-700">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
+              </div>
               {pkg.pricing.includeGst && (
-                <div className="flex items-center justify-between px-4 py-3 bg-blue-50/60 border-t border-slate-100">
+                <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60 border-t border-slate-100">
                   <span className="font-semibold text-blue-900 flex items-center gap-1.5">
                     <Receipt className="w-3.5 h-3.5" /> GST ({pkg.pricing.gstPercentage || 5}%)
                   </span>
-                  <span className="font-bold text-blue-800">
-                    ₹{Math.round((pkg.pricing.subtotal || 0) * ((pkg.pricing.gstPercentage || 5) / 100)).toLocaleString("en-IN")}
-                  </span>
+                  <span className="font-bold text-blue-800">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between px-4 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white">
                 <span className="font-black text-[15px] flex items-center gap-2">
                   <Sparkles className="w-4 h-4" /> Grand Total Package Price
                 </span>
-                <span className="font-black text-[20px]">₹{finalPrice.toLocaleString("en-IN")}</span>
+                <span className="font-black text-[21px]">₹{liveFinalPrice.toLocaleString("en-IN")}</span>
               </div>
             </div>
 
@@ -599,15 +791,16 @@ export default function PackageViewPage() {
                 <p className="text-[10.5px] font-black uppercase tracking-widest text-emerald-100 flex items-center gap-1.5 mb-1.5">
                   <HeartHandshake className="w-4 h-4" /> Per Couple Rate
                 </p>
-                <p className="text-[28px] font-black leading-none">{currency} {perCouplePrice.toLocaleString("en-IN")}</p>
-                <p className="text-[12px] text-emerald-200 mt-1">for 2 persons</p>
+                <p className="text-[28px] font-black leading-tight">₹{livePerCouple.toLocaleString("en-IN")}</p>
+                <p className="text-[11.5px] text-emerald-100/80 mt-1">Calculated for 2 persons</p>
               </div>
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20">
                 <p className="text-[10.5px] font-black uppercase tracking-widest text-indigo-100 flex items-center gap-1.5 mb-1.5">
                   <Users className="w-4 h-4" /> Per Person Rate
                 </p>
-                <p className="text-[28px] font-black leading-none">{currency} {perPersonPrice.toLocaleString("en-IN")}</p>
-                <p className="text-[12px] text-indigo-200 mt-1">per pax</p>
+                <p className="text-[28px] font-black leading-tight">₹{livePerPerson.toLocaleString("en-IN")}</p>
+                <p className="text-[11.5px] text-indigo-100/80 mt-1">Per pax for {pax} guests</p>
               </div>
             </div>
 

@@ -33,7 +33,9 @@ const DEFAULT_FORM = {
   coverImage: null,
   itinerary: [],
   accommodationOptions: [],
-  vehicle: { vehicleType: "Sedan", model: "", seats: 4, acType: "AC", vehiclePrice: 0, notes: "" },
+  vehiclePeriods: [],
+  vehicles: [],
+  vehicle: { vehicleType: "Sedan", model: "", seats: 4, quantity: 1, acType: "AC", price: 5000, vehiclePrice: 5000, notes: "" },
   pricing: {
     selectedOptionIndex: 0,
     accommodationTotal: 0,
@@ -170,7 +172,16 @@ export default function NewPackagePage() {
     return baseAccom * roomsRequired;
   }, [form.accommodationOptions, selectedOptIdx, form.pricing?.numberOfPersons, form.pricing?.maxPersonsPerRoom, form.pricing?.rateBasis]);
 
-  const vehicleTotal = useMemo(() => form.vehicle?.vehiclePrice || 0, [form.vehicle]);
+  const vehicleTotal = useMemo(() => {
+    if (Array.isArray(form.vehiclePeriods) && form.vehiclePeriods.length > 0) {
+      const firstVehicles = form.vehiclePeriods[0].vehicles || [];
+      return firstVehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
+    }
+    if (Array.isArray(form.vehicles) && form.vehicles.length > 0) {
+      return form.vehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
+    }
+    return form.vehicle?.vehiclePrice || 0;
+  }, [form.vehiclePeriods, form.vehicles, form.vehicle]);
 
   const activitiesTotal = useMemo(() => {
     let perPersonSum = 0;
@@ -569,10 +580,20 @@ export default function NewPackagePage() {
                   description="Choose transport vehicle category and specify full transport pricing."
                 />
                 <VehiclePanel
+                  vehiclePeriods={form.vehiclePeriods}
+                  vehicles={form.vehicles}
                   vehicle={form.vehicle}
-                  value={form.vehicle}
-                  days={form.days}
-                  onChange={(vehicle) => updateForm({ vehicle })}
+                  onChange={(vehData) => {
+                    updateForm({
+                      vehiclePeriods: vehData.vehiclePeriods,
+                      vehicle: vehData.vehicle,
+                      vehicles: vehData.vehicles,
+                      pricing: {
+                        ...form.pricing,
+                        vehicleTotal: vehData.vehicleTotal,
+                      },
+                    });
+                  }}
                 />
               </div>
             )}
@@ -590,6 +611,9 @@ export default function NewPackagePage() {
                   onChange={(pricing) => updateForm({ pricing })}
                   onAccommodationOptionsChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                   accommodationOptions={form.accommodationOptions}
+                  vehiclePeriods={form.vehiclePeriods}
+                  vehicles={form.vehicles}
+                  vehicle={form.vehicle}
                   vehicleTotal={vehicleTotal}
                   vehiclePrice={vehicleTotal}
                   activitiesTotal={activitiesTotal}
@@ -646,8 +670,12 @@ export default function NewPackagePage() {
                     />
                   ))}
                   <ReviewRow
-                    label="Vehicle"
-                    value={`${form.vehicle?.vehicleType || "—"} — ₹${vehicleTotal.toLocaleString("en-IN")}`}
+                    label="Transport Fleet"
+                    value={
+                      form.vehicles && form.vehicles.length > 0
+                        ? `${form.vehicles.length} Vehicle${form.vehicles.length > 1 ? "s" : ""} — ₹${vehicleTotal.toLocaleString("en-IN")}`
+                        : `${form.vehicle?.vehicleType || "Sedan"} — ₹${vehicleTotal.toLocaleString("en-IN")}`
+                    }
                     highlight
                   />
                   <ReviewRow

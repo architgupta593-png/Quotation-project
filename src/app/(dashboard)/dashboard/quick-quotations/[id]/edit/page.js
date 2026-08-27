@@ -48,10 +48,12 @@ export default function EditQuickQuotationPage({ params }) {
   const [packageModalOpen, setPackageModalOpen] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState(null);
+  const [importedPkg, setImportedPkg] = useState(null);
 
   // Fetch package handler to auto-populate all quotation parameters
   function handleSelectPackage(pkg) {
     if (!pkg || !form) return;
+    setImportedPkg(pkg);
 
     // Accurately resolve exact nights & days from package
     const nights = Math.max(
@@ -243,15 +245,54 @@ export default function EditQuickQuotationPage({ params }) {
       }
     }
 
-    const pkgPrice =
-      pkg.pricing?.finalPrice ||
-      pkg.pricing?.totalSellingPrice ||
-      pkg.pricing?.grandTotal ||
-      pkg.pricing?.subtotal ||
-      pkg.pricing?.totalPrice ||
-      pkg.price ||
-      form.pricing?.totalPrice ||
-      0;
+    // Dynamically resolve matching vehicle period from package based on departure date
+    let matchedPeriod = null;
+    if (Array.isArray(pkg.vehiclePeriods) && pkg.vehiclePeriods.length > 0) {
+      if (s) {
+        matchedPeriod = pkg.vehiclePeriods.find((p) => {
+          if (!p.startDate && !p.endDate) return false;
+          if (p.startDate && p.endDate) return s >= p.startDate && s <= p.endDate;
+          if (p.startDate) return s >= p.startDate;
+          if (p.endDate) return s <= p.endDate;
+          return false;
+        });
+      }
+      if (!matchedPeriod) matchedPeriod = pkg.vehiclePeriods[0];
+    }
+
+    const periodVehicles = (matchedPeriod?.vehicles && matchedPeriod.vehicles.length > 0)
+      ? matchedPeriod.vehicles
+      : (Array.isArray(pkg.vehicles) && pkg.vehicles.length > 0 ? pkg.vehicles : (pkg.vehicle?.vehicleType ? [pkg.vehicle] : []));
+
+    const primaryVeh = periodVehicles[0] || {};
+    const periodVehTotal = periodVehicles.reduce(
+      (sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)),
+      0
+    );
+
+    // Calculate total price: if package pricing has breakdown, add dynamic vehicle total
+    let pkgPrice = 0;
+    if (pkg.pricing?.accommodationTotal !== undefined && pkg.pricing?.margin !== undefined) {
+      const accomTot = Number(pkg.pricing.accommodationTotal) || 0;
+      const actTot = Number(pkg.pricing.activitiesTotal) || 0;
+      const margin = Number(pkg.pricing.margin) || 0;
+      const mType = pkg.pricing.marginType || "absolute";
+      const sub = accomTot + periodVehTotal + actTot;
+      const mAmount = mType === "percentage" ? (sub * margin) / 100 : margin;
+      const preTax = sub + mAmount;
+      const gst = pkg.pricing.includeGst ? (preTax * (pkg.pricing.gstPercentage || 5)) / 100 : 0;
+      pkgPrice = Math.round((preTax + gst) / 100) * 100;
+    } else {
+      pkgPrice =
+        pkg.pricing?.finalPrice ||
+        pkg.pricing?.totalSellingPrice ||
+        pkg.pricing?.grandTotal ||
+        pkg.pricing?.subtotal ||
+        pkg.pricing?.totalPrice ||
+        pkg.price ||
+        form?.pricing?.totalPrice ||
+        0;
+    }
 
     const pkgInclusions = (pkg.inclusions && pkg.inclusions.length > 0)
       ? pkg.inclusions
@@ -284,12 +325,12 @@ export default function EditQuickQuotationPage({ params }) {
       accommodationOptions: allAccommodationOptions,
       itinerary: itineraryDays,
       vehicle: {
-        vehicleType: pkg.vehicle?.vehicleType || prev.vehicle?.vehicleType || "Sedan",
-        model: pkg.vehicle?.model || prev.vehicle?.model || "Dzire / Etios",
-        seats: pkg.vehicle?.seats || prev.vehicle?.seats || 4,
-        acType: pkg.vehicle?.acType || prev.vehicle?.acType || "AC",
-        vehiclePrice: pkg.vehicle?.vehiclePrice || prev.vehicle?.vehiclePrice || 0,
-        notes: pkg.vehicle?.notes || prev.vehicle?.notes || "Includes fuel, toll taxes, parking & driver allowance",
+        vehicleType: primaryVeh.vehicleType || prev.vehicle?.vehicleType || "Sedan",
+        model: primaryVeh.model || prev.vehicle?.model || "Dzire / Etios",
+        seats: primaryVeh.seats || prev.vehicle?.seats || 4,
+        acType: primaryVeh.acType || prev.vehicle?.acType || "AC",
+        vehiclePrice: periodVehTotal,
+        notes: primaryVeh.notes || "Includes fuel, toll taxes, parking & driver allowance",
       },
       inclusions: pkgInclusions,
       exclusions: pkgExclusions,
@@ -463,6 +504,67 @@ export default function EditQuickQuotationPage({ params }) {
       };
     });
   }
+
+  function handleApplyPackageVehicle(pv) {
+    const oldVehPrice = Number(form.vehicle?.vehiclePrice) || 0;
+    const newVehPrice = ((Number(pv.vehiclePrice ?? pv.price) || 0) * (parseInt(pv.quantity, 10) || 1));
+    const delta = newVehPrice - oldVehPrice;
+
+    setForm((prev) => ({
+      ...prev,
+      vehicle: {
+        ...prev.vehicle,
+        vehicleType: pv.vehicleType || prev.vehicle?.vehicleType || "Sedan",
+        model: pv.model || prev.vehicle?.model || "",
+        seats: pv.seats || prev.vehicle?.seats || 4,
+        acType: pv.acType || prev.vehicle?.acType || "AC",
+        vehiclePrice: newVehPrice,
+        notes: pv.notes || prev.vehicle?.notes || "Includes fuel, toll taxes, parking & driver allowance",
+      },
+      pricing: {
+        ...prev.pricing,
+        totalPrice: Math.max(0, (Number(prev.pricing?.totalPrice) || 0) + delta),
+      },
+    }));
+  }
+
+  function handleVehiclePriceChange(newVal) {
+    const num = Number(newVal) || 0;
+    const oldVehPrice = Number(form.vehicle?.vehiclePrice) || 0;
+    const delta = num - oldVehPrice;
+    setForm((prev) => ({
+      ...prev,
+      vehicle: {
+        ...prev.vehicle,
+        vehiclePrice: num,
+      },
+      pricing: {
+        ...prev.pricing,
+        totalPrice: Math.max(0, (Number(prev.pricing?.totalPrice) || 0) + delta),
+      },
+    }));
+  }
+
+  // Available fleet options from imported package
+  const currentVehiclePeriods = importedPkg?.vehiclePeriods || [];
+  const sDate = form.tripDetails?.startDate;
+  let activePeriodFromPkg = null;
+  if (currentVehiclePeriods.length > 0) {
+    if (sDate) {
+      activePeriodFromPkg = currentVehiclePeriods.find((p) => {
+        if (!p.startDate && !p.endDate) return false;
+        if (p.startDate && p.endDate) return sDate >= p.startDate && sDate <= p.endDate;
+        if (p.startDate) return sDate >= p.startDate;
+        if (p.endDate) return sDate <= p.endDate;
+        return false;
+      });
+    }
+    if (!activePeriodFromPkg) activePeriodFromPkg = currentVehiclePeriods[0];
+  }
+
+  const availablePackageVehicles = (activePeriodFromPkg?.vehicles && activePeriodFromPkg.vehicles.length > 0)
+    ? activePeriodFromPkg.vehicles
+    : (Array.isArray(importedPkg?.vehicles) && importedPkg.vehicles.length > 0 ? importedPkg.vehicles : []);
 
   // Pricing calculations
   const basePrice = Number(form.pricing?.totalPrice) || 0;
@@ -1016,72 +1118,162 @@ export default function EditQuickQuotationPage({ params }) {
               }}
             />
 
-            {/* 4. Dedicated Transport */}
-            <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-[12px]">
-                  4
-                </div>
-                <div>
-                  <h3 className="text-[16px] font-black text-slate-900">Dedicated Transport &amp; Vehicle</h3>
-                  <p className="text-[11.5px] text-slate-400 font-medium">Select vehicle type for transfers and sightseeing</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {VEHICLE_OPTIONS.map((v) => {
-                  const isSel = form.vehicle?.vehicleType === v.type;
-                  const imgPath = getVehicleImage(v.type);
-                  return (
-                    <div
-                      key={v.type}
-                      onClick={() => setForm((p) => ({
-                        ...p,
-                        vehicle: {
-                          ...p.vehicle,
-                          vehicleType: v.type,
-                          model: v.model,
-                          seats: v.seats,
-                        },
-                      }))}
-                      className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center text-center space-y-2 ${
-                        isSel ? "border-amber-500 bg-amber-50/50 shadow-xs ring-2 ring-amber-500/20" : "border-slate-200 hover:border-slate-300 bg-white"
-                      }`}
-                    >
-                      <div className="h-14 w-full flex items-center justify-center">
-                        <img src={imgPath} alt={v.type} className="max-h-12 max-w-full object-contain" />
-                      </div>
-                      <div>
-                        <p className="text-[12.5px] font-black text-slate-900">{v.type}</p>
-                        <p className="text-[10.5px] text-slate-500 font-semibold">{v.model}</p>
-                      </div>
+            {/* 4. Dedicated Transport & Vehicle */}
+            <div className="bg-white rounded-3xl border-2 border-slate-200/90 hover:border-amber-400/60 p-5 sm:p-7 shadow-xs transition-all space-y-6 overflow-hidden min-w-0">
+              <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20 flex-shrink-0">
+                    <Car className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-[17px] font-black text-slate-900 truncate">Dedicated Transport &amp; Vehicle</h3>
+                      <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
+                        {form.vehicle?.vehicleType || "Sedan"} • {form.vehicle?.acType || "AC"}
+                      </span>
                     </div>
-                  );
-                })}
+                    <p className="text-[12px] text-slate-400 font-medium truncate">Chauffeur-driven private vehicle for pickup, drop &amp; all sightseeing</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-[12px] font-bold text-slate-600 mb-1">Vehicle Description / Model</label>
+              {/* Fetched Package Vehicles (Only show when package has vehicles) */}
+              {availablePackageVehicles.length > 0 && (
+                <div className="space-y-3 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[12px] font-black text-amber-950 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse flex-shrink-0" />
+                      Available Package Vehicles ({availablePackageVehicles.length} Options):
+                    </span>
+                    <span className="text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">
+                      Click to Select Car
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+                    {availablePackageVehicles.map((pv, pvi) => {
+                      const pPrice = Number(pv.vehiclePrice ?? pv.price) || 0;
+                      const pQty = Math.max(1, parseInt(pv.quantity, 10) || 1);
+                      const pTotal = pPrice * pQty;
+                      const isCurrent = form.vehicle?.vehicleType === pv.vehicleType && Number(form.vehicle?.vehiclePrice) === pTotal;
+                      const currentVehTotal = Number(form.vehicle?.vehiclePrice) || 0;
+                      const diff = pTotal - currentVehTotal;
+                      const imgPath = getVehicleImage(pv.vehicleType);
+
+                      return (
+                        <button
+                          key={pvi}
+                          type="button"
+                          onClick={() => handleApplyPackageVehicle(pv)}
+                          className={`p-3 sm:p-3.5 rounded-2xl border-2 text-left transition-all flex items-center justify-between gap-3 group relative w-full min-w-0 overflow-hidden ${
+                            isCurrent
+                              ? "border-amber-500 bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-50/80 shadow-xs ring-2 ring-amber-500/20 scale-[1.01]"
+                              : "border-slate-200/90 hover:border-amber-300 bg-white hover:bg-slate-50/60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-12 h-10 sm:w-14 sm:h-12 flex-shrink-0 flex items-center justify-center bg-slate-50 rounded-xl p-1 border border-slate-100">
+                              <img
+                                src={imgPath}
+                                alt={pv.vehicleType}
+                                className="max-h-9 sm:max-h-10 max-w-full object-contain filter drop-shadow-2xs group-hover:scale-105 transition-transform"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className={`text-[13px] font-black truncate block ${isCurrent ? "text-amber-950" : "text-slate-900"}`}>
+                                {pQty > 1 ? `${pQty}x ` : ""}{pv.vehicleType || "Sedan"}
+                              </span>
+                              <span className={`text-[11px] font-semibold truncate block ${isCurrent ? "text-amber-800" : "text-slate-500"}`}>
+                                {pv.model || "Private Cab"} • {pv.seats || 4} Seats
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400 truncate block">
+                                {pv.acType || "AC"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right flex-shrink-0 ml-1 whitespace-nowrap">
+                            {isCurrent ? (
+                              <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 inline-block shadow-2xs">
+                                Selected
+                              </span>
+                            ) : diff > 0 ? (
+                              <span className="text-[12px] font-black text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 inline-block shadow-2xs">
+                                +₹{diff.toLocaleString("en-IN")}
+                              </span>
+                            ) : diff < 0 ? (
+                              <span className="text-[12px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 inline-block shadow-2xs">
+                                -₹{Math.abs(diff).toLocaleString("en-IN")}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200 inline-block">
+                                ±₹0
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Detailed Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1 min-w-0">
+                <div className="min-w-0">
+                  <label className="block text-[12px] font-bold text-slate-600 mb-1.5 truncate">Vehicle Model / Description</label>
                   <input
                     type="text"
                     value={form.vehicle?.model || ""}
                     onChange={(e) => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, model: e.target.value } }))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold"
+                    placeholder="e.g. Swift Dzire / Toyota Etios"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-slate-50/50 focus:bg-white transition-all min-w-0"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[12px] font-bold text-slate-600 mb-1">AC Type</label>
-                  <select
-                    value={form.vehicle?.acType || "AC"}
-                    onChange={(e) => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, acType: e.target.value } }))}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold"
-                  >
-                    <option value="AC">AC (Air Conditioned)</option>
-                    <option value="Non-AC">Non-AC</option>
-                  </select>
+                <div className="min-w-0">
+                  <label className="block text-[12px] font-bold text-slate-600 mb-1.5 truncate">Air Conditioning</label>
+                  <div className="grid grid-cols-2 gap-2 min-w-0">
+                    {["AC", "Non-AC"].map((ac) => (
+                      <button
+                        key={ac}
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, acType: ac } }))}
+                        className={`py-2 px-1 text-center truncate rounded-xl text-[12px] font-bold border transition-all ${
+                          form.vehicle?.acType === ac
+                            ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {ac === "AC" ? "❄️ AC" : "Non-AC"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                  <label className="block text-[12px] font-bold text-slate-600 mb-1.5 truncate">Guest Capacity (Seats)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={form.vehicle?.seats || 4}
+                    onChange={(e) => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, seats: parseInt(e.target.value, 10) || 4 } }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-slate-50/50 focus:bg-white transition-all min-w-0"
+                  />
+                </div>
+              </div>
+
+              {/* Chauffeur Guidelines / Notes */}
+              <div className="min-w-0">
+                <label className="block text-[12px] font-bold text-slate-600 mb-1.5 truncate">Transport &amp; Chauffeur Inclusions Note</label>
+                <input
+                  type="text"
+                  value={form.vehicle?.notes || ""}
+                  onChange={(e) => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, notes: e.target.value } }))}
+                  placeholder="e.g. Includes fuel, driver allowance, toll charges, interstate taxes and parking"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-slate-50/50 focus:bg-white transition-all min-w-0"
+                />
               </div>
             </div>
 
