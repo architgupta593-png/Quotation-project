@@ -524,6 +524,11 @@ export default function PackageViewPage() {
                             )}
                           </div>
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {leg.category && (
+                              <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] font-black text-indigo-700">
+                                🏷️ {leg.category}
+                              </span>
+                            )}
                             <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[11px] font-bold text-violet-800">
                               📍 {leg.cityName}
                             </span>

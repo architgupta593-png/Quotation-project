@@ -6,10 +6,11 @@ import {
   ArrowLeft, Plus, Trash2, Loader2, AlertCircle, ChevronRight,
   MapPin, Moon, Sun, Check, Sparkles, Layers, FileText, Compass,
   Car, IndianRupee, ShieldCheck, Eye, CheckCircle2, Navigation,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import ItineraryBuilder from "@/components/packages/ItineraryBuilder";
-import AccommodationPanel from "@/components/packages/AccommodationPanel";
+import AccommodationPanel, { getCategoryBadgeClass } from "@/components/packages/AccommodationPanel";
 import VehiclePanel from "@/components/packages/VehiclePanel";
 import PricingPanel from "@/components/packages/PricingPanel";
 import InstructionPanel from "@/components/packages/InstructionPanel";
@@ -17,7 +18,7 @@ import InstructionPanel from "@/components/packages/InstructionPanel";
 const SECTIONS = [
   { id: "basics", label: "Basics", icon: Compass, desc: "Title & Route" },
   { id: "itinerary", label: "Itinerary", icon: Sun, desc: "Day by Day" },
-  { id: "accommodation", label: "Accommodation", icon: Layers, desc: "Hotel Tiers" },
+  { id: "accommodation", label: "Accommodation", icon: Building2, desc: "Hotel Categories" },
   { id: "vehicle", label: "Vehicle", icon: Car, desc: "Transport" },
   { id: "pricing", label: "Pricing", icon: IndianRupee, desc: "Margins & Cost" },
   { id: "instructions", label: "Instructions", icon: FileText, desc: "Terms & Rules" },
@@ -127,7 +128,6 @@ export default function EditPackagePage() {
       destinations: updated,
       nights: totalNights,
       days: totalDays,
-      accommodationOptions: [],
     });
   }
 
@@ -176,15 +176,10 @@ export default function EditPackagePage() {
   // Computed totals
   const selectedOptIdx = form?.pricing?.selectedOptionIndex || 0;
   const accommodationTotal = useMemo(() => {
-    if (!form) return 0;
-    const opt = (form.accommodationOptions || [])[selectedOptIdx];
-    const baseAccom = opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
-    const pax = Math.max(1, parseInt(form?.pricing?.numberOfPersons, 10) || 1);
-    const maxPerRoom = Math.max(1, parseInt(form?.pricing?.maxPersonsPerRoom, 10) || 2);
-    const isPerPerson = form?.pricing?.rateBasis === "per_person";
-    const roomsRequired = isPerPerson ? Math.max(1, Math.ceil(pax / maxPerRoom)) : Math.max(1, Math.ceil(pax / 2));
-    return baseAccom * roomsRequired;
-  }, [form, selectedOptIdx]);
+    const selectedOpt = form?.accommodationOptions?.[selectedOptIdx] || form?.accommodationOptions?.[0];
+    if (!selectedOpt || !Array.isArray(selectedOpt.nights)) return 0;
+    return selectedOpt.nights.reduce((sum, n) => sum + (Number(n.pricePerNight) || 0), 0);
+  }, [form?.accommodationOptions, selectedOptIdx]);
 
   const vehicleTotal = useMemo(() => {
     if (Array.isArray(form?.vehiclePeriods) && form.vehiclePeriods.length > 0) {
@@ -197,6 +192,19 @@ export default function EditPackagePage() {
     return form?.vehicle?.vehiclePrice || 0;
   }, [form?.vehiclePeriods, form?.vehicles, form?.vehicle]);
 
+  const activitiesTotal = useMemo(() => {
+    let perPersonSum = 0;
+    (form?.itinerary || []).forEach((day) => {
+      (day.activities || []).forEach((act) => {
+        if (typeof act === "object" && act !== null) {
+          perPersonSum += Number(act.price) || 0;
+        }
+      });
+    });
+    const pax = Math.max(1, parseInt(form?.pricing?.numberOfPersons, 10) || 1);
+    return perPersonSum * pax;
+  }, [form?.itinerary, form?.pricing?.numberOfPersons]);
+
   const destinationSummary = useMemo(() => {
     if (!form || !form.destinations) return "";
     return form.destinations
@@ -204,6 +212,24 @@ export default function EditPackagePage() {
       .map((d) => `${d.cityName} (${d.nights}N)`)
       .join(" → ");
   }, [form]);
+
+  // Dynamic live calculation for Live Preview sidebar
+  const selectedOpt = form?.accommodationOptions?.[selectedOptIdx] || form?.accommodationOptions?.[0];
+  const activeMarginType = selectedOpt?.marginType || form?.pricing?.marginType || "absolute";
+  const activeMargin = selectedOpt?.margin ?? form?.pricing?.margin ?? 0;
+  const liveSubtotal = accommodationTotal + vehicleTotal + activitiesTotal;
+  const liveMarginAmount = activeMarginType === "percentage"
+    ? liveSubtotal * (activeMargin / 100)
+    : activeMargin;
+  const livePreTaxTotal = liveSubtotal + liveMarginAmount;
+  const liveGstAmount = form?.pricing?.includeGst ? Math.round(livePreTaxTotal * ((form?.pricing?.gstPercentage || 5) / 100)) : 0;
+  const liveDiscount = form?.pricing?.discountAmount || 0;
+  const liveGrandTotal = Math.max(0, Math.round(livePreTaxTotal + liveGstAmount - liveDiscount));
+  const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form?.pricing?.finalPrice || 0);
+
+  const numPax = Math.max(1, parseInt(form?.pricing?.numberOfPersons, 10) || 2);
+  const displayPerPerson = Math.round(displayFinalPrice / numPax);
+  const displayPerCouple = displayPerPerson * 2;
 
   async function handleSubmit(status = "published") {
     if (!form) return;
@@ -610,18 +636,18 @@ export default function EditPackagePage() {
               </div>
             )}
 
-            {/* ═══════════ ACCOMMODATION ═══════════ */}
+            {/* ═══════════ ACCOMMODATION (HOTEL CATEGORIES WISE) ═══════════ */}
             {currentSection === "accommodation" && (
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-7 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-6">
+              <div className="space-y-6">
                 <SectionHeader
-                  title="Hotel Accommodation Tiers"
-                  description="Configure accommodation options (Option 1, Option 2, etc.) for each night of the route."
+                  title="Accommodation & Hotels (Category-Wise)"
+                  description="Select hotels organized by categories (Budget, Deluxe, Deluxe Plus, Premium, Premium Plus, Luxury) for each destination stay."
                 />
                 <AccommodationPanel
                   destinations={form.destinations}
-                  nightsCount={form.nights}
                   accommodationOptions={form.accommodationOptions}
-                  value={form.accommodationOptions}
+                  selectedCategory={form.accommodationOptions?.[selectedOptIdx]?.category || "Deluxe Plus"}
+                  onSelectOptionIndex={(idx) => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: idx } })}
                   onChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
               </div>
@@ -661,16 +687,16 @@ export default function EditPackagePage() {
                   description="Review costs and configure profit margins and per-person rates."
                 />
                 <PricingPanel
+                  pricing={form.pricing}
+                  value={form.pricing}
+                  onChange={(pricing) => updateForm({ pricing })}
+                  onAccommodationOptionsChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                   accommodationOptions={form.accommodationOptions}
                   vehiclePeriods={form.vehiclePeriods}
                   vehicles={form.vehicles}
                   vehicle={form.vehicle}
                   vehicleTotal={vehicleTotal}
                   vehiclePrice={vehicleTotal}
-                  pricing={form.pricing}
-                  value={form.pricing}
-                  onChange={(pricing) => updateForm({ pricing })}
-                  onAccommodationOptionsChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
               </div>
             )}
@@ -808,10 +834,31 @@ export default function EditPackagePage() {
 
               {/* Cost breakdown */}
               <div className="space-y-3 pt-3 border-t border-slate-800 text-[13px]">
-                <div className="flex justify-between text-slate-300">
-                  <span>Accommodation ({form.accommodationOptions?.length || 0} Tiers)</span>
-                  <span className="font-bold text-white">₹{accommodationTotal.toLocaleString("en-IN")}</span>
-                </div>
+                {form.accommodationOptions?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Hotel ({form.accommodationOptions.length} Tiers)</span>
+                      <span className="font-bold text-violet-400">₹{accommodationTotal.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {form.accommodationOptions.map((opt, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: i } })}
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border transition-all ${
+                            i === selectedOptIdx
+                              ? "bg-violet-600 text-white border-violet-500 shadow-xs"
+                              : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                          }`}
+                        >
+                          {opt.label || `Option ${i + 1}`}
+                          {opt.category ? ` • ${opt.category}` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-300">
                   <span>Transport ({form.vehicles && form.vehicles.length > 0 ? `${form.vehicles.length} Cab(s)` : (form.vehicle?.vehicleType || "Vehicle")})</span>
                   <span className="font-bold text-white">₹{vehicleTotal.toLocaleString("en-IN")}</span>
@@ -840,19 +887,19 @@ export default function EditPackagePage() {
                   </span>
                 </div>
                 <p className="text-[24px] font-black text-emerald-400 leading-tight">
-                  ₹{(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
+                  ₹{displayFinalPrice.toLocaleString("en-IN")}
                 </p>
                 <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px]">
                   <div className="bg-white/5 rounded-xl p-2">
                     <p className="text-indigo-200 text-[10px] font-bold">Per Couple</p>
                     <p className="font-black text-[13px] text-white">
-                      ₹{(form.pricing?.perCouplePrice || (form.pricing?.finalPrice || 0)).toLocaleString("en-IN")}
+                      ₹{displayPerCouple.toLocaleString("en-IN")}
                     </p>
                   </div>
                   <div className="bg-white/5 rounded-xl p-2">
-                    <p className="text-indigo-200 text-[10px] font-bold">Per Person ({form.pricing?.numberOfPersons || 2} Pax)</p>
+                    <p className="text-indigo-200 text-[10px] font-bold">Per Person ({numPax} Pax)</p>
                     <p className="font-black text-[13px] text-white">
-                      ₹{(form.pricing?.perPersonPrice || Math.round((form.pricing?.finalPrice || 0) / 2)).toLocaleString("en-IN")}
+                      ₹{displayPerPerson.toLocaleString("en-IN")}
                     </p>
                   </div>
                 </div>
@@ -866,7 +913,7 @@ export default function EditPackagePage() {
                     const isDone =
                       (sec.id === "basics" && form.title && form.destinations.length > 0) ||
                       (sec.id === "itinerary" && form.itinerary.length > 0) ||
-                      (sec.id === "accommodation" && form.accommodationOptions.length > 0) ||
+                      (sec.id === "accommodation" && form.accommodationOptions?.length > 0) ||
                       (sec.id === "vehicle" && form.vehicle?.vehiclePrice > 0) ||
                       (sec.id === "pricing" && form.pricing?.finalPrice > 0) ||
                       (sec.id === "instructions" && form.instructions.length > 0) ||

@@ -172,7 +172,25 @@ export default function HotelPreviewModal({
               <div>
                 <h2 className="text-[22px] font-black text-gray-900 leading-tight">{hotel.name}</h2>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-bold capitalize">
+                  {hotel.category && (() => {
+                    const catMap = {
+                      budget: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                      deluxe: "bg-sky-50 text-sky-700 border-sky-200",
+                      "deluxe plus": "bg-blue-50 text-blue-700 border-blue-200",
+                      deluxe_plus: "bg-blue-50 text-blue-700 border-blue-200",
+                      premium: "bg-indigo-50 text-indigo-700 border-indigo-200",
+                      "premium plus": "bg-purple-50 text-purple-700 border-purple-200",
+                      premium_plus: "bg-purple-50 text-purple-700 border-purple-200",
+                      luxury: "bg-amber-50 text-amber-800 border-amber-200",
+                    };
+                    const color = catMap[String(hotel.category).toLowerCase().trim()] || "bg-indigo-50 text-indigo-700 border-indigo-200";
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${color}`}>
+                        {hotel.category}
+                      </span>
+                    );
+                  })()}
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold capitalize">
                     {hotel.type}
                   </span>
                   {cityName && (

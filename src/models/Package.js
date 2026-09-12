@@ -43,7 +43,6 @@ const DestinationSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// ── Single night entry inside an accommodation option ─────────────────────────
 const AccommodationNightSchema = new mongoose.Schema(
   {
     night: { type: Number, required: true, min: 1 },
@@ -51,30 +50,39 @@ const AccommodationNightSchema = new mongoose.Schema(
     cityName: { type: String, trim: true, default: "" },
     hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
     hotelName: { type: String, trim: true, default: "" },
+    category: {
+      type: String,
+      enum: ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
+      default: "Deluxe",
+    },
     roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", default: null },
     roomType: { type: String, trim: true, default: "" },
-    mealPlan: {
-      type: String,
-      enum: ["EP", "CP", "MAP", "AP", ""],
-      default: "CP",
-    },
+    mealPlan: { type: String, enum: ["EP", "CP", "MAP", "AP", ""], default: "CP" },
+    availableMealPlans: [{ type: String }],
+    mealPrices: { type: Map, of: Number },
     starRating: { type: Number, min: 1, max: 5, default: null },
     pricePerNight: { type: Number, min: 0, default: 0 },
-    availableMealPlans: { type: [String], default: undefined },
-    mealPrices: { type: mongoose.Schema.Types.Mixed, default: undefined },
     notes: { type: String, trim: true, default: "" },
   },
   { _id: false }
 );
 
-// ── One accommodation option (e.g. Premium, Standard, Budget) ─────────────────
 const AccommodationOptionSchema = new mongoose.Schema(
   {
-    label: { type: String, trim: true, default: "Option 1" },
+    label: { type: String, required: true, trim: true, default: "Option 1 (Deluxe)" },
+    category: {
+      type: String,
+      enum: ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
+      default: "Deluxe",
+    },
     nights: { type: [AccommodationNightSchema], default: [] },
     totalPrice: { type: Number, min: 0, default: 0 },
     marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
     margin: { type: Number, default: 0 },
+    gstPercentage: { type: Number, default: 5 },
+    calculatedPrice: { type: Number, default: 0 },
+    perPersonPrice: { type: Number, default: 0 },
+    perCouplePrice: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -200,7 +208,7 @@ const PackageSchema = new mongoose.Schema(
     },
     highlights: [{ type: String, trim: true }],
     itinerary: [ItineraryDaySchema],
-    // Multi-option accommodation (Premium, Standard, Budget etc.)
+    // Accommodation Options (hotel categories wise)
     accommodationOptions: {
       type: [AccommodationOptionSchema],
       default: [],

@@ -1,97 +1,201 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Building2, Star, Copy, Loader2, Plus, Trash2, Layers, Calendar, Search, X, Check, MapPin } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  Building2, Star, Loader2, MapPin, Search, Sparkles, BedDouble,
+  Table, LayoutGrid, CheckCircle2, ChevronRight, X, Info, IndianRupee,
+  Utensils, Calculator, Check, MousePointerClick, Shield
+} from "lucide-react";
 
-const MEAL_PLANS = [
-  { value: "", label: "Select meal plan" },
-  { value: "EP", label: "EP — Room Only" },
-  { value: "CP", label: "CP — Bed & Breakfast" },
-  { value: "MAP", label: "MAP — Breakfast + Dinner" },
-  { value: "AP", label: "AP — All Meals" },
+export const HOTEL_CATEGORIES = [
+  "Budget",
+  "Deluxe",
+  "Deluxe Plus",
+  "Premium",
+  "Premium Plus",
+  "Luxury",
 ];
 
+export const CATEGORY_THEMES = {
+  Budget: {
+    name: "Budget",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    headerBg: "bg-emerald-600 text-white",
+    cardBorder: "border-emerald-200 hover:border-emerald-400",
+    accentText: "text-emerald-700",
+    chipBg: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    priceBg: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    starDefault: "2★ - 3★",
+  },
+  Deluxe: {
+    name: "Deluxe",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    headerBg: "bg-sky-600 text-white",
+    cardBorder: "border-sky-200 hover:border-sky-400",
+    accentText: "text-sky-700",
+    chipBg: "bg-sky-50 text-sky-800 border-sky-200",
+    priceBg: "bg-sky-50 text-sky-800 border-sky-200",
+    starDefault: "3★ - 4★",
+  },
+  "Deluxe Plus": {
+    name: "Deluxe Plus",
+    badge: "bg-teal-50 text-teal-700 border-teal-200",
+    headerBg: "bg-teal-600 text-white",
+    cardBorder: "border-teal-200 hover:border-teal-400",
+    accentText: "text-teal-700",
+    chipBg: "bg-teal-50 text-teal-800 border-teal-200",
+    priceBg: "bg-teal-50 text-teal-800 border-teal-200",
+    starDefault: "4★",
+  },
+  Premium: {
+    name: "Premium",
+    badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    headerBg: "bg-indigo-600 text-white",
+    cardBorder: "border-indigo-200 hover:border-indigo-400",
+    accentText: "text-indigo-700",
+    chipBg: "bg-indigo-50 text-indigo-800 border-indigo-200",
+    priceBg: "bg-indigo-50 text-indigo-800 border-indigo-200",
+    starDefault: "4★ - 5★",
+  },
+  "Premium Plus": {
+    name: "Premium Plus",
+    badge: "bg-purple-50 text-purple-700 border-purple-200",
+    headerBg: "bg-purple-600 text-white",
+    cardBorder: "border-purple-200 hover:border-purple-400",
+    accentText: "text-purple-700",
+    chipBg: "bg-purple-50 text-purple-800 border-purple-200",
+    priceBg: "bg-purple-50 text-purple-800 border-purple-200",
+    starDefault: "5★",
+  },
+  Luxury: {
+    name: "Luxury",
+    badge: "bg-amber-50 text-amber-800 border-amber-200",
+    headerBg: "bg-gradient-to-r from-amber-500 to-orange-600 text-white",
+    cardBorder: "border-amber-200 hover:border-amber-400",
+    accentText: "text-amber-800",
+    chipBg: "bg-amber-50 text-amber-900 border-amber-200",
+    priceBg: "bg-amber-50 text-amber-900 border-amber-200",
+    starDefault: "5★ Luxury",
+  },
+};
+
+export function getCategoryBadgeClass(category) {
+  if (!category) return "bg-slate-100 text-slate-700 border-slate-200";
+  const normalized = category.charAt(0).toUpperCase() + category.slice(1);
+  return CATEGORY_THEMES[category]?.badge || CATEGORY_THEMES[normalized]?.badge || "bg-slate-100 text-slate-700 border-slate-200";
+}
+
 /**
- * AccommodationPanel — Continuous Stay Leg Accommodation Builder
- * Groups continuous nights in the same city into ONE single hotel stay card.
+ * Extract all room types & all meal plans (EP, CP, MAP, AP) with their exact rates.
+ */
+export function getHotelAllPrices(hotel, rooms = []) {
+  if (!rooms || rooms.length === 0) {
+    return {
+      hasPrice: false,
+      minPrice: 0,
+      roomOptions: [],
+    };
+  }
+
+  let overallMinPrice = Infinity;
+  const roomOptions = [];
+
+  rooms.forEach((r) => {
+    const mealPrices = {
+      EP: 0,
+      CP: 0,
+      MAP: 0,
+      AP: 0,
+    };
+
+    if (r.basePrice && Number(r.basePrice) > 0) {
+      mealPrices.CP = Number(r.basePrice);
+    }
+
+    (r.seasonalPricing || []).forEach((season) => {
+      (season.meals || []).forEach((m) => {
+        if (m.plan && Number(m.price) > 0) {
+          mealPrices[m.plan] = Number(m.price);
+        }
+      });
+    });
+
+    const validPrices = Object.values(mealPrices).filter((p) => p > 0);
+    const roomMin = validPrices.length > 0 ? Math.min(...validPrices) : (r.basePrice || 0);
+
+    if (roomMin > 0 && roomMin < overallMinPrice) {
+      overallMinPrice = roomMin;
+    }
+
+    roomOptions.push({
+      id: r._id,
+      name: r.roomType || "Standard Room",
+      minPrice: roomMin,
+      meals: mealPrices,
+    });
+  });
+
+  const finalMin = overallMinPrice === Infinity ? (rooms[0]?.basePrice || 0) : overallMinPrice;
+
+  return {
+    hasPrice: finalMin > 0,
+    minPrice: finalMin,
+    roomOptions,
+  };
+}
+
+/**
+ * AccommodationPanel — Shows All Hotel Prices, Room Types, Meal Plans (EP, CP, MAP, AP),
+ * Live Interactive Rate Calculator, while preserving Price-Neutral database saving.
  */
 export default function AccommodationPanel({
   destinations = [],
-  accommodationOptions: propOptions = [],
-  options: optionsProp = [],
-  value = [],
+  accommodationOptions = [],
+  selectedCategory,
+  onSelectOptionIndex,
   onChange,
 }) {
-  const accommodationOptions = propOptions.length > 0 ? propOptions : (optionsProp.length > 0 ? optionsProp : value);
-  const [activeOptIdx, setActiveOptIdx] = useState(0);
+  const [viewMode, setViewMode] = useState("matrix"); // "matrix" | "tabs"
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState(selectedCategory || "Deluxe Plus");
+  const [searchQuery, setSearchQuery] = useState("");
   const [hotelsMap, setHotelsMap] = useState({});
   const [roomsMap, setRoomsMap] = useState({});
   const [loadingHotels, setLoadingHotels] = useState({});
   const [loadingRooms, setLoadingRooms] = useState({});
-  const [selectedHotelLeg, setSelectedHotelLeg] = useState(null);
-  const [hotelSearchQuery, setHotelSearchQuery] = useState("");
-  const [selectedStarFilter, setSelectedStarFilter] = useState("ALL");
+
+  // Active selections for live calculation (per category, per destination leg)
+  const [liveSelections, setLiveSelections] = useState({});
+
+  // Sync with prop if selectedCategory changes externally
+  useEffect(() => {
+    if (selectedCategory && selectedCategory !== selectedCategoryTab) {
+      setSelectedCategoryTab(selectedCategory);
+    }
+  }, [selectedCategory]);
 
   // ── Build Stay Legs from destinations ──
-  // Each destination entry represents a continuous stay in that city.
   let nightCounter = 1;
-  const stayLegs = destinations.map((dest, legIdx) => {
-    const nightsCount = Math.max(1, parseInt(dest.nights, 10) || 1);
-    const startNight = nightCounter;
-    const endNight = startNight + nightsCount - 1;
-    const nightNumbers = Array.from({ length: nightsCount }, (_, i) => startNight + i);
-    nightCounter = endNight + 1;
+  const stayLegs = useMemo(() => {
+    return destinations.map((dest, legIdx) => {
+      const nightsCount = Math.max(1, parseInt(dest.nights, 10) || 1);
+      const startNight = nightCounter;
+      const endNight = startNight + nightsCount - 1;
+      const nightNumbers = Array.from({ length: nightsCount }, (_, i) => startNight + i);
+      nightCounter = endNight + 1;
 
-    return {
-      legIdx,
-      cityId: dest.cityId,
-      cityName: dest.cityName || "Destination",
-      nightsCount,
-      startNight,
-      endNight,
-      nightNumbers,
-    };
-  });
-
-  // Build full list of individual night slots for schema compatibility
-  const nightSlots = [];
-  stayLegs.forEach((leg) => {
-    leg.nightNumbers.forEach((n) => {
-      nightSlots.push({
-        night: n,
-        cityId: leg.cityId,
-        cityName: leg.cityName,
-      });
+      return {
+        legIdx,
+        cityId: dest.cityId,
+        cityName: dest.cityName || "Destination",
+        nightsCount,
+        startNight,
+        endNight,
+        nightNumbers,
+      };
     });
-  });
-
-  // Initialize default option if empty
-  useEffect(() => {
-    if (destinations.length > 0 && accommodationOptions.length === 0) {
-      const defaultNights = nightSlots.map((slot) => ({
-        night: slot.night,
-        cityId: slot.cityId,
-        cityName: slot.cityName,
-        hotelId: "",
-        hotelName: "",
-        roomId: "",
-        roomType: "",
-        mealPlan: "",
-        starRating: null,
-        pricePerNight: 0,
-        notes: "",
-      }));
-      onChange([
-        {
-          label: "Option 1 (Premium)",
-          nights: defaultNights,
-          totalPrice: 0,
-        },
-      ]);
-    }
   }, [destinations]);
 
-  // Fetch hotels for cities
+  // Fetch hotels for each destination city
   const fetchHotels = useCallback(async (cityId) => {
     if (!cityId || hotelsMap[cityId]) return;
     setLoadingHotels((prev) => ({ ...prev, [cityId]: true }));
@@ -106,7 +210,7 @@ export default function AccommodationPanel({
     }
   }, [hotelsMap]);
 
-  // Fetch rooms for hotels
+  // Fetch rooms for all loaded hotels
   const fetchRooms = useCallback(async (hotelId) => {
     if (!hotelId || roomsMap[hotelId]) return;
     setLoadingRooms((prev) => ({ ...prev, [hotelId]: true }));
@@ -127,770 +231,853 @@ export default function AccommodationPanel({
     });
   }, [destinations, fetchHotels]);
 
+  // Once hotels are fetched, fetch their rooms
   useEffect(() => {
-    accommodationOptions.forEach((opt) => {
-      (opt.nights || []).forEach((n) => {
-        if (n.hotelId) fetchRooms(n.hotelId);
+    Object.values(hotelsMap).forEach((hotelList) => {
+      (hotelList || []).forEach((h) => {
+        if (h._id && !roomsMap[h._id]) {
+          fetchRooms(h._id);
+        }
       });
     });
-  }, [accommodationOptions, fetchRooms]);
+  }, [hotelsMap, fetchRooms, roomsMap]);
+
+  // Synchronize category options to parent form state with live calculation rates
+  useEffect(() => {
+    if (destinations.length === 0) return;
+
+    const categoryOptions = HOTEL_CATEGORIES.map((catName) => {
+      const nights = [];
+
+      stayLegs.forEach((leg) => {
+        const cityHotels = hotelsMap[leg.cityId] || [];
+        const matchingHotels = cityHotels.filter(
+          (h) => h.category && h.category.toLowerCase() === catName.toLowerCase()
+        );
+
+        // Check if user already had a selected hotel for this category and leg
+        const existingOpt = accommodationOptions.find(
+          (o) => o.category?.toLowerCase() === catName.toLowerCase() || o.label === `${catName} Tier`
+        );
+        const existingNight = existingOpt?.nights?.find((n) => n.night === leg.startNight || leg.nightNumbers.includes(n.night));
+        const activeHotelId = existingNight?.hotelId;
+        const selectedHotel = matchingHotels.find((h) => h._id === activeHotelId) || matchingHotels[0] || cityHotels[0];
+
+        const hotelRooms = selectedHotel ? (roomsMap[selectedHotel._id] || []) : [];
+        const pricing = selectedHotel ? getHotelAllPrices(selectedHotel, hotelRooms) : null;
+        
+        // Match existing selected room if any, else default room
+        const activeRoomId = existingNight?.roomId;
+        const selectedRoom = (pricing?.roomOptions || []).find((r) => r.id === activeRoomId) || pricing?.roomOptions?.[0];
+        
+        // Match existing meal plan if any, else default plan
+        const activeMealPlan = existingNight?.mealPlan || "CP";
+        const roomMealPrices = selectedRoom?.meals || {};
+        let selectedRate = Number(existingNight?.pricePerNight) || 0;
+        
+        if (selectedRate === 0 && selectedRoom) {
+          selectedRate = roomMealPrices[activeMealPlan] || selectedRoom.minPrice || pricing?.minPrice || 0;
+        }
+
+        leg.nightNumbers.forEach((nightNum) => {
+          nights.push({
+            night: nightNum,
+            cityId: leg.cityId,
+            cityName: leg.cityName,
+            hotelId: selectedHotel ? selectedHotel._id : null,
+            hotelName: selectedHotel ? selectedHotel.name : `${catName} Hotel`,
+            category: catName,
+            roomId: selectedRoom?.id || hotelRooms[0]?._id || null,
+            roomType: selectedRoom?.name || hotelRooms[0]?.roomType || "Standard Room",
+            mealPlan: activeMealPlan,
+            starRating: selectedHotel ? selectedHotel.starRating : null,
+            pricePerNight: selectedRate, // Live preview rate
+            notes: `${catName} Category stay in ${leg.cityName}`,
+          });
+        });
+      });
+
+      const optTotal = nights.reduce((s, n) => s + (n.pricePerNight || 0), 0);
+
+      return {
+        label: `${catName} Tier`,
+        category: catName,
+        nights,
+        totalPrice: optTotal,
+        marginType: "absolute",
+        margin: 0,
+      };
+    });
+
+    if (typeof onChange === "function") {
+      const merged = categoryOptions.map((newOpt) => {
+        const existing = accommodationOptions.find(
+          (o) => o.category?.toLowerCase() === newOpt.category.toLowerCase() || o.label === newOpt.label
+        );
+        if (existing && existing.nights && existing.nights.length === newOpt.nights.length) {
+          return {
+            ...newOpt,
+            margin: existing.margin ?? newOpt.margin,
+            marginType: existing.marginType ?? newOpt.marginType,
+          };
+        }
+        return newOpt;
+      });
+
+      const isDiff = JSON.stringify(merged) !== JSON.stringify(accommodationOptions);
+      if (isDiff) {
+        onChange(merged);
+      }
+    }
+  }, [destinations, stayLegs, hotelsMap, roomsMap]);
+
+  // Handle switching category tab & notify parent Live Preview
+  const handleSelectCategory = useCallback(
+    (cat) => {
+      setSelectedCategoryTab(cat);
+      const catIdx = HOTEL_CATEGORIES.findIndex((c) => c.toLowerCase() === cat.toLowerCase());
+      if (catIdx !== -1 && typeof onSelectOptionIndex === "function") {
+        onSelectOptionIndex(catIdx);
+      }
+    },
+    [onSelectOptionIndex]
+  );
+
+  // Group hotels by category and destination
+  const hotelsData = useMemo(() => {
+    const data = {};
+    HOTEL_CATEGORIES.forEach((cat) => {
+      data[cat] = {};
+      stayLegs.forEach((leg) => {
+        const cityHotels = hotelsMap[leg.cityId] || [];
+        const filtered = cityHotels.filter((h) => {
+          const matchCat = h.category && h.category.toLowerCase() === cat.toLowerCase();
+          const matchSearch =
+            !searchQuery.trim() ||
+            h.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            h.address?.toLowerCase().includes(searchQuery.toLowerCase());
+          return matchCat && matchSearch;
+        });
+        data[cat][leg.cityName] = {
+          leg,
+          hotels: filtered,
+        };
+      });
+    });
+    return data;
+  }, [hotelsMap, stayLegs, searchQuery]);
+
+  // Handle user clicking on a hotel / room / meal plan to live calculate prices
+  const handleSelectHotelForLiveCalc = (cat, leg, hotel, room, mealPlan, rate) => {
+    const key = `${cat}_${leg.legIdx}`;
+    const selectedRate = Number(rate) || 0;
+    const rId = room?.id || room?._id || null;
+    const rType = room?.name || "Standard Room";
+    const mPlan = mealPlan || "CP";
+
+    // Switch active category tab and notify parent Live Preview
+    handleSelectCategory(cat);
+
+    const catIdx = HOTEL_CATEGORIES.findIndex((c) => c.toLowerCase() === cat.toLowerCase());
+
+    setLiveSelections((prev) => ({
+      ...prev,
+      [key]: {
+        cat,
+        cityName: leg.cityName,
+        nightsCount: leg.nightsCount,
+        hotelId: hotel._id,
+        hotelName: hotel.name,
+        roomId: rId,
+        roomType: rType,
+        mealPlan: mPlan,
+        pricePerNight: selectedRate,
+        legTotal: selectedRate * leg.nightsCount,
+      },
+    }));
+
+    // Update parent accommodation options in client state for Live Preview
+    if (typeof onChange === "function") {
+      const baseOptions = (Array.isArray(accommodationOptions) && accommodationOptions.length > 0)
+        ? accommodationOptions
+        : HOTEL_CATEGORIES.map((catName) => ({
+            label: `${catName} Tier`,
+            category: catName,
+            nights: [],
+            totalPrice: 0,
+            marginType: "absolute",
+            margin: 0,
+          }));
+
+      const updatedOptions = baseOptions.map((opt, idx) => {
+        if (
+          opt.category?.toLowerCase() === cat.toLowerCase() ||
+          opt.label?.toLowerCase().includes(cat.toLowerCase()) ||
+          idx === catIdx
+        ) {
+          let updatedNights = Array.isArray(opt.nights) && opt.nights.length > 0 ? [...opt.nights] : [];
+          
+          stayLegs.forEach((l) => {
+            l.nightNumbers.forEach((nightNum) => {
+              const nightIdx = updatedNights.findIndex((n) => n.night === nightNum);
+              const isThisLeg = l.legIdx === leg.legIdx;
+
+              if (nightIdx !== -1) {
+                if (isThisLeg) {
+                  updatedNights[nightIdx] = {
+                    ...updatedNights[nightIdx],
+                    hotelId: hotel._id,
+                    hotelName: hotel.name,
+                    roomId: rId,
+                    roomType: rType,
+                    mealPlan: mPlan,
+                    starRating: hotel.starRating || null,
+                    pricePerNight: selectedRate,
+                  };
+                }
+              } else {
+                updatedNights.push({
+                  night: nightNum,
+                  cityId: l.cityId,
+                  cityName: l.cityName,
+                  hotelId: isThisLeg ? hotel._id : null,
+                  hotelName: isThisLeg ? hotel.name : `${cat} Hotel`,
+                  category: cat,
+                  roomId: isThisLeg ? rId : null,
+                  roomType: isThisLeg ? rType : "Standard Room",
+                  mealPlan: isThisLeg ? mPlan : "CP",
+                  starRating: isThisLeg ? (hotel.starRating || null) : null,
+                  pricePerNight: isThisLeg ? selectedRate : 0,
+                  notes: `${cat} Category stay in ${l.cityName}`,
+                });
+              }
+            });
+          });
+
+          const optTotal = updatedNights.reduce((s, n) => s + (Number(n.pricePerNight) || 0), 0);
+          return {
+            ...opt,
+            category: cat,
+            nights: updatedNights,
+            totalPrice: optTotal,
+          };
+        }
+        return opt;
+      });
+      onChange(updatedOptions);
+    }
+  };
+
+  // Calculate live stay total for the active category
+  const activeCategoryLiveTotal = useMemo(() => {
+    let total = 0;
+    stayLegs.forEach((leg) => {
+      const key = `${selectedCategoryTab}_${leg.legIdx}`;
+      const selection = liveSelections[key];
+      if (selection) {
+        total += selection.legTotal;
+      } else {
+        const cityHotels = hotelsData[selectedCategoryTab]?.[leg.cityName]?.hotels || [];
+        if (cityHotels.length > 0) {
+          const first = cityHotels[0];
+          const rooms = roomsMap[first._id] || [];
+          const pricing = getHotelAllPrices(first, rooms);
+          total += (pricing.minPrice || 0) * leg.nightsCount;
+        }
+      }
+    });
+    return total;
+  }, [selectedCategoryTab, stayLegs, liveSelections, hotelsData, roomsMap]);
+
+  // Category stats for headers (respects liveSelections when chosen)
+  const categoryStats = useMemo(() => {
+    const stats = {};
+    HOTEL_CATEGORIES.forEach((cat) => {
+      let hotelCount = 0;
+      let estTotalCost = 0;
+
+      stayLegs.forEach((leg) => {
+        const cityHotels = hotelsMap[leg.cityId] || [];
+        const match = cityHotels.filter(
+          (h) => h.category && h.category.toLowerCase() === cat.toLowerCase()
+        );
+        hotelCount += match.length;
+
+        const key = `${cat}_${leg.legIdx}`;
+        const selection = liveSelections[key];
+        if (selection) {
+          estTotalCost += selection.legTotal;
+        } else if (match.length > 0) {
+          const first = match[0];
+          const rooms = roomsMap[first._id] || [];
+          const pricing = getHotelAllPrices(first, rooms);
+          estTotalCost += (pricing.minPrice || 0) * leg.nightsCount;
+        }
+      });
+
+      stats[cat] = { hotelCount, estTotalCost };
+    });
+    return stats;
+  }, [hotelsMap, roomsMap, stayLegs, liveSelections]);
 
   if (destinations.length === 0 || !destinations.some((d) => d.cityId)) {
     return (
-      <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-8 text-center shadow-xs">
-        <Building2 className="w-9 h-9 text-amber-500 mx-auto mb-2" />
+      <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-8 text-center shadow-xs">
+        <Building2 className="w-9 h-9 text-amber-600 mx-auto mb-2" />
         <p className="text-[16px] text-amber-950 font-black">
           No Route Destinations Added
         </p>
-        <p className="text-[13px] text-amber-700 mt-1 max-w-sm mx-auto font-medium">
-          Please add destination cities in the Basics step first. Hotels for each city stay will automatically be loaded here!
+        <p className="text-[13px] text-amber-700 mt-1 max-w-md mx-auto font-medium">
+          Please add destination cities in the <strong>Basics</strong> step first. Registered hotels will automatically organize across all hotel category tiers with all prices.
         </p>
       </div>
     );
   }
 
-  const currentOption = accommodationOptions[activeOptIdx] || accommodationOptions[0];
-
-  // Map individual night objects for current active option
-  const optionNights = nightSlots.map((slot) => {
-    const existing = currentOption?.nights?.find((n) => n.night === slot.night);
-    return (
-      existing || {
-        night: slot.night,
-        cityId: slot.cityId,
-        cityName: slot.cityName,
-        hotelId: "",
-        hotelName: "",
-        roomId: "",
-        roomType: "",
-        mealPlan: "",
-        starRating: null,
-        pricePerNight: 0,
-        notes: "",
-      }
-    );
-  });
-
-  function updateActiveOptionNights(updatedNights) {
-    const total = updatedNights.reduce((s, n) => s + (n.pricePerNight || 0), 0);
-    const updatedOptions = accommodationOptions.map((opt, i) =>
-      i === activeOptIdx
-        ? { ...opt, nights: updatedNights, totalPrice: total }
-        : opt
-    );
-    onChange(updatedOptions);
-  }
-
-  function addOption() {
-    const newIdx = accommodationOptions.length;
-    const defaultNights = nightSlots.map((slot) => ({
-      night: slot.night,
-      cityId: slot.cityId,
-      cityName: slot.cityName,
-      hotelId: "",
-      hotelName: "",
-      roomId: "",
-      roomType: "",
-      mealPlan: "",
-      starRating: null,
-      pricePerNight: 0,
-      notes: "",
-    }));
-
-    const optionLabel =
-      newIdx === 1 ? "Option 2 (Deluxe)" : newIdx === 2 ? "Option 3 (Standard)" : `Option ${newIdx + 1}`;
-    onChange([
-      ...accommodationOptions,
-      {
-        label: optionLabel,
-        nights: defaultNights,
-        totalPrice: 0,
-        marginType: "absolute",
-        margin: 0,
-      },
-    ]);
-    setActiveOptIdx(newIdx);
-  }
-
-  function removeOption(idx) {
-    if (accommodationOptions.length <= 1) return;
-    const updated = accommodationOptions.filter((_, i) => i !== idx);
-    onChange(updated);
-    if (activeOptIdx >= updated.length) {
-      setActiveOptIdx(updated.length - 1);
-    }
-  }
-
-  function updateOptionLabel(idx, label) {
-    const updated = accommodationOptions.map((opt, i) =>
-      i === idx ? { ...opt, label } : opt
-    );
-    onChange(updated);
-  }
-
-  // Helper to update all nights in a continuous stay leg
-  function updateLegFields(leg, patch) {
-    const updatedNights = optionNights.map((n) => {
-      if (leg.nightNumbers.includes(n.night)) {
-        return { ...n, ...patch };
-      }
-      return n;
-    });
-    updateActiveOptionNights(updatedNights);
-  }
-
-  const openHotelDialog = (leg) => {
-    fetchHotels(leg.cityId);
-    setHotelSearchQuery("");
-    setSelectedStarFilter("ALL");
-    setSelectedHotelLeg(leg);
-  };
-
-  function handleLegHotelChange(leg, hotelId) {
-    const hotels = hotelsMap[leg.cityId] || [];
-    const hotel = hotels.find((h) => h._id === hotelId);
-
-    updateLegFields(leg, {
-      hotelId,
-      hotelName: hotel ? hotel.name : "",
-      roomId: "",
-      roomType: "",
-      mealPlan: "",
-      starRating: hotel ? hotel.starRating : null,
-      pricePerNight: 0,
-    });
-    if (hotelId) fetchRooms(hotelId);
-  }
-
-  function handleLegRoomChange(leg, roomId, primaryNight) {
-    const rooms = roomsMap[primaryNight.hotelId] || [];
-    const room = rooms.find((r) => r._id === roomId);
-
-    const mealPrices = {};
-    if (room) {
-      (room.seasonalPricing || []).forEach((season) => {
-        (season.meals || []).forEach((m) => {
-          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
-            mealPrices[m.plan] = Number(m.price);
-          }
-        });
-      });
-    }
-
-    const availableMealPlans = Object.keys(mealPrices);
-    const defaultMealPlan = availableMealPlans.includes("CP")
-      ? "CP"
-      : availableMealPlans[0] || "";
-    const defaultPrice = mealPrices[defaultMealPlan] || (room ? room.basePrice : 0) || 0;
-
-    updateLegFields(leg, {
-      roomId,
-      roomType: room ? room.roomType : "",
-      mealPlan: defaultMealPlan,
-      availableMealPlans: availableMealPlans.length > 0 ? availableMealPlans : undefined,
-      mealPrices: Object.keys(mealPrices).length > 0 ? mealPrices : undefined,
-      pricePerNight: defaultPrice,
-    });
-  }
-
-  function handleLegMealPlanChange(leg, mealPlan, primaryNight) {
-    const rooms = roomsMap[primaryNight.hotelId] || [];
-    const room = rooms.find((r) => r._id === primaryNight.roomId);
-    let price = 0;
-
-    const mealPrices = primaryNight.mealPrices || {};
-    if (room && Object.keys(mealPrices).length === 0) {
-      (room.seasonalPricing || []).forEach((season) => {
-        (season.meals || []).forEach((m) => {
-          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
-            mealPrices[m.plan] = Number(m.price);
-          }
-        });
-      });
-    }
-
-    if (mealPrices[mealPlan]) {
-      price = Number(mealPrices[mealPlan]);
-    } else if (room && mealPlan) {
-      for (const season of room.seasonalPricing || []) {
-        const meal = (season.meals || []).find((m) => m.plan === mealPlan);
-        if (meal && meal.price > 0) {
-          price = meal.price;
-          break;
-        }
-      }
-      if (price === 0 && room.basePrice) {
-        price = room.basePrice;
-      }
-    }
-
-    updateLegFields(leg, {
-      mealPlan,
-      mealPrices: Object.keys(mealPrices).length > 0 ? mealPrices : undefined,
-      pricePerNight: price,
-    });
-  }
-
-  function copyHotelToSameCityLegs(sourceLeg) {
-    const primaryNight = optionNights.find((n) => n.night === sourceLeg.startNight);
-    if (!primaryNight || !primaryNight.hotelId) return;
-
-    const updated = optionNights.map((n) => {
-      if (n.cityId === sourceLeg.cityId) {
-        return {
-          ...n,
-          hotelId: primaryNight.hotelId,
-          hotelName: primaryNight.hotelName,
-          roomId: primaryNight.roomId,
-          roomType: primaryNight.roomType,
-          mealPlan: primaryNight.mealPlan,
-          availableMealPlans: primaryNight.availableMealPlans,
-          mealPrices: primaryNight.mealPrices,
-          starRating: primaryNight.starRating,
-          pricePerNight: primaryNight.pricePerNight,
-        };
-      }
-      return n;
-    });
-
-    updateActiveOptionNights(updated);
-  }
-
-  const optionTotal = optionNights.reduce((s, n) => s + (n.pricePerNight || 0), 0);
-
-  const selectCls =
-    "w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-[13.5px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all appearance-none shadow-xs";
-
-  const inputCls =
-    "w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-[13.5px] font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all shadow-xs";
-
   return (
-    <div className="space-y-6">
-      {/* Category Option Tabs Bar */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-4.5 shadow-xs space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[12px] font-black uppercase tracking-wider text-slate-400">
-            Accommodation Tier Options
-          </span>
-          <button
-            type="button"
-            onClick={addOption}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-[12.5px] font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all shadow-xs"
-          >
-            <Plus className="w-4 h-4" /> Add Accommodation Option
-          </button>
+    <div className="space-y-5">
+      {/* ── Top Bar: Route Summary, Search & View Switcher ── */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+            <h3 className="text-[16px] font-black text-slate-900">
+              Accommodation All Hotel Rates
+            </h3>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              All Meal Prices (EP / CP / MAP / AP)
+            </span>
+          </div>
+          <p className="text-[12px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+            <MapPin className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+            {stayLegs.map((l) => `${l.cityName} (${l.nightsCount}N)`).join(" → ")}
+            <span className="text-slate-400">• Click any hotel or meal plan to live calculate rates</span>
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
-          {accommodationOptions.map((opt, idx) => {
-            const isActive = idx === activeOptIdx;
-            const optTotal = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
-
-            return (
-              <div
-                key={idx}
-                className={`flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 border-indigo-600 text-white shadow-md shadow-indigo-500/25 font-bold scale-[1.02]"
-                    : "bg-slate-50 border-slate-200/80 text-slate-800 hover:bg-white hover:border-slate-300"
-                }`}
-                onClick={() => setActiveOptIdx(idx)}
+        {/* Controls: Search + View Switcher */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap sm:flex-nowrap">
+          <div className="relative flex-1 sm:w-60">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search hotel name or meal…"
+              className="w-full pl-9 pr-8 py-2 rounded-2xl border border-slate-200 bg-slate-50 text-[12.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <Layers className={`w-4 h-4 ${isActive ? "text-indigo-200" : "text-slate-400"}`} />
-                <input
-                  type="text"
-                  value={opt.label}
-                  onChange={(e) => updateOptionLabel(idx, e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className={`text-[13.5px] font-extrabold bg-transparent focus:outline-none border-b ${
-                    isActive ? "border-indigo-300 text-white" : "border-transparent text-slate-900"
-                  }`}
-                  style={{ width: `${Math.max(opt.label.length, 8)}ch` }}
-                />
-                <span
-                  className={`text-[11.5px] font-black px-2.5 py-1 rounded-full ${
-                    isActive ? "bg-white/20 text-white" : "bg-white text-slate-800 shadow-xs"
-                  }`}
-                >
-                  ₹{optTotal.toLocaleString("en-IN")}
-                </span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-                {accommodationOptions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeOption(idx);
-                    }}
-                    className={`p-1 rounded-lg transition-colors ${
-                      isActive ? "text-indigo-200 hover:text-white" : "text-slate-400 hover:text-rose-600"
-                    }`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => setViewMode("matrix")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-extrabold transition-all ${
+                viewMode === "matrix"
+                  ? "bg-white text-indigo-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>Matrix Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("tabs")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-extrabold transition-all ${
+                viewMode === "tabs"
+                  ? "bg-white text-indigo-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Category Tabs</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Continuous Stay Leg Cards ── */}
-      <div className="space-y-5">
-        {stayLegs.map((leg) => {
-          const primaryNight =
-            optionNights.find((n) => n.night === leg.startNight) || {};
-          const hotels = hotelsMap[leg.cityId] || [];
-          const rooms = roomsMap[primaryNight.hotelId] || [];
-          const isLoadingH = loadingHotels[leg.cityId];
-          const isLoadingR = loadingRooms[primaryNight.hotelId];
+      {/* ── Live Calculator Banner ── */}
+      <div className="p-4 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-indigo-900/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+            <Calculator className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[14.5px] font-black text-white">
+                Live Hotel Accommodation Calculator
+              </span>
+              <span className="text-[10.5px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                {selectedCategoryTab} Tier
+              </span>
+            </div>
+            <p className="text-[11.5px] text-slate-300 font-medium mt-0.5">
+              Click any hotel or meal plan (EP, CP, MAP, AP) to live calculate stay cost. <em>(Rates calculated dynamically & not saved in DB)</em>
+            </p>
+          </div>
+        </div>
 
-          const legTotalCost = (primaryNight.pricePerNight || 0) * leg.nightsCount;
+        <div className="flex items-center gap-3 self-end sm:self-auto bg-white/10 px-4 py-2 rounded-2xl border border-white/15 backdrop-blur-xs">
+          <div className="text-right">
+            <p className="text-[9.5px] font-bold text-indigo-200 uppercase tracking-wider">Live Est. Accommodation Total</p>
+            <p className="text-[18px] font-black text-emerald-400">
+              {activeCategoryLiveTotal > 0 ? `₹${activeCategoryLiveTotal.toLocaleString("en-IN")}` : "₹0"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Category Tier Quick Tabs ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        {HOTEL_CATEGORIES.map((cat) => {
+          const theme = CATEGORY_THEMES[cat] || CATEGORY_THEMES.Deluxe;
+          const stat = categoryStats[cat] || { hotelCount: 0, estTotalCost: 0 };
+          const isSelectedTab = selectedCategoryTab === cat;
 
           return (
             <div
-              key={leg.legIdx}
-              className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs space-y-5"
+              key={cat}
+              onClick={() => handleSelectCategory(cat)}
+              className={`p-3.5 rounded-2xl border bg-white cursor-pointer transition-all ${
+                isSelectedTab
+                  ? "ring-2 ring-indigo-600 border-indigo-600 shadow-sm scale-102"
+                  : "border-slate-200/80 hover:border-indigo-300 shadow-2xs"
+              }`}
             >
-              {/* Card Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-[13px] font-black flex items-center justify-center shadow-xs">
-                    {leg.nightsCount > 1
-                      ? `N${leg.startNight}–${leg.endNight}`
-                      : `N${leg.startNight}`}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[16px] font-extrabold text-slate-900">
-                        {leg.cityName}
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-extrabold">
-                        {leg.nightsCount} {leg.nightsCount === 1 ? "Night Stay" : "Nights Stay (Continuous)"}
-                      </span>
-                    </div>
-                    <p className="text-[12.5px] text-slate-500 font-medium mt-0.5">
-                      {primaryNight.hotelName || `Select hotel for ${leg.cityName}`}
-                    </p>
-                  </div>
-                </div>
-
-                {primaryNight.hotelId && destinations.filter((d) => d.cityId === leg.cityId).length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => copyHotelToSameCityLegs(leg)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-all shadow-xs"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy to other {leg.cityName} stays
-                  </button>
-                )}
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${theme.badge}`}>
+                  {cat}
+                </span>
+                <span className="text-[10.5px] font-bold text-slate-400">
+                  {stat.hotelCount} {stat.hotelCount === 1 ? "Hotel" : "Hotels"}
+                </span>
               </div>
 
-              {/* Form Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Hotel */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Hotel ({leg.cityName})
-                  </label>
-                  {isLoadingH ? (
-                    <div className="flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 text-[12.5px] font-bold text-slate-500">
-                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> Loading hotels in {leg.cityName}…
-                    </div>
-                  ) : primaryNight.hotelId ? (
-                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-white transition-all shadow-2xs group">
-                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black flex-shrink-0 shadow-xs">
-                          <Building2 className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-[14px] font-extrabold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
-                              {primaryNight.hotelName || "Selected Hotel"}
-                            </h4>
-                            {primaryNight.starRating && (
-                              <span className="flex items-center text-amber-700 text-[10.5px] font-black bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                                <Star className="w-3 h-3 fill-amber-400 text-amber-400 mr-1" />
-                                {primaryNight.starRating}★
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 font-medium">Click change to pick another hotel</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openHotelDialog(leg)}
-                        className="px-3.5 py-2 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 group-hover:border-indigo-200 text-slate-700 group-hover:text-indigo-700 text-[11.5px] font-extrabold transition-all shadow-xs flex-shrink-0"
-                      >
-                        Change Hotel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openHotelDialog(leg)}
-                      className="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50 hover:border-indigo-300 text-indigo-700 font-extrabold text-[13px] flex items-center justify-center gap-2 transition-all shadow-2xs group"
-                    >
-                      <Building2 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
-                      <span>+ Select Hotel for {leg.cityName}</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Room Type */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Room Type
-                  </label>
-                  {isLoadingR ? (
-                    <div className="flex items-center gap-2 h-11 px-3 text-[12px] text-slate-400">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading room types…
-                    </div>
-                  ) : (
-                    <select
-                      value={primaryNight.roomId || ""}
-                      onChange={(e) => handleLegRoomChange(leg, e.target.value, primaryNight)}
-                      disabled={!primaryNight.hotelId}
-                      className={`${selectCls} ${!primaryNight.hotelId ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      <option value="">{primaryNight.hotelId ? "Select room type…" : "Select hotel first"}</option>
-                      {rooms.map((r) => (
-                        <option key={r._id} value={r._id}>
-                          {r.roomType} (Max: {r.maxOccupancy} pax)
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                {/* Meal Plan */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Meal Plan
-                  </label>
-                      <select
-                        value={primaryNight.mealPlan || ""}
-                        onChange={(e) => handleLegMealPlanChange(leg, e.target.value, primaryNight)}
-                        disabled={!primaryNight.roomId}
-                        className={`${selectCls} ${!primaryNight.roomId ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                    {MEAL_PLANS.map((mp) => (
-                          <option key={mp.value} value={mp.value}>
-                            {mp.label}
-                          </option>
-                        ))}
-                      </select>
-                </div>
-
-                {/* Star Rating */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Star Rating
-                  </label>
-                  <div className="flex gap-2 h-12 items-center bg-slate-50/70 px-4 rounded-2xl border border-slate-200/90">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-4.5 h-4.5 transition-colors ${
-                          (primaryNight.starRating ?? 0) >= star
-                            ? "fill-amber-400 text-amber-400 drop-shadow-sm"
-                            : "text-slate-300"
-                        }`}
-                      />
-                    ))}
-                    {!primaryNight.starRating && (
-                      <span className="text-[11.5px] text-slate-400 ml-2 font-bold">Auto-filled</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Rate Per Night */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Price Per Night
-                  </label>
-                  <div className="flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50">
-                    <span className="text-[14px] text-slate-500 font-bold">₹</span>
-                    <span className={`text-[16px] font-black ${primaryNight.pricePerNight > 0 ? "text-emerald-700" : "text-slate-400"}`}>
-                      {primaryNight.pricePerNight > 0 ? primaryNight.pricePerNight.toLocaleString("en-IN") : "—"}
-                    </span>
-                    <span className="text-[11px] text-slate-400 ml-auto font-medium">/ night</span>
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-[12px] font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    Notes for {leg.cityName} Stay
-                  </label>
-                  <input
-                    type="text"
-                    value={primaryNight.notes || ""}
-                    onChange={(e) => updateLegFields(leg, { notes: e.target.value })}
-                    placeholder="e.g. Mountain-view suite, honeymoon setup"
-                    className={inputCls}
-                  />
-                </div>
+              <div className="mt-2.5">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Est. Stay Total</p>
+                <p className="text-[14px] font-black text-slate-900">
+                  {stat.estTotalCost > 0 ? `₹${stat.estTotalCost.toLocaleString("en-IN")}` : "—"}
+                </p>
               </div>
-
-              {/* Leg Cost Footer */}
-              {leg.nightsCount > 1 && (
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 text-[13px]">
-                  <span className="font-extrabold text-indigo-900">
-                    Total for this {leg.nightsCount}-Night Stay in {leg.cityName}:
-                  </span>
-                  <span className="text-[15px] font-black text-indigo-900">
-                    ₹{legTotalCost.toLocaleString("en-IN")}{" "}
-                    <span className="text-[11.5px] font-semibold text-indigo-600">
-                      (₹{primaryNight.pricePerNight?.toLocaleString("en-IN") || 0} × {leg.nightsCount} nights)
-                    </span>
-                  </span>
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* Option Total Summary Banner */}
-      <div className="rounded-3xl border border-emerald-300 bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-700 text-white p-5.5 flex items-center justify-between shadow-md shadow-emerald-500/20">
-        <span className="text-[14.5px] font-extrabold text-emerald-50">
-          Total for {currentOption?.label || "Option"} ({optionNights.length} Nights Total)
-        </span>
-        <span className="text-[22px] font-black text-white">
-          ₹{optionTotal.toLocaleString("en-IN")}
-        </span>
-      </div>
-
-      {/* ── Hotel Selection Dialog Modal Component ── */}
-      {selectedHotelLeg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-5xl bg-white text-slate-900 rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            {/* Modal Header */}
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md shadow-indigo-500/20 flex-shrink-0">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="text-[18px] font-black text-white tracking-tight">
-                      Select Hotel in {selectedHotelLeg.cityName}
-                    </h3>
-                    <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-extrabold uppercase tracking-wider">
-                      {selectedHotelLeg.nightsCount} Night(s) Stay
-                    </span>
-                  </div>
-                  <p className="text-[12.5px] text-slate-300 font-medium mt-0.5">
-                    Nights {selectedHotelLeg.startNight} to {selectedHotelLeg.endNight}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedHotelLeg(null)}
-                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-slate-700 hover:scale-105 active:scale-95"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {/* ═════════════════════════════════════════════════════════════════ */}
+      {/* ── VIEW 1: MATRIX TABLE VIEW (All Prices & Click to Calculate) ── */}
+      {/* ═════════════════════════════════════════════════════════════════ */}
+      {viewMode === "matrix" && (
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+          <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Table className="w-4 h-4 text-indigo-400" />
+              <h4 className="text-[14px] font-black text-white">
+                Destination Hotels Matrix & All Meal Prices (EP / CP / MAP / AP)
+              </h4>
             </div>
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+              <MousePointerClick className="w-3.5 h-3.5 text-amber-300" /> Click any meal rate to live calculate
+            </span>
+          </div>
 
-            {/* Filter & Search Toolbar */}
-            <div className="p-4.5 bg-slate-50 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={hotelSearchQuery}
-                  onChange={(e) => setHotelSearchQuery(e.target.value)}
-                  placeholder="Search hotel name or address…"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition-all shadow-2xs"
-                />
-              </div>
-
-              {/* Star Rating Filter Pills */}
-              <div className="flex items-center gap-2 self-stretch sm:self-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                {[
-                  { value: "ALL", label: "All Stars" },
-                  { value: "5", label: "5★ Luxury" },
-                  { value: "4", label: "4★ Premium" },
-                  { value: "3", label: "3★ Standard" },
-                ].map((starOpt) => {
-                  const isSel = selectedStarFilter === starOpt.value;
-                  return (
-                    <button
-                      key={starOpt.value}
-                      type="button"
-                      onClick={() => setSelectedStarFilter(starOpt.value)}
-                      className={`px-3.5 py-1.5 rounded-xl text-[11.5px] font-extrabold transition-all whitespace-nowrap ${
-                        isSel
-                          ? "bg-slate-900 text-white shadow-xs"
-                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      {starOpt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Modal Content / Hotel Card List */}
-            <div className="p-6 overflow-y-auto flex-1 bg-[#f8fafc] space-y-5">
-              {loadingHotels[selectedHotelLeg.cityId] ? (
-                <div className="py-20 text-center space-y-4">
-                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
-                  <p className="text-[14px] font-extrabold text-slate-600">
-                    Fetching available hotels in {selectedHotelLeg.cityName}…
-                  </p>
-                </div>
-              ) : (
-                (() => {
-                  const legHotels = hotelsMap[selectedHotelLeg.cityId] || [];
-                  const primaryNight = optionNights.find((n) => n.night === selectedHotelLeg.startNight) || {};
-
-                  const filteredHotels = legHotels.filter((h) => {
-                    const matchesSearch =
-                      !hotelSearchQuery.trim() ||
-                      h.name.toLowerCase().includes(hotelSearchQuery.toLowerCase()) ||
-                      (h.address && h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase()));
-                    const matchesStar =
-                      selectedStarFilter === "ALL" ||
-                      (h.starRating && String(h.starRating) === selectedStarFilter);
-                    return matchesSearch && matchesStar;
-                  });
-
-                  if (filteredHotels.length === 0) {
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[1050px]">
+              <thead>
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-[12px] font-black text-slate-700 uppercase tracking-wider">
+                  <th className="p-4 w-44 border-r border-slate-200/80">
+                    Destination City
+                  </th>
+                  {HOTEL_CATEGORIES.map((cat) => {
+                    const theme = CATEGORY_THEMES[cat];
                     return (
-                      <div className="py-16 px-4 text-center rounded-3xl bg-white border border-dashed border-slate-300 space-y-3">
-                        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
-                          <Building2 className="w-7 h-7" />
+                      <th key={cat} className="p-3.5 border-r border-slate-200/80 last:border-0 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-black border ${theme.badge}`}>
+                            {cat}
+                          </span>
+                          <span className="text-[9.5px] text-slate-400 font-semibold normal-case">
+                            {categoryStats[cat]?.hotelCount || 0} Hotels
+                          </span>
                         </div>
-                        <h4 className="text-[16px] font-black text-slate-900">
-                          No hotels found in {selectedHotelLeg.cityName}
-                        </h4>
-                        <p className="text-[13px] text-slate-500 max-w-md mx-auto font-medium leading-relaxed">
-                          Try clearing your search query or star filter. You can also add hotels to this city in the Accommodation Master module.
-                        </p>
-                      </div>
+                      </th>
                     );
-                  }
+                  })}
+                </tr>
+              </thead>
 
+              <tbody className="divide-y divide-slate-100 text-[12.5px]">
+                {stayLegs.map((leg) => {
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {filteredHotels.map((hotel) => {
-                        const isCurrentlySelected = primaryNight.hotelId === hotel._id;
-                        const coverImage = hotel.images && hotel.images.length > 0 ? hotel.images[0]?.url : null;
+                    <tr key={leg.legIdx} className="hover:bg-slate-50/40 transition-colors">
+                      {/* Destination Column */}
+                      <td className="p-4 bg-slate-50/50 border-r border-slate-200/80 align-top">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-6 h-6 rounded-lg bg-slate-900 text-white text-[11px] font-black flex items-center justify-center">
+                              {leg.nightsCount}N
+                            </span>
+                            <span className="text-[14px] font-black text-slate-900">
+                              {leg.cityName}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-semibold">
+                            Nights {leg.startNight}–{leg.endNight}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Hotel Category Cells with All Meal Prices */}
+                      {HOTEL_CATEGORIES.map((cat) => {
+                        const cityHotels = hotelsData[cat]?.[leg.cityName]?.hotels || [];
+                        const isLoading = loadingHotels[leg.cityId];
+                        const activeKey = `${cat}_${leg.legIdx}`;
+                        const currentLiveSel = liveSelections[activeKey];
 
                         return (
-                          <div
-                            key={hotel._id}
-                            onClick={() => {
-                              handleLegHotelChange(selectedHotelLeg, hotel._id);
-                              setSelectedHotelLeg(null);
-                            }}
-                            className={`group cursor-pointer rounded-2xl border transition-all duration-300 p-5 flex flex-col justify-between ${
-                              isCurrentlySelected
-                                ? "bg-gradient-to-br from-indigo-50/90 via-purple-50/50 to-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md scale-[1.01]"
-                                : "bg-white border-slate-200/90 hover:border-indigo-300 hover:shadow-md hover:scale-[1.01]"
-                            }`}
+                          <td
+                            key={cat}
+                            className="p-2.5 border-r border-slate-200/80 last:border-0 align-top bg-white"
                           >
-                            <div className="space-y-3.5">
-                              {/* Header Image / Badge */}
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3.5 min-w-0">
-                                  {coverImage ? (
-                                    <img
-                                      src={coverImage}
-                                      alt={hotel.name}
-                                      className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shadow-xs flex-shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 border border-indigo-100 flex items-center justify-center flex-shrink-0 transition-colors shadow-2xs">
-                                      <Building2 className="w-7 h-7" />
-                                    </div>
-                                  )}
-                                  <div className="min-w-0">
-                                    <h4 className="text-[15px] font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-tight truncate">
-                                      {hotel.name}
-                                    </h4>
-                                    {hotel.type && (
-                                      <span className="text-[11px] font-bold text-slate-400 capitalize mt-0.5 block">
-                                        {hotel.type}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {hotel.starRating && (
-                                  <span className="flex items-center gap-1 text-amber-700 text-[11px] font-extrabold bg-amber-50 px-3 py-1 rounded-full border border-amber-200/80 flex-shrink-0 shadow-2xs">
-                                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                    {hotel.starRating} Star
-                                  </span>
-                                )}
+                            {isLoading ? (
+                              <div className="flex items-center justify-center p-3 text-slate-400">
+                                <Loader2 className="w-4 h-4 animate-spin" />
                               </div>
+                            ) : cityHotels.length === 0 ? (
+                              <div className="p-3 text-center text-[10.5px] text-slate-400 italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                No {cat} hotel
+                              </div>
+                            ) : (
+                              <div className="space-y-2.5">
+                                {cityHotels.map((hotel) => {
+                                  const rooms = roomsMap[hotel._id] || [];
+                                  const pricing = getHotelAllPrices(hotel, rooms);
+                                  const isHotelSelected = currentLiveSel?.hotelId === hotel._id;
 
-                              {/* Location / Address */}
-                              {hotel.address && (
-                                <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-                                  <span className="truncate">{hotel.address}</span>
-                                </div>
-                              )}
-
-                              {/* Feature Tags */}
-                              {hotel.features && hotel.features.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                  {hotel.features.slice(0, 3).map((feat, fi) => (
-                                    <span
-                                      key={fi}
-                                      className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700"
+                                  return (
+                                    <div
+                                      key={hotel._id}
+                                      onClick={() => {
+                                        const defaultRoom = pricing.roomOptions[0];
+                                        const defaultPlan = Object.entries(defaultRoom?.meals || {}).find(([_, p]) => p > 0)?.[0] || "CP";
+                                        const rate = defaultRoom?.meals?.[defaultPlan] || defaultRoom?.minPrice || pricing.minPrice || 0;
+                                        handleSelectHotelForLiveCalc(cat, leg, hotel, defaultRoom, defaultPlan, rate);
+                                      }}
+                                      className={`p-2.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                                        isHotelSelected
+                                          ? "border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/40 shadow-xs"
+                                          : "border-slate-200/90 bg-white hover:border-indigo-300 hover:shadow-xs"
+                                      }`}
                                     >
-                                      {feat}
-                                    </span>
-                                  ))}
-                                  {hotel.features.length > 3 && (
-                                    <span className="text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-400">
-                                      +{hotel.features.length - 3} more
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                                      {/* Hotel Name & Stars */}
+                                      <div className="flex items-start justify-between gap-1">
+                                        <h5 className="font-extrabold text-[12px] text-slate-900 leading-tight line-clamp-1">
+                                          {hotel.name}
+                                        </h5>
+                                        {hotel.starRating && (
+                                          <span className="flex items-center text-amber-700 text-[9px] font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 flex-shrink-0">
+                                            {hotel.starRating}★
+                                          </span>
+                                        )}
+                                      </div>
 
-                            {/* Select Action Button */}
-                            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-[11.5px] text-slate-400 font-medium">
-                                {isCurrentlySelected ? "Active for this leg" : "Click card to select"}
-                              </span>
-                              <div
-                                className={`flex items-center gap-2 px-4.5 py-2 rounded-xl text-[12px] font-extrabold transition-all ${
-                                  isCurrentlySelected
-                                    ? "bg-indigo-600 text-white shadow-xs"
-                                    : "bg-slate-900 group-hover:bg-indigo-600 text-white shadow-xs group-hover:scale-105"
-                                }`}
-                              >
-                                {isCurrentlySelected ? (
-                                  <>
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    <span>Selected</span>
-                                  </>
-                                ) : (
-                                  <span>Select Hotel →</span>
-                                )}
+                                      {/* All Meal Prices Display (EP, CP, MAP, AP) */}
+                                      {pricing.roomOptions.length > 0 && (
+                                        <div className="space-y-1.5">
+                                          {pricing.roomOptions.map((r) => (
+                                            <div key={r.id} className="space-y-1">
+                                              <p className="text-[10px] font-bold text-slate-500 truncate">
+                                                🛏️ {r.name}
+                                              </p>
+                                              <div className="grid grid-cols-2 gap-1 text-[10px]">
+                                                {Object.entries(r.meals).map(([plan, p]) => {
+                                                  if (p <= 0) return null;
+                                                  // Exact match on hotelId, roomId, and mealPlan so only 1 price is active per leg
+                                                  const isPlanActive = isHotelSelected && currentLiveSel?.roomId === r.id && currentLiveSel?.mealPlan === plan;
+                                                  return (
+                                                    <button
+                                                      key={plan}
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSelectHotelForLiveCalc(cat, leg, hotel, r, plan, p);
+                                                      }}
+                                                      className={`px-1.5 py-1 rounded-md text-left transition-all border ${
+                                                        isPlanActive
+                                                          ? "bg-indigo-600 text-white border-indigo-600 font-black shadow-2xs scale-102"
+                                                          : "bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300"
+                                                      }`}
+                                                    >
+                                                      <span className="font-bold text-[9px] opacity-80">{plan}:</span>{" "}
+                                                      <span className="font-black">₹{p.toLocaleString("en-IN")}</span>
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {/* Live Calculated Stay Total */}
+                                      {isHotelSelected && currentLiveSel && (
+                                        <div className="p-1.5 rounded-lg bg-emerald-100/70 border border-emerald-300 text-emerald-950 flex items-center justify-between text-[10.5px]">
+                                          <span className="font-bold text-emerald-800">{leg.nightsCount}N ({currentLiveSel.mealPlan}):</span>
+                                          <span className="font-black text-emerald-900">
+                                            ₹{currentLiveSel.legTotal.toLocaleString("en-IN")}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            </div>
-                          </div>
+                            )}
+                          </td>
                         );
                       })}
-                    </div>
+                    </tr>
                   );
-                })()
-              )}
-            </div>
+                })}
+              </tbody>
+            </table>
           </div>
+        </div>
+      )}
+
+      {/* ═════════════════════════════════════════════════════════════════ */}
+      {/* ── VIEW 2: CATEGORY TABS VIEW (All Prices & Click to Calculate) ── */}
+      {/* ═════════════════════════════════════════════════════════════════ */}
+      {viewMode === "tabs" && (
+        <div className="space-y-4">
+          {/* Category Tabs Header */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {HOTEL_CATEGORIES.map((cat) => {
+              const theme = CATEGORY_THEMES[cat];
+              const isSelected = selectedCategoryTab === cat;
+              const count = categoryStats[cat]?.hotelCount || 0;
+
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => handleSelectCategory(cat)}
+                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-[13px] font-extrabold border transition-all whitespace-nowrap shadow-2xs ${
+                    isSelected
+                      ? `${theme.headerBg} border-transparent shadow-sm scale-102`
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{cat}</span>
+                  <span
+                    className={`text-[10.5px] font-black px-2 py-0.5 rounded-full ${
+                      isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {count} {count === 1 ? "Hotel" : "Hotels"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Category Content */}
+          {(() => {
+            const cat = selectedCategoryTab;
+            const theme = CATEGORY_THEMES[cat];
+            const cityGroups = hotelsData[cat] || {};
+
+            return (
+              <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                  <div>
+                    <h4 className="text-[17px] font-black text-slate-900">
+                      {cat} Hotel Options & All Meal Prices (EP / CP / MAP / AP)
+                    </h4>
+                    <p className="text-[12px] text-slate-500 font-medium">
+                      Click any meal plan to calculate real-time stay price for {cat} tier.
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-[11px] font-black border ${theme.badge}`}>
+                    {cat} Category
+                  </span>
+                </div>
+
+                {/* Cities Grid */}
+                <div className="space-y-6">
+                  {stayLegs.map((leg) => {
+                    const cityHotels = cityGroups[leg.cityName]?.hotels || [];
+                    const isLoading = loadingHotels[leg.cityId];
+                    const activeKey = `${cat}_${leg.legIdx}`;
+                    const currentLiveSel = liveSelections[activeKey];
+
+                    return (
+                      <div key={leg.legIdx} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-7 h-7 rounded-xl bg-slate-900 text-white text-[11px] font-black flex items-center justify-center">
+                              {leg.nightsCount}N
+                            </span>
+                            <h5 className="text-[15px] font-black text-slate-900">
+                              {leg.cityName}
+                            </h5>
+                            <span className="text-[11.5px] font-semibold text-slate-500">
+                              (Nights {leg.startNight}–{leg.endNight})
+                            </span>
+                          </div>
+
+                          {currentLiveSel && (
+                            <span className="text-[11.5px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                              Selected: {currentLiveSel.hotelName} ({currentLiveSel.roomType} • {currentLiveSel.mealPlan}) • ₹{currentLiveSel.legTotal.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
+
+                        {isLoading ? (
+                          <div className="p-6 text-center text-slate-400">
+                            <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                          </div>
+                        ) : cityHotels.length === 0 ? (
+                          <div className="p-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-[12px] text-slate-500 text-center">
+                            No {cat} hotels registered in {leg.cityName}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {cityHotels.map((hotel) => {
+                              const rooms = roomsMap[hotel._id] || [];
+                              const pricing = getHotelAllPrices(hotel, rooms);
+                              const cover = hotel.images?.[0]?.url;
+                              const isHotelSelected = currentLiveSel?.hotelId === hotel._id;
+
+                              return (
+                                <div
+                                  key={hotel._id}
+                                  onClick={() => {
+                                    const defaultRoom = pricing.roomOptions[0];
+                                    const defaultPlan = Object.entries(defaultRoom?.meals || {}).find(([_, p]) => p > 0)?.[0] || "CP";
+                                    const rate = defaultRoom?.meals?.[defaultPlan] || defaultRoom?.minPrice || pricing.minPrice || 0;
+                                    handleSelectHotelForLiveCalc(cat, leg, hotel, defaultRoom, defaultPlan, rate);
+                                  }}
+                                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3.5 shadow-2xs ${
+                                    isHotelSelected
+                                      ? "border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/30 shadow-xs"
+                                      : "border-slate-200/90 bg-white hover:border-indigo-400 hover:shadow-md"
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    {/* Thumbnail & Title */}
+                                    <div className="flex items-start gap-3.5">
+                                      {cover ? (
+                                        <img
+                                          src={cover}
+                                          alt={hotel.name}
+                                          className="w-16 h-16 rounded-xl object-cover border border-slate-200 flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-16 h-16 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0 border border-indigo-100">
+                                          <Building2 className="w-7 h-7" />
+                                        </div>
+                                      )}
+
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="flex items-start justify-between gap-1">
+                                          <h6 className="text-[13.5px] font-black text-slate-900 leading-snug truncate">
+                                            {hotel.name}
+                                          </h6>
+                                          {hotel.starRating && (
+                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 flex-shrink-0">
+                                              {hotel.starRating}★
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {hotel.address && (
+                                          <p className="text-[11px] text-slate-500 truncate">
+                                            📍 {hotel.address}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* All Room Meal Options (EP, CP, MAP, AP) */}
+                                    {pricing.roomOptions.length > 0 && (
+                                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                                        {pricing.roomOptions.map((r) => (
+                                          <div key={r.id} className="space-y-1.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                            <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-800">
+                                              <span>🛏️ {r.name}</span>
+                                            </div>
+
+                                            {/* Meal Plan Price Pills */}
+                                            <div className="grid grid-cols-2 gap-1.5 text-[10.5px]">
+                                              {Object.entries(r.meals).map(([plan, p]) => {
+                                                if (p <= 0) return null;
+                                                // Exact match on hotelId, roomId, and mealPlan so only 1 price is active
+                                                const isPlanActive = isHotelSelected && currentLiveSel?.roomId === r.id && currentLiveSel?.mealPlan === plan;
+                                                return (
+                                                  <button
+                                                    key={plan}
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleSelectHotelForLiveCalc(cat, leg, hotel, r, plan, p);
+                                                    }}
+                                                    className={`px-2 py-1.5 rounded-lg text-left transition-all border ${
+                                                      isPlanActive
+                                                        ? "bg-indigo-600 text-white border-indigo-600 font-black shadow-xs scale-102"
+                                                        : "bg-white hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300"
+                                                    }`}
+                                                  >
+                                                    <span className="font-bold text-[9.5px] opacity-80">{plan}:</span>{" "}
+                                                    <span className="font-black">₹{p.toLocaleString("en-IN")}</span>
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Calculation footer */}
+                                  {isHotelSelected && currentLiveSel && (
+                                    <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 flex items-center justify-between text-[11.5px] text-emerald-950">
+                                      <div>
+                                        <p className="text-[9.5px] font-bold text-emerald-700 uppercase">Live {leg.nightsCount}N ({currentLiveSel.mealPlan})</p>
+                                        <p className="text-[14px] font-black text-emerald-900">
+                                          ₹{currentLiveSel.legTotal.toLocaleString("en-IN")}
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                                        Active in Live Total
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

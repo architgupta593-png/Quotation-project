@@ -10,6 +10,15 @@ import AccommodationImageUploader from "@/components/accommodation/Accommodation
 import { HOTEL_FEATURES_LIST, ACTIVITIES_LIST } from "@/data/activity";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+export const HOTEL_CATEGORIES = [
+  { value: "Budget", label: "Budget", desc: "Economical Value", bg: "bg-emerald-50 text-emerald-700 border-emerald-300" },
+  { value: "Deluxe", label: "Deluxe", desc: "Standard Comfort", bg: "bg-sky-50 text-sky-700 border-sky-300" },
+  { value: "Deluxe Plus", label: "Deluxe Plus", desc: "Upgraded Deluxe", bg: "bg-blue-50 text-blue-700 border-blue-300" },
+  { value: "Premium", label: "Premium", desc: "High-end Quality", bg: "bg-indigo-50 text-indigo-700 border-indigo-300" },
+  { value: "Premium Plus", label: "Premium Plus", desc: "Superior Premium", bg: "bg-purple-50 text-purple-700 border-purple-300" },
+  { value: "Luxury", label: "Luxury", desc: "5-Star & Heritage", bg: "bg-amber-50 text-amber-800 border-amber-300" },
+];
+
 const HOTEL_TYPES = ["hotel","resort","hostel","guesthouse","villa","apartment","other"];
 const MEAL_PLANS  = [
   { value: "EP",  label: "EP — Room Only",           desc: "European Plan"         },
@@ -26,7 +35,7 @@ const SEASON_COLORS = [
   { label: "Monsoon", strip: "#14b8a6", light: "#ccfbf1", text: "#134e4a" },
 ];
 
-const DEFAULT_HOTEL  = { name:"", type:"hotel", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
+const DEFAULT_HOTEL  = { name:"", type:"hotel", category:"Deluxe", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
 const DEFAULT_ROOM   = { roomType:"", maxOccupancy:2, features:[], mealPrices:{}, images:[] };
 const DEFAULT_SEASON = { label:"", dateRanges:[{ startDate:"", endDate:"" }] };
 const TODAY_STR      = new Date().toISOString().split("T")[0];
@@ -474,7 +483,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
   useEffect(() => {
     if (hotel) {
       setForm({
-        name:hotel.name||"", type:hotel.type||"hotel", starRating:hotel.starRating??null,
+        name:hotel.name||"", type:hotel.type||"hotel", category:hotel.category||"Deluxe", starRating:hotel.starRating??null,
         email:hotel.email||"", contactNo:hotel.contactNo||"", address:hotel.address||"",
         features:hotel.features||[], activities:hotel.activities||[], images:hotel.images||[],
       });
@@ -676,6 +685,36 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                     onChange={e => updateForm({ type:e.target.value })} className={ic}>
                     {HOTEL_TYPES.map(t => <option key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</option>)}
                   </select>
+                </div>
+              </div>
+
+              {/* Hotel Category */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={lc}>Hotel Category</label>
+                  <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                    Category: {form.category || "Deluxe"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {HOTEL_CATEGORIES.map((cat) => {
+                    const isSelected = (form.category || "Deluxe").toLowerCase() === cat.value.toLowerCase();
+                    return (
+                      <button
+                        key={cat.value}
+                        type="button"
+                        onClick={() => updateForm({ category: cat.value })}
+                        className={`px-3 py-2.5 rounded-xl border text-center transition-all ${
+                          isSelected
+                            ? `${cat.bg} border-2 font-bold shadow-sm scale-[1.02] ring-2 ring-indigo-400/20`
+                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50/80"
+                        }`}
+                      >
+                        <div className="text-[12px] font-bold tracking-tight">{cat.label}</div>
+                        <div className="text-[9.5px] opacity-75 leading-tight truncate mt-0.5">{cat.desc}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

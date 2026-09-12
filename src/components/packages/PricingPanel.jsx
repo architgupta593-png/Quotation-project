@@ -418,12 +418,14 @@ export default function PricingPanel({
 
         {/* Financial Breakdown Table */}
         <div className="rounded-2xl border border-slate-200/80 overflow-hidden divide-y divide-slate-100 text-[13.5px] shadow-xs">
-          <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
-            <span className="text-slate-700 font-semibold flex items-center gap-2">
-              🏨 Accommodation ({selectedOption?.label || "Option 1"})
-            </span>
-            <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
-          </div>
+          {accommodationOptions.length > 0 && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
+              <span className="text-slate-700 font-semibold flex items-center gap-2">
+                🏨 Accommodation ({selectedOption?.label || "Option 1"})
+              </span>
+              <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/40">
             <span className="text-slate-700 font-semibold flex items-center gap-2">
               🚗 Vehicle Transport ({safeVehIdx === "all" ? "All Fleet" : (chosenVehicle?.vehicleType || "Sedan")})

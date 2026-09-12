@@ -41,33 +41,6 @@ export function sanitizePackagePayload(body) {
       .join(" → ");
   }
 
-  // Sanitize accommodation options
-  if (Array.isArray(sanitized.accommodationOptions)) {
-    sanitized.accommodationOptions = sanitized.accommodationOptions.map((opt) => ({
-      label: (opt.label || "Option").trim(),
-      totalPrice: Math.max(0, parseFloat(opt.totalPrice) || 0),
-      marginType: ["absolute", "percentage"].includes(opt.marginType) ? opt.marginType : "absolute",
-      margin: Math.max(0, parseFloat(opt.margin) || 0),
-      nights: Array.isArray(opt.nights)
-        ? opt.nights.map((n) => ({
-            night: Math.max(1, parseInt(n.night, 10) || 1),
-            cityId: n.cityId ? n.cityId : null,
-            cityName: (n.cityName || "").trim(),
-            hotelId: n.hotelId ? n.hotelId : null,
-            hotelName: (n.hotelName || "").trim(),
-            roomId: n.roomId ? n.roomId : null,
-            roomType: (n.roomType || "").trim(),
-            mealPlan: ["EP", "CP", "MAP", "AP"].includes(n.mealPlan) ? n.mealPlan : "",
-            starRating: n.starRating ? Math.min(5, Math.max(1, parseInt(n.starRating, 10))) : null,
-            pricePerNight: Math.max(0, parseFloat(n.pricePerNight) || 0),
-            notes: (n.notes || "").trim(),
-          }))
-        : [],
-    }));
-  } else {
-    sanitized.accommodationOptions = [];
-  }
-
   // Sanitize vehicle, multi-vehicle fleet & date periods
   const VALID_VEHICLES = ["Sedan", "SUV", "MUV", "Tempo Traveller", "Mini Bus", "Bus", "Other"];
 
@@ -132,12 +105,52 @@ export function sanitizePackagePayload(body) {
     }];
   }
 
+  // Sanitize accommodationOptions (Hotel Categories Wise)
+  const VALID_CATEGORIES = ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", ""];
+  if (Array.isArray(sanitized.accommodationOptions)) {
+    sanitized.accommodationOptions = sanitized.accommodationOptions.map((opt, idx) => {
+      const nights = Array.isArray(opt.nights)
+        ? opt.nights.map((n) => ({
+            night: parseInt(n.night, 10) || 1,
+            cityId: n.cityId ? n.cityId : null,
+            cityName: (n.cityName || "").trim(),
+            hotelId: n.hotelId ? n.hotelId : null,
+            hotelName: (n.hotelName || "").trim(),
+            category: VALID_CATEGORIES.includes(n.category) ? n.category : "Deluxe",
+            roomId: n.roomId ? n.roomId : null,
+            roomType: (n.roomType || "").trim(),
+            mealPlan: ["EP", "CP", "MAP", "AP"].includes(n.mealPlan) ? n.mealPlan : "CP",
+            availableMealPlans: Array.isArray(n.availableMealPlans) ? n.availableMealPlans : [],
+            mealPrices: typeof n.mealPrices === "object" && n.mealPrices !== null ? n.mealPrices : {},
+            starRating: n.starRating ? Number(n.starRating) : null,
+            pricePerNight: 0, // Not saved in database as per requirement (calculated live on client)
+            notes: (n.notes || "").trim(),
+          }))
+        : [];
+      return {
+        label: (opt.label || `Option ${idx + 1}`).trim(),
+        category: VALID_CATEGORIES.includes(opt.category) ? opt.category : "Deluxe",
+        nights,
+        totalPrice: 0, // Not saved in database
+        marginType: ["absolute", "percentage"].includes(opt.marginType) ? opt.marginType : "absolute",
+        margin: Math.max(0, parseFloat(opt.margin) || 0),
+        gstPercentage: Math.max(0, parseFloat(opt.gstPercentage) || 5),
+        calculatedPrice: Math.max(0, parseFloat(opt.calculatedPrice) || 0),
+        perPersonPrice: Math.max(0, parseFloat(opt.perPersonPrice) || 0),
+        perCouplePrice: Math.max(0, parseFloat(opt.perCouplePrice) || 0),
+      };
+    });
+  } else {
+    sanitized.accommodationOptions = [];
+  }
+
   // Sanitize pricing
   const pricing = sanitized.pricing || {};
   sanitized.pricing = {
     selectedOptionIndex: Math.max(0, parseInt(pricing.selectedOptionIndex, 10) || 0),
-    accommodationTotal: Math.max(0, parseFloat(pricing.accommodationTotal) || 0),
+    accommodationTotal: 0, // Not saved in database
     vehicleTotal: Math.max(0, parseFloat(pricing.vehicleTotal) || 0),
+    activitiesTotal: Math.max(0, parseFloat(pricing.activitiesTotal) || 0),
     subtotal: Math.max(0, parseFloat(pricing.subtotal) || 0),
     marginType: ["absolute", "percentage"].includes(pricing.marginType) ? pricing.marginType : "absolute",
     margin: Math.max(0, parseFloat(pricing.margin) || 0),

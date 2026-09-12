@@ -15,6 +15,17 @@ const TYPE_BADGE = {
   other:      { bg: "bg-gray-500",    label: "Other"      },
 };
 
+const CATEGORY_STYLE = {
+  budget:        { bg: "bg-emerald-600", label: "Budget" },
+  deluxe:        { bg: "bg-sky-600",     label: "Deluxe" },
+  "deluxe plus": { bg: "bg-blue-600",    label: "Deluxe Plus" },
+  deluxe_plus:   { bg: "bg-blue-600",    label: "Deluxe Plus" },
+  premium:       { bg: "bg-indigo-600",  label: "Premium" },
+  "premium plus":{ bg: "bg-purple-600",  label: "Premium Plus" },
+  premium_plus:  { bg: "bg-purple-600",  label: "Premium Plus" },
+  luxury:        { bg: "bg-amber-600",   label: "Luxury" },
+};
+
 /**
  * HotelCard — redesigned card with image cover.
  *
@@ -57,9 +68,18 @@ export default function HotelCard({ hotel, isAdmin, onClick, onEdit, onDelete })
         {/* Dark gradient overlay at bottom */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-        {/* Type badge — top left */}
-        <div className="absolute top-3 left-3">
-          <span className={`px-2.5 py-0.5 rounded-full text-white text-[10px] font-bold ${badge.bg} shadow-sm`}>
+        {/* Category & Type badges — top left */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+          {hotel.category && (() => {
+            const k = String(hotel.category).toLowerCase().trim();
+            const cat = CATEGORY_STYLE[k] || { bg: "bg-indigo-600", label: hotel.category };
+            return (
+              <span className={`px-2.5 py-0.5 rounded-full text-white text-[10px] font-extrabold ${cat.bg} shadow-md`}>
+                {cat.label}
+              </span>
+            );
+          })()}
+          <span className="px-2 py-0.5 rounded-full text-white/95 text-[10px] font-medium bg-black/40 backdrop-blur-sm border border-white/20 shadow-sm">
             {badge.label}
           </span>
         </div>

@@ -17,6 +17,17 @@ const MEAL_LABELS = {
   AP:  { label: "AP — All Meals",          color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
+const CATEGORY_BADGE = {
+  budget:        { bg: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "Budget" },
+  deluxe:        { bg: "bg-sky-50 text-sky-700 border-sky-200",             label: "Deluxe" },
+  "deluxe plus": { bg: "bg-blue-50 text-blue-700 border-blue-200",         label: "Deluxe Plus" },
+  deluxe_plus:   { bg: "bg-blue-50 text-blue-700 border-blue-200",         label: "Deluxe Plus" },
+  premium:       { bg: "bg-indigo-50 text-indigo-700 border-indigo-200",     label: "Premium" },
+  "premium plus":{ bg: "bg-purple-50 text-purple-700 border-purple-200",    label: "Premium Plus" },
+  premium_plus:  { bg: "bg-purple-50 text-purple-700 border-purple-200",    label: "Premium Plus" },
+  luxury:        { bg: "bg-amber-50 text-amber-800 border-amber-200",       label: "Luxury" },
+};
+
 // ── Image Gallery ─────────────────────────────────────────────────────────────
 function ImageGallery({ images }) {
   const [current, setCurrent] = useState(0);
@@ -241,9 +252,18 @@ export default function HotelDetailPage() {
                 <Building2 className="w-6 h-6 text-indigo-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-[22px] font-bold text-gray-900">{hotel.name}</h1>
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-semibold capitalize">
+                  {hotel.category && (() => {
+                    const k = String(hotel.category).toLowerCase().trim();
+                    const catInfo = CATEGORY_BADGE[k] || { bg: "bg-indigo-50 text-indigo-700 border-indigo-200", label: hotel.category };
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${catInfo.bg}`}>
+                        {catInfo.label}
+                      </span>
+                    );
+                  })()}
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold capitalize">
                     {hotel.type}
                   </span>
                 </div>

@@ -6,10 +6,11 @@ import {
   ArrowLeft, Plus, Trash2, Loader2, AlertCircle, ChevronRight,
   MapPin, Moon, Sun, Check, Sparkles, Layers, FileText, Compass,
   Car, IndianRupee, ShieldCheck, Eye, CheckCircle2, Navigation,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import ItineraryBuilder from "@/components/packages/ItineraryBuilder";
-import AccommodationPanel from "@/components/packages/AccommodationPanel";
+import AccommodationPanel, { getCategoryBadgeClass } from "@/components/packages/AccommodationPanel";
 import VehiclePanel from "@/components/packages/VehiclePanel";
 import PricingPanel from "@/components/packages/PricingPanel";
 import InstructionPanel from "@/components/packages/InstructionPanel";
@@ -17,7 +18,7 @@ import InstructionPanel from "@/components/packages/InstructionPanel";
 const SECTIONS = [
   { id: "basics", label: "Basics", icon: Compass, desc: "Title & Route" },
   { id: "itinerary", label: "Itinerary", icon: Sun, desc: "Day by Day" },
-  { id: "accommodation", label: "Accommodation", icon: Layers, desc: "Hotel Tiers" },
+  { id: "accommodation", label: "Accommodation", icon: Building2, desc: "Hotel Categories" },
   { id: "vehicle", label: "Vehicle", icon: Car, desc: "Transport" },
   { id: "pricing", label: "Pricing", icon: IndianRupee, desc: "Margins & Cost" },
   { id: "instructions", label: "Instructions", icon: FileText, desc: "Terms & Rules" },
@@ -54,8 +55,6 @@ const DEFAULT_FORM = {
   activities: [],
   status: "draft",
 };
-
-export const dynamic = "force-dynamic";
 
 export default function NewPackagePage() {
   const router = useRouter();
@@ -116,7 +115,6 @@ export default function NewPackagePage() {
       destinations: updated,
       nights: totalNights,
       days: totalDays,
-      accommodationOptions: [],
     });
   }
 
@@ -163,14 +161,10 @@ export default function NewPackagePage() {
   // Computed totals
   const selectedOptIdx = form.pricing?.selectedOptionIndex || 0;
   const accommodationTotal = useMemo(() => {
-    const opt = (form.accommodationOptions || [])[selectedOptIdx];
-    const baseAccom = opt ? (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0) : 0;
-    const pax = Math.max(1, parseInt(form.pricing?.numberOfPersons, 10) || 1);
-    const maxPerRoom = Math.max(1, parseInt(form.pricing?.maxPersonsPerRoom, 10) || 2);
-    const isPerPerson = form.pricing?.rateBasis === "per_person";
-    const roomsRequired = isPerPerson ? Math.max(1, Math.ceil(pax / maxPerRoom)) : Math.max(1, Math.ceil(pax / 2));
-    return baseAccom * roomsRequired;
-  }, [form.accommodationOptions, selectedOptIdx, form.pricing?.numberOfPersons, form.pricing?.maxPersonsPerRoom, form.pricing?.rateBasis]);
+    const selectedOpt = form.accommodationOptions?.[selectedOptIdx] || form.accommodationOptions?.[0];
+    if (!selectedOpt || !Array.isArray(selectedOpt.nights)) return 0;
+    return selectedOpt.nights.reduce((sum, n) => sum + (Number(n.pricePerNight) || 0), 0);
+  }, [form.accommodationOptions, selectedOptIdx]);
 
   const vehicleTotal = useMemo(() => {
     if (Array.isArray(form.vehiclePeriods) && form.vehiclePeriods.length > 0) {
@@ -200,6 +194,24 @@ export default function NewPackagePage() {
     .filter((d) => d.cityName)
     .map((d) => `${d.cityName} (${d.nights}N)`)
     .join(" → ");
+
+  // Live dynamic calculation for Live Preview sidebar
+  const selectedOpt = form.accommodationOptions?.[selectedOptIdx] || form.accommodationOptions?.[0];
+  const activeMarginType = selectedOpt?.marginType || form.pricing?.marginType || "absolute";
+  const activeMargin = selectedOpt?.margin ?? form.pricing?.margin ?? 0;
+  const liveSubtotal = accommodationTotal + vehicleTotal + activitiesTotal;
+  const liveMarginAmount = activeMarginType === "percentage"
+    ? liveSubtotal * (activeMargin / 100)
+    : activeMargin;
+  const livePreTaxTotal = liveSubtotal + liveMarginAmount;
+  const liveGstAmount = form.pricing?.includeGst ? Math.round(livePreTaxTotal * ((form.pricing?.gstPercentage || 5) / 100)) : 0;
+  const liveDiscount = form.pricing?.discountAmount || 0;
+  const liveGrandTotal = Math.max(0, Math.round(livePreTaxTotal + liveGstAmount - liveDiscount));
+  const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form.pricing?.finalPrice || 0);
+
+  const numPax = Math.max(1, parseInt(form.pricing?.numberOfPersons, 10) || 2);
+  const displayPerPerson = Math.round(displayFinalPrice / numPax);
+  const displayPerCouple = displayPerPerson * 2;
 
   async function handleSubmit(status = "draft") {
     setError("");
@@ -556,17 +568,18 @@ export default function NewPackagePage() {
               </div>
             )}
 
-            {/* ═══════════ ACCOMMODATION ═══════════ */}
+            {/* ═══════════ ACCOMMODATION (HOTEL CATEGORIES WISE) ═══════════ */}
             {currentSection === "accommodation" && (
               <div className="space-y-6">
                 <SectionHeader
-                  title="Accommodation Categories"
-                  description="Create option categories (e.g. Premium Resort, Deluxe Hotel) with pre-selected hotels."
+                  title="Accommodation & Hotels (Category-Wise)"
+                  description="Select hotels organized by categories (Budget, Deluxe, Deluxe Plus, Premium, Premium Plus, Luxury) for each destination stay."
                 />
                 <AccommodationPanel
                   destinations={form.destinations}
                   accommodationOptions={form.accommodationOptions}
-                  value={form.accommodationOptions}
+                  selectedCategory={form.accommodationOptions?.[selectedOptIdx]?.category || "Deluxe Plus"}
+                  onSelectOptionIndex={(idx) => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: idx } })}
                   onChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
               </div>
@@ -603,7 +616,7 @@ export default function NewPackagePage() {
               <div className="space-y-6">
                 <SectionHeader
                   title="Pricing & Margin Calculator"
-                  description="Select base accommodation option, add profit margin, and calculate per person rate."
+                  description="Add profit margin and calculate final package and per person rate."
                 />
                 <PricingPanel
                   pricing={form.pricing}
@@ -655,20 +668,13 @@ export default function NewPackagePage() {
                     label="Itinerary"
                     value={`${form.itinerary.filter((d) => d.title).length} of ${form.days} days filled`}
                   />
-                  <ReviewRow
-                    label="Accom. Tiers"
-                    value={`${form.accommodationOptions.length} category option(s)`}
-                  />
-                  {form.accommodationOptions.map((opt, i) => (
+                  {form.accommodationOptions?.length > 0 && (
                     <ReviewRow
-                      key={i}
-                      label={`  └ ${opt.label}`}
-                      value={`₹${(opt.nights || [])
-                        .reduce((s, n) => s + (n.pricePerNight || 0), 0)
-                        .toLocaleString("en-IN")}`}
-                      highlight={i === selectedOptIdx}
+                      label="Accommodation Tiers"
+                      value={`${form.accommodationOptions.length} Tier${form.accommodationOptions.length > 1 ? "s" : ""} — ₹${accommodationTotal.toLocaleString("en-IN")}`}
+                      highlight
                     />
-                  ))}
+                  )}
                   <ReviewRow
                     label="Transport Fleet"
                     value={
@@ -793,37 +799,37 @@ export default function NewPackagePage() {
                   </span>
                 </div>
 
-                {/* Accommodation categories */}
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                    Accommodation Tiers ({form.accommodationOptions.length})
-                  </p>
-                  <div className="space-y-1.5">
-                    {form.accommodationOptions.map((opt, i) => {
-                      const optTotal = (opt.nights || []).reduce(
-                        (s, n) => s + (n.pricePerNight || 0),
-                        0
-                      );
-                      const isSelected = i === selectedOptIdx;
-                      return (
-                        <div
+                {/* Accommodation Specs */}
+                {form.accommodationOptions?.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-violet-50/80 border border-violet-200 space-y-2">
+                    <div className="flex items-center justify-between text-[13px]">
+                      <div className="flex items-center gap-2 font-extrabold text-violet-950">
+                        <Building2 className="w-4.5 h-4.5 text-violet-600" />
+                        <span>Hotel Stay ({form.accommodationOptions.length} Tiers)</span>
+                      </div>
+                      <span className="font-black text-violet-900">
+                        ₹{accommodationTotal.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {form.accommodationOptions.map((opt, i) => (
+                        <button
                           key={i}
-                          className={`flex items-center justify-between px-3.5 py-2 rounded-xl text-[12.5px] font-bold border transition-all ${
-                            isSelected
-                              ? "bg-gradient-to-r from-violet-600 to-indigo-600 border-indigo-600 text-white shadow-sm"
-                              : "bg-slate-50 border-slate-200/80 text-slate-700"
+                          type="button"
+                          onClick={() => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: i } })}
+                          className={`text-[10.5px] font-extrabold px-2 py-0.5 rounded-lg border transition-all ${
+                            i === selectedOptIdx
+                              ? "bg-violet-600 text-white border-violet-600 shadow-xs scale-102"
+                              : "bg-white text-violet-900 border-violet-200 hover:bg-violet-100"
                           }`}
                         >
-                          <span className="flex items-center gap-1.5">
-                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                            {opt.label}
-                          </span>
-                          <span className="font-black">₹{optTotal.toLocaleString("en-IN")}</span>
-                        </div>
-                      );
-                    })}
+                          {opt.label || `Option ${i + 1}`}
+                          {opt.category ? ` • ${opt.category}` : ""}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Vehicle Specs */}
                 <div className="p-3.5 rounded-2xl bg-sky-50/80 border border-sky-200 flex items-center justify-between text-[13px]">
@@ -857,20 +863,20 @@ export default function NewPackagePage() {
                     </span>
                   </div>
                   <div className="text-[26px] font-black tracking-tight">
-                    ₹{Math.round(form.pricing?.finalPrice || 0).toLocaleString("en-IN")}
+                    ₹{displayFinalPrice.toLocaleString("en-IN")}
                   </div>
 
                   <div className="pt-2 border-t border-white/20 grid grid-cols-2 gap-2 text-[11px]">
                     <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
                       <p className="text-emerald-100 text-[10px] font-bold">Per Couple</p>
                       <p className="font-black text-[13px] text-white">
-                        ₹{(form.pricing?.perCouplePrice || Math.round(form.pricing?.finalPrice || 0)).toLocaleString("en-IN")}
+                        ₹{displayPerCouple.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
-                      <p className="text-emerald-100 text-[10px] font-bold">Per Person ({form.pricing?.numberOfPersons || 2} Pax)</p>
+                      <p className="text-emerald-100 text-[10px] font-bold">Per Person ({numPax} Pax)</p>
                       <p className="font-black text-[13px] text-white">
-                        ₹{(form.pricing?.perPersonPrice || Math.round((form.pricing?.finalPrice || 0) / 2)).toLocaleString("en-IN")}
+                        ₹{displayPerPerson.toLocaleString("en-IN")}
                       </p>
                     </div>
                   </div>

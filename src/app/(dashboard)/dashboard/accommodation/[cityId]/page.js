@@ -10,6 +10,16 @@ import HotelCard from "@/components/accommodation/HotelCard";
 import HotelFormModal from "@/components/accommodation/HotelFormModal";
 import HotelPreviewModal from "@/components/accommodation/HotelPreviewModal";
 
+const CATEGORY_FILTERS = [
+  "ALL",
+  "Budget",
+  "Deluxe",
+  "Deluxe Plus",
+  "Premium",
+  "Premium Plus",
+  "Luxury",
+];
+
 export default function AccommodationHotelsPage() {
   const { cityId } = useParams();
   const { data: session } = useSession();
@@ -21,6 +31,7 @@ export default function AccommodationHotelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
 
   // ── Preview modal (card click) ──────────────────────────────────────────────
   const [previewHotel, setPreviewHotel] = useState(null);
@@ -171,8 +182,31 @@ export default function AccommodationHotelsPage() {
             )}
           </div>
 
-          <div className="max-w-sm">
-            <SearchBar id="hotel-search" placeholder="Search hotels…" value={search} onChange={setSearch} />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4">
+            <div className="max-w-sm w-full">
+              <SearchBar id="hotel-search" placeholder="Search hotels…" value={search} onChange={setSearch} />
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+              {CATEGORY_FILTERS.map((cat) => {
+                const isSel = selectedCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold transition-all whitespace-nowrap ${
+                      isSel
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -191,42 +225,54 @@ export default function AccommodationHotelsPage() {
           </div>
         )}
 
-        {!loading && hotels.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
-              <Building2 className="w-8 h-8 text-indigo-400" />
-            </div>
-            <h3 className="text-[17px] font-bold text-gray-900 mb-2">
-              {search ? "No hotels match your search" : "No hotels in this city yet"}
-            </h3>
-            <p className="text-[14px] text-gray-500 mb-6 max-w-xs">
-              {isAdmin
-                ? "Add a hotel to configure rooms, meals and seasonal pricing."
-                : "No hotels added yet."}
-            </p>
-            {isAdmin && !search && (
-              <button type="button" onClick={openCreate}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-[13px] font-semibold hover:bg-indigo-700 transition-colors">
-                <Plus className="w-4 h-4" /> Add First Hotel
-              </button>
-            )}
-          </div>
-        )}
+        {!loading && (() => {
+          const filteredHotels = hotels.filter((h) => {
+            if (selectedCategory === "ALL") return true;
+            const hCat = String(h.category || "Deluxe").toLowerCase().trim();
+            return hCat === selectedCategory.toLowerCase().trim();
+          });
 
-        {!loading && hotels.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {hotels.map((hotel) => (
-              <HotelCard
-                key={hotel._id}
-                hotel={hotel}
-                isAdmin={isAdmin}
-                onClick={() => openPreview(hotel)}
-                onEdit={() => openEdit(hotel)}
-                onDelete={() => handleDelete(hotel._id)}
-              />
-            ))}
-          </div>
-        )}
+          if (filteredHotels.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                  <Building2 className="w-8 h-8 text-indigo-400" />
+                </div>
+                <h3 className="text-[17px] font-bold text-gray-900 mb-2">
+                  {search || selectedCategory !== "ALL"
+                    ? "No hotels match your filters"
+                    : "No hotels in this city yet"}
+                </h3>
+                <p className="text-[14px] text-gray-500 mb-6 max-w-xs">
+                  {isAdmin
+                    ? "Add a hotel to configure rooms, meals and seasonal pricing."
+                    : "No hotels found."}
+                </p>
+                {isAdmin && !search && selectedCategory === "ALL" && (
+                  <button type="button" onClick={openCreate}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-[13px] font-semibold hover:bg-indigo-700 transition-colors">
+                    <Plus className="w-4 h-4" /> Add First Hotel
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredHotels.map((hotel) => (
+                <HotelCard
+                  key={hotel._id}
+                  hotel={hotel}
+                  isAdmin={isAdmin}
+                  onClick={() => openPreview(hotel)}
+                  onEdit={() => openEdit(hotel)}
+                  onDelete={() => handleDelete(hotel._id)}
+                />
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Preview modal ─────────────────────────────────────────────────── */}

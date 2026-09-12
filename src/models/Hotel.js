@@ -43,6 +43,41 @@ const HotelSchema = new mongoose.Schema(
       enum: ["hotel", "resort", "hostel", "guesthouse", "villa", "apartment", "other"],
       default: "hotel",
     },
+    category: {
+      type: String,
+      enum: [
+        "Budget",
+        "Deluxe",
+        "Deluxe Plus",
+        "Premium",
+        "Premium Plus",
+        "Luxury",
+        "budget",
+        "deluxe",
+        "deluxe plus",
+        "deluxe_plus",
+        "premium",
+        "premium plus",
+        "premium_plus",
+        "luxury",
+        "",
+      ],
+      default: "Deluxe",
+      set: (v) => {
+        if (!v) return "Deluxe";
+        const map = {
+          budget: "Budget",
+          deluxe: "Deluxe",
+          "deluxe plus": "Deluxe Plus",
+          deluxe_plus: "Deluxe Plus",
+          premium: "Premium",
+          "premium plus": "Premium Plus",
+          premium_plus: "Premium Plus",
+          luxury: "Luxury",
+        };
+        return map[String(v).toLowerCase().trim()] || v;
+      },
+    },
     starRating: {
       type: Number,
       min: 1,
@@ -114,4 +149,5 @@ const HotelSchema = new mongoose.Schema(
 
 HotelSchema.index({ city: 1, name: 1 });
 
-export default mongoose.models.Hotel || mongoose.model("Hotel", HotelSchema);
+if (mongoose.models.Hotel) delete mongoose.models.Hotel;
+export default mongoose.model("Hotel", HotelSchema);
