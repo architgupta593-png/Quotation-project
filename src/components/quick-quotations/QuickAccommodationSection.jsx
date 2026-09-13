@@ -11,7 +11,7 @@ import {
   getCategoryBadgeClass,
   getHotelAllPrices,
 } from "@/components/packages/AccommodationPanel";
-import HotelMealSelectionDialog, { getHotelAllPricesForDate } from "./HotelMealSelectionDialog";
+import HotelMealSelectionDialog, { getHotelAllPricesForDate, matchRoomType } from "./HotelMealSelectionDialog";
 
 const MEAL_PLANS = [
   { id: "EP", label: "EP", title: "Room Only", sub: "No Meals (Breakfast Deducted)" },
@@ -151,6 +151,8 @@ export default function QuickAccommodationSection({
   primaryDestination = "",
   startDate = "",
   totalRooms = 1,
+  adults = 2,
+  passengers = null,
   onPriceAdjustment,
 }) {
   const [catalogHotels, setCatalogHotels] = useState([]);
@@ -168,6 +170,8 @@ export default function QuickAccommodationSection({
     category: "Deluxe",
     roomType: "Deluxe AC Room",
     mealPlan: "CP",
+    hotelId: null,
+    roomId: null,
   });
 
   const openHotelMealDialog = (legIdx, mealPlan = "CP", roomType = null, category = null) => {
@@ -180,6 +184,8 @@ export default function QuickAccommodationSection({
       category: category || stay.category || activeOption.category || "Deluxe",
       roomType: roomType || stay.roomType || "Deluxe AC Room",
       mealPlan: mealPlan || stay.mealPlan || "CP",
+      hotelId: stay.hotelId || null,
+      roomId: stay.roomId || null,
     });
   };
 
@@ -332,7 +338,7 @@ export default function QuickAccommodationSection({
       cityName: hotel.city?.name || currentStay.cityName || primaryDestination,
       category: category || hotel.category || currentStay.category || "Deluxe",
       starRating: hotel.starRating || currentStay.starRating || 3,
-      roomId: room?.id || room?._id || currentStay.roomId,
+      roomId: room?.id ? String(room.id) : (room?._id ? String(room._id) : currentStay.roomId),
       roomType: room?.name || room?.roomType || "Standard Room",
       mealPlan: mealPlan || "CP",
       mealPrices: room?.meals || currentStay.mealPrices,
@@ -362,8 +368,12 @@ export default function QuickAccommodationSection({
     const rooms = roomsMap[hotel._id] || [];
     const pricing = getHotelAllPricesForDate(hotel, rooms, startDate);
     const currentStay = currentStays[idx] || {};
-    const defRoom = pricing.roomOptions[0];
-    const curPlan = currentStay.mealPlan || "CP";
+    const defRoom = matchRoomType(pricing.roomOptions, currentStay.roomType) || pricing.roomOptions[0];
+    let curPlan = currentStay.mealPlan || "CP";
+    if (!defRoom?.meals?.[curPlan] || Number(defRoom.meals[curPlan]) <= 0) {
+      const validPlans = Object.keys(defRoom?.meals || {}).filter((p) => Number(defRoom.meals[p]) > 0);
+      if (validPlans.length > 0) curPlan = validPlans.includes("CP") ? "CP" : validPlans[0];
+    }
     const rate = defRoom?.meals?.[curPlan] || defRoom?.minPrice || pricing.minPrice || 0;
 
     handleSelectHotelAndMealRate(idx, hotel, defRoom, curPlan, rate, hotel.category);
@@ -428,7 +438,19 @@ export default function QuickAccommodationSection({
 
   function handleGenerate6StandardTiers() {
     const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+    const tierRoomKeywords = {
+      "Budget": "Standard",
+      "Standard": "Standard",
+      "Deluxe": "Deluxe",
+      "Super Deluxe": "Super Deluxe",
+      "Premium": "Executive",
+      "Luxury": "Suite",
+      "Premium Luxury": "Villa",
+    };
+
     const generated = HOTEL_CATEGORIES.map((catName) => {
+      const targetRoomKeyword = tierRoomKeywords[catName] || catName;
+
       const newStays = currentStays.map((stay) => {
         const cityHotels = catalogHotels.filter(
           (h) => h.category && h.category.toLowerCase() === catName.toLowerCase()
@@ -441,8 +463,14 @@ export default function QuickAccommodationSection({
 
         const rooms = matched ? (roomsMap[matched._id] || []) : [];
         const pricing = matched ? getHotelAllPricesForDate(matched, rooms, startDate) : null;
-        const defaultRoom = pricing?.roomOptions?.[0];
-        const defaultPlan = "CP";
+        const defaultRoom = pricing?.roomOptions ? matchRoomType(pricing.roomOptions, targetRoomKeyword) : null;
+        
+        let defaultPlan = "CP";
+        if (!defaultRoom?.meals?.[defaultPlan] || Number(defaultRoom.meals[defaultPlan]) <= 0) {
+          const validPlans = Object.keys(defaultRoom?.meals || {}).filter((p) => Number(defaultRoom.meals[p]) > 0);
+          if (validPlans.length > 0) defaultPlan = validPlans.includes("CP") ? "CP" : validPlans[0];
+        }
+
         const rate = defaultRoom?.meals?.[defaultPlan] || defaultRoom?.minPrice || pricing?.minPrice || 0;
 
         return {
@@ -451,8 +479,8 @@ export default function QuickAccommodationSection({
           hotelName: matched ? matched.name : `${catName} Hotel`,
           category: catName,
           starRating: matched ? matched.starRating : (catName.includes("Luxury") ? 5 : catName.includes("Premium") ? 4 : 3),
-          roomId: defaultRoom?.id || null,
-          roomType: defaultRoom?.name || "Standard Room",
+          roomId: defaultRoom?.id ? String(defaultRoom.id) : null,
+          roomType: defaultRoom?.name || `${targetRoomKeyword} Room`,
           mealPlan: defaultPlan,
           mealPrices: defaultRoom?.meals || undefined,
           availableMealPlans: defaultRoom?.meals ? Object.keys(defaultRoom.meals) : ["EP", "CP", "MAP", "AP"],
@@ -860,7 +888,12 @@ export default function QuickAccommodationSection({
                     )}
                   </div>
 
-                  {stay.hotelId && roomsMap[stay.hotelId]?.length > 0 ? (
+                  {stay.hotelId && !roomsMap[stay.hotelId] ? (
+                    <div className="flex items-center gap-2 py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-400 text-xs animate-pulse">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      <span>Loading room categories...</span>
+                    </div>
+                  ) : stay.hotelId && roomsMap[stay.hotelId]?.length > 0 ? (
                     (() => {
                       const hotelRooms = getHotelAllPricesForDate(
                         { _id: stay.hotelId, category: stay.category },
@@ -868,35 +901,73 @@ export default function QuickAccommodationSection({
                         startDate
                       ).roomOptions;
 
+                      const currentRoom =
+                        hotelRooms.find((r) => String(r.id) === String(stay.roomId)) ||
+                        matchRoomType(hotelRooms, stay.roomType) ||
+                        hotelRooms[0];
+
+                      const totalRoomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
+                      const adultsCount = Math.max(1, parseInt(adults, 10) || (passengers?.adults ? parseInt(passengers.adults, 10) : 2));
+                      const maxCapacity = (currentRoom?.maxOccupancy || 2) * totalRoomsCount;
+                      const isOverCapacity = adultsCount > maxCapacity;
+                      const extraAdults = Math.max(0, adultsCount - (totalRoomsCount * 2));
+
                       return (
-                        <select
-                          value={stay.roomId || hotelRooms.find((r) => r.name.toLowerCase() === (stay.roomType || "").toLowerCase())?.id || hotelRooms[0]?.id || ""}
-                          onChange={(e) => {
-                            const selectedId = e.target.value;
-                            const selRoom = hotelRooms.find((r) => r.id === selectedId) || hotelRooms[0];
-                            if (selRoom) {
-                              const curPlan = stay.mealPlan || "CP";
-                              const newRate = selRoom.meals?.[curPlan] || selRoom.minPrice || 0;
-                              const updated = [...currentStays];
-                              updated[idx] = {
-                                ...stay,
-                                roomId: selRoom.id,
-                                roomType: selRoom.name,
-                                mealPrices: selRoom.meals,
-                                availableMealPlans: Object.keys(selRoom.meals || {}),
-                                pricePerNight: newRate > 0 ? newRate : stay.pricePerNight,
-                              };
-                              syncOptions(updated);
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white focus:bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors cursor-pointer"
-                        >
-                          {hotelRooms.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name} {r.minPrice > 0 ? `(from ₹${r.minPrice.toLocaleString("en-IN")})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                        <div>
+                          <select
+                            value={currentRoom?.id || ""}
+                            onChange={(e) => {
+                              const selectedId = e.target.value;
+                              const selRoom = hotelRooms.find((r) => String(r.id) === String(selectedId)) || hotelRooms[0];
+                              if (selRoom) {
+                                const curPlan = stay.mealPlan || "CP";
+                                let targetPlan = curPlan;
+                                if (!selRoom.meals?.[targetPlan] || Number(selRoom.meals[targetPlan]) <= 0) {
+                                  const validPlans = Object.keys(selRoom.meals || {}).filter((p) => Number(selRoom.meals[p]) > 0);
+                                  if (validPlans.length > 0) {
+                                    targetPlan = validPlans.includes("CP") ? "CP" : validPlans[0];
+                                  }
+                                }
+                                const newRate = Number(selRoom.meals?.[targetPlan]) || selRoom.minPrice || 0;
+                                const updated = [...currentStays];
+                                updated[idx] = {
+                                  ...stay,
+                                  roomId: String(selRoom.id),
+                                  roomType: selRoom.name,
+                                  mealPlan: targetPlan,
+                                  mealPrices: selRoom.meals,
+                                  availableMealPlans: Object.keys(selRoom.meals || {}),
+                                  pricePerNight: newRate > 0 ? newRate : stay.pricePerNight,
+                                };
+                                syncOptions(updated);
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white focus:bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors cursor-pointer"
+                          >
+                            {hotelRooms.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}{r.minPrice > 0 ? `(from ₹${r.minPrice.toLocaleString("en-IN")})` : ""}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Occupancy Limit & Extra Bed Warnings */}
+                          {isOverCapacity ? (
+                            <div className="mt-1.5 flex items-start gap-1.5 p-1.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-[11px] leading-tight font-medium">
+                              <span className="font-bold flex-shrink-0">⚠️</span>
+                              <span>
+                                {adultsCount} Adults exceeds {maxCapacity} Max Capacity ({totalRoomsCount}R × {currentRoom?.maxOccupancy || 2}). Add a room or pick a Family/Suite category.
+                              </span>
+                            </div>
+                          ) : extraAdults > 0 ? (
+                            <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10.5px]">
+                              <span>ℹ️</span>
+                              <span>
+                                {extraAdults} Extra Adult{extraAdults > 1 ? "s" : ""} in {totalRoomsCount} room{totalRoomsCount > 1 ? "s" : ""} (Extra bed supplement may apply).
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
                       );
                     })()
                   ) : (
@@ -1028,6 +1099,9 @@ export default function QuickAccommodationSection({
         roomsMap={roomsMap}
         startDate={startDate}
         totalRooms={totalRooms}
+        adults={adults}
+        initialHotelId={mealDialogState.hotelId}
+        initialRoomId={mealDialogState.roomId}
         onSelectHotel={({ hotel, room, mealPlan, rate, category }) => {
           if (mealDialogState.legIdx !== null && mealDialogState.legIdx !== undefined) {
             handleSelectHotelAndMealRate(mealDialogState.legIdx, hotel, room, mealPlan, rate, category);

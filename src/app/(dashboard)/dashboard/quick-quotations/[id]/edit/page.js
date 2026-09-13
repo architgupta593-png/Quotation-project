@@ -1107,6 +1107,8 @@ export default function EditQuickQuotationPage({ params }) {
               primaryDestination={form.tripDetails?.destination || ""}
               startDate={form.tripDetails?.startDate}
               totalRooms={form.passengers?.totalRooms || 1}
+              adults={form.passengers?.adults || 2}
+              passengers={form.passengers}
               onPriceAdjustment={(newAccomCost) => {
                 setForm((p) => {
                   const vehCost = Number(p.vehicle?.vehiclePrice) || 0;

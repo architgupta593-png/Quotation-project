@@ -1,12 +1,66 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Star, MapPin, Hotel, Search, X, Sparkles, ListFilter, Calendar
 } from "lucide-react";
 import {
   HOTEL_CATEGORIES,
 } from "@/components/packages/AccommodationPanel";
+
+export function matchRoomType(roomOptions = [], targetType = "") {
+  if (!roomOptions || roomOptions.length === 0) return null;
+  if (!targetType) return roomOptions[0];
+
+  const cleanTarget = String(targetType)
+    .toLowerCase()
+    .replace(/\b(ac|non-ac|room|rooms)\b/gi, "")
+    .replace(/[^a-z0-9]/g, " ")
+    .trim();
+
+  // 1. Exact clean match
+  const exactMatch = roomOptions.find((r) => {
+    const cleanRName = (r.name || "")
+      .toLowerCase()
+      .replace(/\b(ac|non-ac|room|rooms)\b/gi, "")
+      .replace(/[^a-z0-9]/g, " ")
+      .trim();
+    return cleanRName === cleanTarget;
+  });
+  if (exactMatch) return exactMatch;
+
+  // 2. Token overlap score
+  const targetTokens = cleanTarget.split(/\s+/).filter((t) => t.length >= 3);
+  let bestMatch = null;
+  let bestScore = -1;
+
+  roomOptions.forEach((r) => {
+    const cleanRName = (r.name || "")
+      .toLowerCase()
+      .replace(/\b(ac|non-ac|room|rooms)\b/gi, "")
+      .replace(/[^a-z0-9]/g, " ")
+      .trim();
+    const rTokens = cleanRName.split(/\s+/).filter((t) => t.length >= 3);
+
+    // Count target tokens inside this room
+    let score = 0;
+    targetTokens.forEach((tt) => {
+      if (rTokens.includes(tt)) score += 10;
+      else if (rTokens.some((rt) => rt.includes(tt) || tt.includes(rt))) score += 4;
+    });
+
+    // Small penalty for extra tokens to prefer tight matches
+    const tokenDiff = Math.abs(rTokens.length - targetTokens.length);
+    score -= tokenDiff;
+
+    if (score > bestScore && score > 0) {
+      bestScore = score;
+      bestMatch = r;
+    }
+  });
+
+  return bestMatch || roomOptions[0];
+}
 
 export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
   if (!rooms || rooms.length === 0) {
@@ -92,12 +146,20 @@ export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
     }
 
     roomOptions.push({
-      id: r._id,
+      id: String(r._id || r.id || ""),
       name: r.roomType || "Standard Room",
+      maxOccupancy: Number(r.maxOccupancy) || 2,
       minPrice: roomMin,
       meals: mealPrices,
       seasonLabel: matchedSeason?.label || "",
     });
+  });
+
+  // Sort roomOptions by minPrice ascending so index 0 is always the base/cheapest room
+  roomOptions.sort((a, b) => {
+    if (a.minPrice <= 0 && b.minPrice > 0) return 1;
+    if (b.minPrice <= 0 && a.minPrice > 0) return -1;
+    return a.minPrice - b.minPrice;
   });
 
   const finalMin = overallMinPrice === Infinity ? (rooms[0]?.basePrice || 0) : overallMinPrice;
@@ -128,6 +190,9 @@ export default function HotelMealSelectionDialog({
   roomsMap = {},
   startDate = "",
   totalRooms = 1,
+  adults = 2,
+  initialHotelId = null,
+  initialRoomId = null,
   onSelectHotel,
 }) {
   const [activeCategory, setActiveCategory] = useState(initialCategory || "Deluxe");
@@ -136,20 +201,28 @@ export default function HotelMealSelectionDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [starFilter, setStarFilter] = useState("ALL");
   const [selectedRoomsByHotel, setSelectedRoomsByHotel] = useState({});
+  const [selectedMealPlansByHotel, setSelectedMealPlansByHotel] = useState({});
 
   const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
 
-  // Keep state synced when modal is reopened
-  useMemo(() => {
+  // Clean lifecycle hook: sync state when modal is opened
+  useEffect(() => {
     if (isOpen) {
       if (initialCategory) setActiveCategory(initialCategory);
       if (initialMealPlan) setActiveMealPlan(initialMealPlan);
       setShowAllHotels(false);
       setSearchQuery("");
       setStarFilter("ALL");
-      setSelectedRoomsByHotel({});
+
+      // Pre-populate previously selected hotel & room if provided
+      const initRooms = {};
+      if (initialHotelId && initialRoomId) {
+        initRooms[initialHotelId] = String(initialRoomId);
+      }
+      setSelectedRoomsByHotel(initRooms);
+      setSelectedMealPlansByHotel({});
     }
-  }, [isOpen, initialCategory, initialMealPlan]);
+  }, [isOpen, initialCategory, initialMealPlan, initialHotelId, initialRoomId]);
 
   // Compute all matching hotels for the city and category with exact price for the meal plan
   const { allMatchingHotels, sortedHotels, top5Hotels } = useMemo(() => {
@@ -180,37 +253,48 @@ export default function HotelMealSelectionDialog({
       const rooms = roomsMap[hotel._id] || [];
       const pricing = getHotelAllPricesForDate(hotel, rooms, startDate);
 
-      // Find user-selected room or closest room matching initialRoomType
+      // Find user-selected room or closest room matching initialRoomType via matchRoomType
       const activeRoomId = selectedRoomsByHotel[hotel._id];
-      let activeRoom = activeRoomId ? pricing.roomOptions.find((r) => r.id === activeRoomId) : null;
+      let activeRoom = activeRoomId ? pricing.roomOptions.find((r) => String(r.id) === String(activeRoomId)) : null;
       if (!activeRoom) {
-        activeRoom = pricing.roomOptions.find(
-          (r) => r.name.toLowerCase().includes((initialRoomType || "").toLowerCase()) ||
-                 (initialRoomType || "").toLowerCase().includes(r.name.toLowerCase())
-        );
+        activeRoom = matchRoomType(pricing.roomOptions, initialRoomType);
       }
       if (!activeRoom) {
         activeRoom = pricing.roomOptions[0];
       }
 
-      // Calculate meal rate
-      const mealRate = activeRoom?.meals?.[activeMealPlan] || activeRoom?.minPrice || pricing.minPrice || 0;
+      // Re-validate meal plan: user's explicit card choice || global activeMealPlan || fallback
+      let currentPlan = selectedMealPlansByHotel[hotel._id] || activeMealPlan;
+      if (!activeRoom?.meals?.[currentPlan] || Number(activeRoom.meals[currentPlan]) <= 0) {
+        const validPlans = Object.keys(activeRoom?.meals || {}).filter((p) => Number(activeRoom.meals[p]) > 0);
+        if (validPlans.length > 0) {
+          currentPlan = validPlans.includes("CP") ? "CP" : validPlans[0];
+        }
+      }
+
+      // Calculate meal rate for the validated plan
+      const mealRate = activeRoom?.meals?.[currentPlan] || activeRoom?.minPrice || pricing.minPrice || 0;
+
+      // Base reference price for sorting (independent of user's temporary room selection)
+      const baseRefPrice = pricing.minPrice || pricing.roomOptions[0]?.minPrice || 0;
 
       return {
         hotel,
         matchedRoom: activeRoom,
         roomOptions: pricing.roomOptions,
+        effectiveMealPlan: currentPlan,
         calculatedPrice: Number(mealRate) || 0,
+        baseRefPrice: Number(baseRefPrice) || 0,
         hasPrice: mealRate > 0,
         seasonLabel: activeRoom?.seasonLabel || "",
       };
     });
 
-    // Sort by price ascending (Lowest Price first)
+    // Sort by baseRefPrice ascending so card order remains STABLE when user switches rooms
     const sorted = [...enriched].sort((a, b) => {
-      if (a.calculatedPrice <= 0 && b.calculatedPrice > 0) return 1;
-      if (b.calculatedPrice <= 0 && a.calculatedPrice > 0) return -1;
-      return a.calculatedPrice - b.calculatedPrice;
+      if (a.baseRefPrice <= 0 && b.baseRefPrice > 0) return 1;
+      if (b.baseRefPrice <= 0 && a.baseRefPrice > 0) return -1;
+      return a.baseRefPrice - b.baseRefPrice;
     });
 
     const top5 = sorted.slice(0, 5);
@@ -220,7 +304,19 @@ export default function HotelMealSelectionDialog({
       sortedHotels: sorted,
       top5Hotels: top5,
     };
-  }, [catalogHotels, roomsMap, cityName, activeCategory, activeMealPlan, initialRoomType, searchQuery, starFilter, startDate]);
+  }, [
+    catalogHotels,
+    roomsMap,
+    cityName,
+    activeCategory,
+    activeMealPlan,
+    initialRoomType,
+    searchQuery,
+    starFilter,
+    startDate,
+    selectedRoomsByHotel,
+    selectedMealPlansByHotel,
+  ]);
 
   if (!isOpen) return null;
 
@@ -445,11 +541,11 @@ export default function HotelMealSelectionDialog({
                               e.stopPropagation();
                               setSelectedRoomsByHotel((prev) => ({ ...prev, [hotel._id]: e.target.value }));
                             }}
-                            className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer max-w-[240px] truncate shadow-2xs"
+                            className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer max-w-[260px] truncate shadow-2xs"
                           >
                             {item.roomOptions.map((ro) => (
                               <option key={ro.id} value={ro.id}>
-                                {ro.name} {ro.minPrice > 0 ? `(₹${ro.minPrice.toLocaleString("en-IN")})` : ""}
+                                {ro.name} {ro.maxOccupancy ? `[Max ${ro.maxOccupancy}] ` : ""}{ro.minPrice > 0 ? `(₹${ro.minPrice.toLocaleString("en-IN")})` : ""}
                               </option>
                             ))}
                           </select>
@@ -458,17 +554,41 @@ export default function HotelMealSelectionDialog({
                         matchedRoom?.name && (
                           <p className="text-[11px] font-medium text-slate-600 mt-0.5">
                             Room: <span className="font-semibold text-slate-800">{matchedRoom.name}</span>
+                            {matchedRoom.maxOccupancy && (
+                              <span className="text-[10px] text-slate-400 ml-1.5">(Max {matchedRoom.maxOccupancy} Adults)</span>
+                            )}
                           </p>
                         )
                       )}
+
+                      {/* In-Dialog Occupancy Warning */}
+                      {(() => {
+                        const totalRoomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
+                        const adultsCount = Math.max(1, parseInt(adults, 10) || 2);
+                        const roomMaxOcc = matchedRoom?.maxOccupancy || 2;
+                        const maxCapacity = roomMaxOcc * totalRoomsCount;
+                        const isOverCapacity = adultsCount > maxCapacity;
+                        if (!isOverCapacity) return null;
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-800 text-[10.5px] font-medium">
+                            <span className="font-bold">⚠️</span>
+                            <span>{adultsCount} Adults exceeds {maxCapacity} Max Capacity ({totalRoomsCount}R × {roomMaxOcc}).</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Price & Select Button */}
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <div className="text-right">
-                        <div className="text-sm font-bold text-slate-900">
-                          {calculatedPrice > 0 ? `₹${calculatedPrice.toLocaleString("en-IN")}` : "On Request"}
+                        <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-1.5">
+                          <span>{calculatedPrice > 0 ? `₹${calculatedPrice.toLocaleString("en-IN")}` : "On Request"}</span>
                           <span className="text-[11px] font-normal text-slate-400">/n</span>
+                          {item.effectiveMealPlan && calculatedPrice > 0 && (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                              {item.effectiveMealPlan}
+                            </span>
+                          )}
                         </div>
                         {calculatedPrice > 0 && (
                           <div className="text-[10px] text-slate-500">
@@ -487,7 +607,7 @@ export default function HotelMealSelectionDialog({
                             onSelectHotel({
                               hotel,
                               room: matchedRoom,
-                              mealPlan: activeMealPlan,
+                              mealPlan: item.effectiveMealPlan || activeMealPlan,
                               rate: calculatedPrice,
                               category: hotel.category || activeCategory,
                             });
@@ -501,34 +621,27 @@ export default function HotelMealSelectionDialog({
                     </div>
                   </div>
 
-                  {/* All meal rates for this hotel as sleek mini pills */}
+                  {/* All meal rates for this hotel as sleek mini pills (click updates rate in-place) */}
                   {matchedRoom?.meals && Object.keys(matchedRoom.meals).length > 1 && (
                     <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100">
                       <span className="text-[10.5px] text-slate-400 font-medium mr-1">All Plans:</span>
                       {Object.entries(matchedRoom.meals).map(([plan, rate]) => {
                         if (rate <= 0) return null;
-                        const isCur = activeMealPlan === plan;
+                        const isCur = item.effectiveMealPlan === plan;
                         return (
                           <button
                             key={plan}
                             type="button"
-                            onClick={() => {
-                              if (typeof onSelectHotel === "function") {
-                                onSelectHotel({
-                                  hotel,
-                                  room: matchedRoom,
-                                  mealPlan: plan,
-                                  rate: Number(rate),
-                                  category: hotel.category || activeCategory,
-                                });
-                              }
-                              onClose();
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedMealPlansByHotel((prev) => ({ ...prev, [hotel._id]: plan }));
                             }}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors border ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors border cursor-pointer ${
                               isCur
-                                ? "bg-amber-500 text-white border-amber-600 font-bold"
+                                ? "bg-amber-500 text-white border-amber-600 font-bold shadow-2xs"
                                 : "bg-slate-50 hover:bg-amber-50 text-slate-700 border-slate-200"
                             }`}
+                            title={`Switch to ${plan} meal plan for this hotel (₹${Number(rate).toLocaleString("en-IN")}/n)`}
                           >
                             <span>{plan}:</span>
                             <span>₹{Number(rate).toLocaleString("en-IN")}</span>
