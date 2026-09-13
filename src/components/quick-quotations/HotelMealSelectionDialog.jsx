@@ -135,6 +135,7 @@ export default function HotelMealSelectionDialog({
   const [showAllHotels, setShowAllHotels] = useState(false); // Default: Top 5 Lowest Price
   const [searchQuery, setSearchQuery] = useState("");
   const [starFilter, setStarFilter] = useState("ALL");
+  const [selectedRoomsByHotel, setSelectedRoomsByHotel] = useState({});
 
   const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
 
@@ -146,6 +147,7 @@ export default function HotelMealSelectionDialog({
       setShowAllHotels(false);
       setSearchQuery("");
       setStarFilter("ALL");
+      setSelectedRoomsByHotel({});
     }
   }, [isOpen, initialCategory, initialMealPlan]);
 
@@ -178,25 +180,29 @@ export default function HotelMealSelectionDialog({
       const rooms = roomsMap[hotel._id] || [];
       const pricing = getHotelAllPricesForDate(hotel, rooms, startDate);
 
-      // Find closest room matching initialRoomType
-      let matchedRoom = pricing.roomOptions.find(
-        (r) => r.name.toLowerCase().includes((initialRoomType || "").toLowerCase()) ||
-               (initialRoomType || "").toLowerCase().includes(r.name.toLowerCase())
-      );
-      if (!matchedRoom) {
-        matchedRoom = pricing.roomOptions[0];
+      // Find user-selected room or closest room matching initialRoomType
+      const activeRoomId = selectedRoomsByHotel[hotel._id];
+      let activeRoom = activeRoomId ? pricing.roomOptions.find((r) => r.id === activeRoomId) : null;
+      if (!activeRoom) {
+        activeRoom = pricing.roomOptions.find(
+          (r) => r.name.toLowerCase().includes((initialRoomType || "").toLowerCase()) ||
+                 (initialRoomType || "").toLowerCase().includes(r.name.toLowerCase())
+        );
+      }
+      if (!activeRoom) {
+        activeRoom = pricing.roomOptions[0];
       }
 
       // Calculate meal rate
-      const mealRate = matchedRoom?.meals?.[activeMealPlan] || matchedRoom?.minPrice || pricing.minPrice || 0;
+      const mealRate = activeRoom?.meals?.[activeMealPlan] || activeRoom?.minPrice || pricing.minPrice || 0;
 
       return {
         hotel,
-        matchedRoom,
+        matchedRoom: activeRoom,
         roomOptions: pricing.roomOptions,
         calculatedPrice: Number(mealRate) || 0,
         hasPrice: mealRate > 0,
-        seasonLabel: matchedRoom?.seasonLabel || "",
+        seasonLabel: activeRoom?.seasonLabel || "",
       };
     });
 
@@ -428,8 +434,33 @@ export default function HotelMealSelectionDialog({
                       <p className="text-xs text-slate-500 mt-0.5 truncate">
                         {hotel.city?.name || cityName}
                         {hotel.address ? ` • ${hotel.address}` : ""}
-                        {matchedRoom?.name ? ` • Room: ${matchedRoom.name}` : ""}
                       </p>
+
+                      {item.roomOptions && item.roomOptions.length > 1 ? (
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-600">Room:</span>
+                          <select
+                            value={matchedRoom?.id || ""}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setSelectedRoomsByHotel((prev) => ({ ...prev, [hotel._id]: e.target.value }));
+                            }}
+                            className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer max-w-[240px] truncate shadow-2xs"
+                          >
+                            {item.roomOptions.map((ro) => (
+                              <option key={ro.id} value={ro.id}>
+                                {ro.name} {ro.minPrice > 0 ? `(₹${ro.minPrice.toLocaleString("en-IN")})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        matchedRoom?.name && (
+                          <p className="text-[11px] font-medium text-slate-600 mt-0.5">
+                            Room: <span className="font-semibold text-slate-800">{matchedRoom.name}</span>
+                          </p>
+                        )
+                      )}
                     </div>
 
                     {/* Price & Select Button */}
