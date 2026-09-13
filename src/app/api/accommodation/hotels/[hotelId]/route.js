@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Hotel from "@/models/Hotel";
 import Room  from "@/models/Room";
+import City  from "@/models/City";
 
 // ── GET /api/accommodation/hotels/[hotelId] ───────────────────────────────────
 export async function GET(request, { params }) {

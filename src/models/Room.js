@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import "./Hotel.js";
 
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 

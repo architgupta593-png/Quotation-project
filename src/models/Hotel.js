@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import "./City.js";
 
 // ── Sub-schemas ───────────────────────────────────────────────────────────────
 
