@@ -216,6 +216,7 @@ const QuickQuotationSchema = new mongoose.Schema(
     pricing: {
       totalPrice: { type: Number, min: 0, default: 0 },
       baseCost: { type: Number, min: 0, default: 0 },
+      accommodationTotal: { type: Number, min: 0, default: 0 },
       markupAmount: { type: Number, min: 0, default: 0 },
       markupReason: { type: String, trim: true, default: "" },
       discountAmount: { type: Number, min: 0, default: 0 },

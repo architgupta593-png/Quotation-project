@@ -11,7 +11,7 @@ import {
   getCategoryBadgeClass,
   getHotelAllPrices,
 } from "@/components/packages/AccommodationPanel";
-import HotelMealSelectionDialog from "./HotelMealSelectionDialog";
+import HotelMealSelectionDialog, { getHotelAllPricesForDate } from "./HotelMealSelectionDialog";
 
 const MEAL_PLANS = [
   { id: "EP", label: "EP", title: "Room Only", sub: "No Meals (Breakfast Deducted)" },
@@ -245,11 +245,27 @@ export default function QuickAccommodationSection({
     return currentStays.reduce((acc, s) => acc + (Math.max(1, parseInt(s.nights, 10) || 1)), 0);
   }, [currentStays]);
 
-  function syncOptions(updatedActiveStays, updatedOptionsArray = null) {
+  // Synchronize when totalRooms changes in parent
+  useEffect(() => {
+    const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+    const totalStayCost = currentStays.reduce(
+      (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
+      0
+    );
+    if (onPriceAdjustment) {
+      onPriceAdjustment(totalStayCost, activeOptIdx);
+    }
+  }, [totalRooms]);
+
+  function syncOptions(updatedActiveStays, updatedOptionsArray = null, optIdx = activeOptIdx) {
     const optionsToUpdate = updatedOptionsArray || [...rawOptions];
-    const totalStayCost = updatedActiveStays.reduce((s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1)), 0);
-    optionsToUpdate[activeOptIdx] = {
-      ...optionsToUpdate[activeOptIdx],
+    const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+    const totalStayCost = updatedActiveStays.reduce(
+      (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
+      0
+    );
+    optionsToUpdate[optIdx] = {
+      ...optionsToUpdate[optIdx],
       hotelStays: updatedActiveStays,
       totalPrice: totalStayCost,
     };
@@ -258,6 +274,9 @@ export default function QuickAccommodationSection({
     }
     if (onChange) {
       onChange(updatedActiveStays);
+    }
+    if (onPriceAdjustment) {
+      onPriceAdjustment(totalStayCost, optIdx);
     }
   }
 
@@ -268,12 +287,12 @@ export default function QuickAccommodationSection({
       [field]: value,
     };
 
-    // If user changes roomType and stay has hotelId, update room & meal prices from loaded roomsMap
+    // If user changes roomType and stay has hotelId, update room & meal prices from loaded roomsMap with seasonal awareness
     if (field === "roomType" && updated[idx].hotelId) {
       const rooms = roomsMap[updated[idx].hotelId] || [];
       if (rooms.length > 0) {
         const hotel = catalogHotels.find((h) => h._id === updated[idx].hotelId) || { _id: updated[idx].hotelId };
-        const pricing = getHotelAllPrices(hotel, rooms);
+        const pricing = getHotelAllPricesForDate(hotel, rooms, startDate);
         const targetNorm = String(value).toLowerCase().trim();
         const matched = pricing.roomOptions.find((r) => r.name.toLowerCase().includes(targetNorm) || targetNorm.includes(r.name.toLowerCase())) || pricing.roomOptions[0];
         if (matched) {
@@ -376,21 +395,26 @@ export default function QuickAccommodationSection({
     ];
 
     if (onOptionsChange) onOptionsChange(updated);
+    if (onChange) onChange(newOptionStays);
+    if (onPriceAdjustment) onPriceAdjustment(0, newIdx);
     setActiveOptIdx(newIdx);
   }
 
   function handleGenerate6StandardTiers() {
+    const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
     const generated = HOTEL_CATEGORIES.map((catName) => {
       const newStays = currentStays.map((stay) => {
         const cityHotels = catalogHotels.filter(
           (h) => h.category && h.category.toLowerCase() === catName.toLowerCase()
         );
-        const matched = cityHotels.find((h) =>
-          stay.cityName && h.city?.name && h.city.name.toLowerCase().includes(stay.cityName.toLowerCase())
-        ) || cityHotels[0];
+        const cleanCity = (stay.cityName || "").split(",")[0].split("/")[0].trim().toLowerCase();
+        const matched = cityHotels.find((h) => {
+          const hc = (h.city?.name || "").toLowerCase();
+          return cleanCity && (hc.includes(cleanCity) || cleanCity.includes(hc));
+        }) || cityHotels[0];
 
         const rooms = matched ? (roomsMap[matched._id] || []) : [];
-        const pricing = matched ? getHotelAllPrices(matched, rooms) : null;
+        const pricing = matched ? getHotelAllPricesForDate(matched, rooms, startDate) : null;
         const defaultRoom = pricing?.roomOptions?.[0];
         const defaultPlan = "CP";
         const rate = defaultRoom?.meals?.[defaultPlan] || defaultRoom?.minPrice || pricing?.minPrice || 0;
@@ -410,7 +434,7 @@ export default function QuickAccommodationSection({
         };
       });
 
-      const tierTotal = newStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1)), 0);
+      const tierTotal = newStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMultiplier), 0);
 
       return {
         label: `${catName} Tier`,
@@ -421,14 +445,21 @@ export default function QuickAccommodationSection({
     });
 
     if (onOptionsChange) onOptionsChange(generated);
-    if (onChange && generated[0]) onChange(generated[0].hotelStays);
-    setActiveOptIdx(1); // Select Deluxe by default
+    const defaultIdx = Math.min(1, generated.length - 1); // Select Deluxe by default
+    if (onChange && generated[defaultIdx]) onChange(generated[defaultIdx].hotelStays);
+    if (onPriceAdjustment && generated[defaultIdx]) onPriceAdjustment(generated[defaultIdx].totalPrice, defaultIdx);
+    setActiveOptIdx(defaultIdx);
   }
 
   function handleDuplicateOption(idx) {
     const source = rawOptions[idx] || rawOptions[0];
     const newIdx = rawOptions.length;
     const duplicatedStays = (source.hotelStays || currentStays).map((s) => ({ ...s }));
+    const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+    const dupCost = duplicatedStays.reduce(
+      (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
+      0
+    );
 
     const updated = [
       ...rawOptions,
@@ -436,21 +467,31 @@ export default function QuickAccommodationSection({
         label: `${source.label || `Option ${idx + 1}`} (Copy)`,
         category: source.category || "Deluxe",
         hotelStays: duplicatedStays,
-        totalPrice: source.totalPrice || 0,
+        totalPrice: dupCost,
       },
     ];
 
     if (onOptionsChange) onOptionsChange(updated);
+    if (onChange) onChange(duplicatedStays);
+    if (onPriceAdjustment) onPriceAdjustment(dupCost, newIdx);
     setActiveOptIdx(newIdx);
   }
 
   function handleRemoveOption(idx) {
     if (rawOptions.length <= 1) return;
     const updated = rawOptions.filter((_, i) => i !== idx);
+    const nextIdx = Math.min(activeOptIdx >= updated.length ? updated.length - 1 : activeOptIdx, updated.length - 1);
     if (onOptionsChange) onOptionsChange(updated);
-    if (activeOptIdx >= updated.length) {
-      setActiveOptIdx(Math.max(0, updated.length - 1));
-    }
+    setActiveOptIdx(nextIdx);
+
+    const targetStays = updated[nextIdx]?.hotelStays || currentStays;
+    const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+    const nextCost = targetStays.reduce(
+      (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
+      0
+    );
+    if (onChange) onChange(targetStays);
+    if (onPriceAdjustment) onPriceAdjustment(nextCost, nextIdx);
   }
 
   function handleRenameOption(idx, newLabel) {
@@ -515,7 +556,20 @@ export default function QuickAccommodationSection({
             return (
               <div
                 key={idx}
-                onClick={() => setActiveOptIdx(idx)}
+                onClick={() => {
+                  setActiveOptIdx(idx);
+                  const targetOption = rawOptions[idx] || rawOptions[0];
+                  const targetStays = (targetOption?.hotelStays && targetOption.hotelStays.length > 0)
+                    ? targetOption.hotelStays
+                    : currentStays;
+                  const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+                  const totalCost = targetStays.reduce(
+                    (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
+                    0
+                  );
+                  if (onChange) onChange(targetStays);
+                  if (onPriceAdjustment) onPriceAdjustment(totalCost, idx);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
                   isActive
                     ? "bg-white border-slate-900 text-slate-900 shadow-xs font-bold"
@@ -800,13 +854,15 @@ export default function QuickAccommodationSection({
                 </div>
 
                 {/* Stay Rate Summary */}
-                <div className="flex items-center gap-2 text-xs text-slate-700 self-end sm:self-auto">
-                  <span className="text-slate-400 font-medium">Total:</span>
-                  <span className="font-bold text-slate-900 text-sm">
-                    ₹{((stay.pricePerNight || 0) * stayNights).toLocaleString("en-IN")}
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs text-slate-700 self-end sm:self-auto text-right sm:text-left">
+                  <div className="flex items-center gap-1.5 justify-end sm:justify-start">
+                    <span className="text-slate-400 font-medium">Stay Total:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      ₹{(((stay.pricePerNight || 0) * stayNights) * Math.max(1, parseInt(totalRooms, 10) || 1)).toLocaleString("en-IN")}
+                    </span>
+                  </div>
                   <span className="text-[11px] text-slate-400">
-                    ({stayNights}N × ₹{(stay.pricePerNight || 0).toLocaleString("en-IN")})
+                    ({stayNights}N{Math.max(1, parseInt(totalRooms, 10) || 1) > 1 ? ` × ${Math.max(1, parseInt(totalRooms, 10) || 1)} Rooms` : ""} × ₹{(stay.pricePerNight || 0).toLocaleString("en-IN")}/n)
                   </span>
                 </div>
               </div>
@@ -826,6 +882,8 @@ export default function QuickAccommodationSection({
         mealPlan={mealDialogState.mealPlan}
         catalogHotels={catalogHotels}
         roomsMap={roomsMap}
+        startDate={startDate}
+        totalRooms={totalRooms}
         onSelectHotel={({ hotel, room, mealPlan, rate, category }) => {
           if (mealDialogState.legIdx !== null && mealDialogState.legIdx !== undefined) {
             handleSelectHotelAndMealRate(mealDialogState.legIdx, hotel, room, mealPlan, rate, category);

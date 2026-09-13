@@ -2,12 +2,112 @@
 
 import { useState, useMemo } from "react";
 import {
-  Star, MapPin, Hotel, Search, X, Sparkles, ListFilter
+  Star, MapPin, Hotel, Search, X, Sparkles, ListFilter, Calendar
 } from "lucide-react";
 import {
   HOTEL_CATEGORIES,
-  getHotelAllPrices,
 } from "@/components/packages/AccommodationPanel";
+
+export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
+  if (!rooms || rooms.length === 0) {
+    return {
+      hasPrice: false,
+      minPrice: 0,
+      roomOptions: [],
+    };
+  }
+
+  const tripDate = travelDate ? new Date(travelDate) : null;
+  const isValidDate = tripDate && !isNaN(tripDate.getTime());
+
+  let overallMinPrice = Infinity;
+  const roomOptions = [];
+
+  rooms.forEach((r) => {
+    const mealPrices = {
+      EP: 0,
+      CP: 0,
+      MAP: 0,
+      AP: 0,
+    };
+
+    if (r.basePrice && Number(r.basePrice) > 0) {
+      mealPrices.CP = Number(r.basePrice);
+    }
+
+    let matchedSeason = null;
+    if (isValidDate && Array.isArray(r.seasonalPricing) && r.seasonalPricing.length > 0) {
+      const tripTime = tripDate.getTime();
+      const tripMonth = tripDate.getMonth();
+      const tripDay = tripDate.getDate();
+      const tripMMDD = (tripMonth + 1) * 100 + tripDay;
+
+      matchedSeason = r.seasonalPricing.find((season) => {
+        return (season.dateRanges || []).some((range) => {
+          if (!range.startDate || !range.endDate) return false;
+          const start = new Date(range.startDate);
+          const end = new Date(range.endDate);
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+
+          // Direct timestamp window check
+          if (tripTime >= start.getTime() && tripTime <= end.getTime()) {
+            return true;
+          }
+
+          // Annual month/day match for recurring seasons
+          const startMMDD = (start.getMonth() + 1) * 100 + start.getDate();
+          const endMMDD = (end.getMonth() + 1) * 100 + end.getDate();
+          if (startMMDD <= endMMDD) {
+            return tripMMDD >= startMMDD && tripMMDD <= endMMDD;
+          } else {
+            // Season spans across new year (e.g. Nov 1 to Jan 15)
+            return tripMMDD >= startMMDD || tripMMDD <= endMMDD;
+          }
+        });
+      });
+    }
+
+    if (matchedSeason && Array.isArray(matchedSeason.meals) && matchedSeason.meals.length > 0) {
+      matchedSeason.meals.forEach((m) => {
+        if (m.plan && Number(m.price) > 0) {
+          mealPrices[m.plan] = Number(m.price);
+        }
+      });
+    } else {
+      // Fallback: collect first valid rates
+      (r.seasonalPricing || []).forEach((season) => {
+        (season.meals || []).forEach((m) => {
+          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
+            mealPrices[m.plan] = Number(m.price);
+          }
+        });
+      });
+    }
+
+    const validPrices = Object.values(mealPrices).filter((p) => p > 0);
+    const roomMin = validPrices.length > 0 ? Math.min(...validPrices) : (r.basePrice || 0);
+
+    if (roomMin > 0 && roomMin < overallMinPrice) {
+      overallMinPrice = roomMin;
+    }
+
+    roomOptions.push({
+      id: r._id,
+      name: r.roomType || "Standard Room",
+      minPrice: roomMin,
+      meals: mealPrices,
+      seasonLabel: matchedSeason?.label || "",
+    });
+  });
+
+  const finalMin = overallMinPrice === Infinity ? (rooms[0]?.basePrice || 0) : overallMinPrice;
+
+  return {
+    hasPrice: finalMin > 0,
+    minPrice: finalMin,
+    roomOptions,
+  };
+}
 
 const MEAL_PLANS = [
   { id: "EP", label: "EP", title: "Room Only", desc: "No meals included" },
@@ -26,6 +126,8 @@ export default function HotelMealSelectionDialog({
   mealPlan: initialMealPlan = "CP",
   catalogHotels = [],
   roomsMap = {},
+  startDate = "",
+  totalRooms = 1,
   onSelectHotel,
 }) {
   const [activeCategory, setActiveCategory] = useState(initialCategory || "Deluxe");
@@ -33,6 +135,8 @@ export default function HotelMealSelectionDialog({
   const [showAllHotels, setShowAllHotels] = useState(false); // Default: Top 5 Lowest Price
   const [searchQuery, setSearchQuery] = useState("");
   const [starFilter, setStarFilter] = useState("ALL");
+
+  const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
 
   // Keep state synced when modal is reopened
   useMemo(() => {
@@ -47,11 +151,14 @@ export default function HotelMealSelectionDialog({
 
   // Compute all matching hotels for the city and category with exact price for the meal plan
   const { allMatchingHotels, sortedHotels, top5Hotels } = useMemo(() => {
+    const cleanCity = (cityName || "").split(",")[0].split("/")[0].trim().toLowerCase();
+
     const list = catalogHotels.filter((h) => {
+      const hotelCity = (h.city?.name || "").toLowerCase();
       const matchCity =
-        !cityName ||
-        (h.city?.name && h.city.name.toLowerCase().includes(cityName.toLowerCase())) ||
-        (cityName.toLowerCase().includes(h.city?.name?.toLowerCase() || ""));
+        !cleanCity ||
+        hotelCity.includes(cleanCity) ||
+        cleanCity.includes(hotelCity);
 
       const matchCat = h.category && h.category.toLowerCase() === activeCategory.toLowerCase();
 
@@ -59,17 +166,17 @@ export default function HotelMealSelectionDialog({
         !searchQuery.trim() ||
         h.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         h.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (h.city?.name && h.city.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        (hotelCity && hotelCity.includes(searchQuery.toLowerCase()));
 
       const matchStar = starFilter === "ALL" || String(h.starRating) === String(starFilter);
 
       return matchCity && matchCat && matchSearch && matchStar;
     });
 
-    // Enrich each hotel with exact room & selected meal plan price
+    // Enrich each hotel with exact room & selected meal plan price for the travel date
     const enriched = list.map((hotel) => {
       const rooms = roomsMap[hotel._id] || [];
-      const pricing = getHotelAllPrices(hotel, rooms);
+      const pricing = getHotelAllPricesForDate(hotel, rooms, startDate);
 
       // Find closest room matching initialRoomType
       let matchedRoom = pricing.roomOptions.find(
@@ -89,6 +196,7 @@ export default function HotelMealSelectionDialog({
         roomOptions: pricing.roomOptions,
         calculatedPrice: Number(mealRate) || 0,
         hasPrice: mealRate > 0,
+        seasonLabel: matchedRoom?.seasonLabel || "",
       };
     });
 
@@ -106,7 +214,7 @@ export default function HotelMealSelectionDialog({
       sortedHotels: sorted,
       top5Hotels: top5,
     };
-  }, [catalogHotels, roomsMap, cityName, activeCategory, activeMealPlan, initialRoomType, searchQuery, starFilter]);
+  }, [catalogHotels, roomsMap, cityName, activeCategory, activeMealPlan, initialRoomType, searchQuery, starFilter, startDate]);
 
   if (!isOpen) return null;
 
@@ -283,8 +391,8 @@ export default function HotelMealSelectionDialog({
             </div>
           ) : (
             currentDisplayList.map((item, idx) => {
-              const { hotel, matchedRoom, calculatedPrice } = item;
-              const stayTotal = calculatedPrice * stayNights;
+              const { hotel, matchedRoom, calculatedPrice, seasonLabel } = item;
+              const stayTotal = calculatedPrice * stayNights * roomMultiplier;
 
               return (
                 <div
@@ -309,6 +417,12 @@ export default function HotelMealSelectionDialog({
                             {hotel.starRating}★
                           </span>
                         )}
+
+                        {seasonLabel && (
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {seasonLabel} Season
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-xs text-slate-500 mt-0.5 truncate">
@@ -325,10 +439,13 @@ export default function HotelMealSelectionDialog({
                           {calculatedPrice > 0 ? `₹${calculatedPrice.toLocaleString("en-IN")}` : "On Request"}
                           <span className="text-[11px] font-normal text-slate-400">/n</span>
                         </div>
-                        {calculatedPrice > 0 && stayNights > 1 && (
-                          <p className="text-[10px] text-slate-400">
-                            Total: ₹{stayTotal.toLocaleString("en-IN")}
-                          </p>
+                        {calculatedPrice > 0 && (
+                          <div className="text-[10px] text-slate-500">
+                            <span className="font-semibold">Total: ₹{stayTotal.toLocaleString("en-IN")}</span>
+                            <span className="block text-[9px] text-slate-400">
+                              ({stayNights}N{roomMultiplier > 1 ? ` × ${roomMultiplier}R` : ""})
+                            </span>
+                          </div>
                         )}
                       </div>
 

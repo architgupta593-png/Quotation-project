@@ -1107,14 +1107,19 @@ export default function EditQuickQuotationPage({ params }) {
               primaryDestination={form.tripDetails?.destination || ""}
               startDate={form.tripDetails?.startDate}
               totalRooms={form.passengers?.totalRooms || 1}
-              onPriceAdjustment={(delta) => {
-                setForm((p) => ({
-                  ...p,
-                  pricing: {
-                    ...p.pricing,
-                    totalPrice: Math.max(0, (p.pricing?.totalPrice || 0) + delta),
-                  },
-                }));
+              onPriceAdjustment={(newAccomCost) => {
+                setForm((p) => {
+                  const vehCost = Number(p.vehicle?.vehiclePrice) || 0;
+                  const currentTotal = Number(p.pricing?.totalPrice) || 0;
+                  return {
+                    ...p,
+                    pricing: {
+                      ...p.pricing,
+                      accommodationTotal: newAccomCost,
+                      totalPrice: currentTotal === 0 ? newAccomCost + vehCost : currentTotal,
+                    },
+                  };
+                });
               }}
             />
 
@@ -1490,11 +1495,36 @@ export default function EditQuickQuotationPage({ params }) {
 
               {/* 1. Base Target Package Price Input */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="block text-[12px] font-black text-slate-800">
                     Target / Base Package Price (₹) *
                   </label>
-                  <span className="text-[10px] font-bold text-slate-400">Your Net Target</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || 1);
+                      const accomCost = Number(form.pricing?.accommodationTotal) ||
+                        (form.hotelStays || []).reduce(
+                          (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
+                          0
+                        );
+                      const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
+                      const calculated = accomCost + vehCost;
+                      setForm((p) => ({
+                        ...p,
+                        pricing: {
+                          ...p.pricing,
+                          accommodationTotal: accomCost,
+                          totalPrice: calculated,
+                        },
+                      }));
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                    title="Auto-calculate: Accommodation Total + Vehicle Price"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>⚡ Auto-Calculate</span>
+                  </button>
                 </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[14px]">₹</span>
