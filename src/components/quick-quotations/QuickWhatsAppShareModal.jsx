@@ -59,7 +59,9 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
   const finalPrice = pricing?.finalPrice || 0;
   const discountAmount = pricing?.discountAmount || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
-  const perCouple = pricing?.perCouplePrice || finalPrice;
+  const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
+  const perCouple = Math.round(perPerson * 2);
+  const includeGst = Boolean(pricing?.includeGst);
   const advanceType = pricing?.advanceType || "absolute";
   const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
   const advancePercentage = pricing?.advancePercentage || 25;
@@ -79,6 +81,7 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
   function generateText(templateType) {
     if (!quickQuote) return "";
 
+    const gstNote = includeGst ? " (Includes 5% GST)" : " (Excl. 5% GST)";
     const discountText = discountAmount > 0
       ? `\n${EMOJI.FIRE} *Special Offer Deal:* Save ₹${discountAmount.toLocaleString("en-IN")} (Offer: ₹${finalPrice.toLocaleString("en-IN")}, Original: ~₹${originalPrice.toLocaleString("en-IN")}~)`
       : "";
@@ -94,8 +97,8 @@ ${EMOJI.PIN} *Destination:* ${tripDetails?.destination}
 ${EMOJI.CALENDAR} *Duration:* ${startDateStr} - ${endDateStr} (${tripDetails?.nights}N / ${tripDetails?.days}D)
 ${EMOJI.PEOPLE} *Party:* ${numPax} Adults (${passengers?.totalRooms || 1} Room)
 ${EMOJI.CAR} *Private Transport:* Dedicated AC ${vehicle?.vehicleType || "Cab"} with Driver
-${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${discountText}
-${EMOJI.CASH} *Advance Token to Confirm (25%):* ₹${advanceToken.toLocaleString("en-IN")}
+${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}${discountText}
+${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toLocaleString("en-IN")}
 
 ${EMOJI.POINT_RIGHT} *View Complete Proposal & Accept Online:*
 ${publicUrl}
@@ -130,8 +133,8 @@ ${formattedHotelSection}
 
 ${EMOJI.SPARKLES} *Inclusions:* Daily Breakfast, Sightseeing Transfers, Tolls, Fuel & Chauffeur Allowance.${discountText}
 
-${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}
-${EMOJI.COUPLE} *Rate Per Couple:* ₹${perCouple.toLocaleString("en-IN")}
+${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}
+${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
 ${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toLocaleString("en-IN")}
 
 ${EMOJI.POINT_RIGHT} *Review Itinerary & Accept Online:*
@@ -159,10 +162,10 @@ ${EMOJI.CAR} *Private Transport:* AC ${vehicle?.vehicleType || "Sedan"} (${vehic
 ${EMOJI.HOTEL} *Hotel Accommodation:*
 ${formattedHotelSection}${discountText}
 
-${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}
-${EMOJI.COUPLE} *Rate Per Couple:* ₹${perCouple.toLocaleString("en-IN")}
-${EMOJI.PERSON} *Rate Per Person:* ₹${perPerson.toLocaleString("en-IN")}
-${EMOJI.CASH} *25% Advance Token to Confirm:* ₹${advanceToken.toLocaleString("en-IN")}
+${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}
+${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
+${EMOJI.PERSON} *Rate Per Adult (${numPax} Pax):* ₹${perPerson.toLocaleString("en-IN")}
+${EMOJI.CASH} *${advancePct}% Advance Token to Confirm:* ₹${advanceToken.toLocaleString("en-IN")}
 
 ${EMOJI.DOC} *View Live Proposal & Confirm Online:*
 ${EMOJI.POINT_RIGHT} ${publicUrl}

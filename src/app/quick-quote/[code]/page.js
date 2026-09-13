@@ -200,8 +200,10 @@ export default function QuickQuotationPublicPage({ params }) {
   const discountAmount = pricing?.discountAmount || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
   const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
-  const perCouple = pricing?.perCouplePrice || finalPrice;
   const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
+  const perCouple = Math.round(perPerson * 2);
+  const includeGst = Boolean(pricing?.includeGst);
+  const gstAmount = pricing?.gstAmount || 0;
 
   // Advance Payment calculations (Absolute / Percentage)
   const advanceType = pricing?.advanceType || "absolute";
@@ -776,31 +778,40 @@ export default function QuickQuotationPublicPage({ params }) {
               <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white space-y-3 shadow-lg">
                 {discountAmount > 0 && (
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
                       <span className="text-[12.5px] text-slate-400 font-semibold line-through font-mono">
                         ₹{originalPrice.toLocaleString("en-IN")}
                       </span>
                       <span className="text-[11px] font-black px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        SAVE ₹{discountAmount.toLocaleString("en-IN")} ({discountPercent}% OFF)
+                        SAVE ₹{discountAmount.toLocaleString("en-IN")} ({discountPercent}% OFF{pricing?.discountReason ? ` • ${pricing.discountReason}` : ""})
                       </span>
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Total Net Package Price</p>
-                  <p className="text-[32px] font-black text-white leading-tight font-mono tracking-tight">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Total Net Package Price</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      includeGst
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "bg-slate-800 text-slate-400 border border-slate-700"
+                    }`}>
+                      {includeGst ? "Includes 5% GST" : "Excludes 5% GST"}
+                    </span>
+                  </div>
+                  <p className="text-[32px] font-black text-white leading-tight font-mono tracking-tight mt-0.5">
                     ₹{finalPrice.toLocaleString("en-IN")}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/10 text-[11px]">
                   <div className="bg-white/5 rounded-xl p-2.5">
-                    <p className="text-slate-400 font-bold text-[10px]">Per Couple</p>
+                    <p className="text-slate-400 font-bold text-[10px]">Per Couple (2 Adults)</p>
                     <p className="font-black text-[14px] text-white">₹{perCouple.toLocaleString("en-IN")}</p>
                   </div>
                   <div className="bg-white/5 rounded-xl p-2.5">
-                    <p className="text-slate-400 font-bold text-[10px]">Per Person</p>
+                    <p className="text-slate-400 font-bold text-[10px]">Per Adult ({numPax} {numPax === 1 ? "Pax" : "Pax"})</p>
                     <p className="font-black text-[14px] text-white">₹{perPerson.toLocaleString("en-IN")}</p>
                   </div>
                 </div>

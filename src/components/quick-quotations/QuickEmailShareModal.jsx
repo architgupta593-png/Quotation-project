@@ -44,7 +44,9 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
   const finalPrice = pricing?.finalPrice || 0;
   const discountAmount = pricing?.discountAmount || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
-  const perCouple = pricing?.perCouplePrice || finalPrice;
+  const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
+  const perCouple = Math.round(perPerson * 2);
+  const includeGst = Boolean(pricing?.includeGst);
   const advanceType = pricing?.advanceType || "absolute";
   const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
   const advancePercentage = pricing?.advancePercentage || 25;
@@ -68,9 +70,10 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
     setSubject(sub);
     setRecipientEmail(client?.email || "");
 
+    const gstNotice = includeGst ? " (Inclusive of 5% GST)" : " (Exclusive of 5% GST)";
     const discountBlock = discountAmount > 0
-      ? `• Original Price: ₹${originalPrice.toLocaleString("en-IN")}\n• Special Offer Discount: -₹${discountAmount.toLocaleString("en-IN")} SAVED\n• Net Offer Package Value: ₹${finalPrice.toLocaleString("en-IN")} (All inclusive)`
-      : `• Total Package Value: ₹${finalPrice.toLocaleString("en-IN")} (All inclusive)`;
+      ? `• Original Price: ₹${originalPrice.toLocaleString("en-IN")}\n• Special Offer Discount: -₹${discountAmount.toLocaleString("en-IN")} SAVED${pricing?.discountReason ? ` (${pricing.discountReason})` : ""}\n• Net Offer Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`
+      : `• Total Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`;
 
     const childrenEmailText = (passengers?.childrenCount > 0 || (passengers?.childrenAges && passengers.childrenAges.length > 0))
       ? `, ${passengers.childrenCount || passengers.childrenAges.length} Child (${(passengers.childrenAges || []).join(", ")} yrs)`
@@ -111,8 +114,8 @@ ${formattedHotelSection}
 COMMERCIAL PROPOSAL & PAYMENT MILESTONES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${discountBlock}
-• Rate Per Couple: ₹${perCouple.toLocaleString("en-IN")}
-• Rate Per Person: ₹${perPerson.toLocaleString("en-IN")}
+• Rate Per Couple (2 Adults): ₹${perCouple.toLocaleString("en-IN")}
+• Rate Per Adult (${numPax} Pax): ₹${perPerson.toLocaleString("en-IN")}
 • Advance Token to Confirm (${advancePct}%): ₹${advanceToken.toLocaleString("en-IN")}
 • Balance: ₹${(finalPrice - advanceToken).toLocaleString("en-IN")} (Payable prior to departure)
 

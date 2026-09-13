@@ -8,7 +8,7 @@ import {
   MapPin, Calendar, Users, Hotel, Car, Check, AlertCircle, Eye,
   Tag, ShieldCheck, Heart, Mountain, Compass, Waves, Trees,
   Baby, CheckCircle2, Layers, FileText, Info, Building, Star,
-  CheckCheck, Edit3, Package as PackageIcon,
+  CheckCheck, Edit3, Package as PackageIcon, Percent,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
 import InstructionsEditorModal from "@/components/quick-quotations/InstructionsEditorModal";
@@ -337,6 +337,8 @@ export default function EditQuickQuotationPage({ params }) {
       pricing: {
         ...prev.pricing,
         totalPrice: pkgPrice,
+        includeGst: Boolean(pkg.pricing?.includeGst),
+        gstPercentage: pkg.pricing?.gstPercentage || 5,
         discountAmount: 0,
       },
     }));
@@ -383,7 +385,14 @@ export default function EditQuickQuotationPage({ params }) {
           pricing: {
             ...qq.pricing,
             totalPrice: qq.pricing?.totalPrice || qq.pricing?.baseCost || qq.pricing?.finalPrice || 0,
+            markupType: qq.pricing?.markupType || "absolute",
+            markupPercentage: qq.pricing?.markupPercentage || 0,
+            markupAmount: qq.pricing?.markupAmount || 0,
             discountAmount: qq.pricing?.discountAmount || 0,
+            discountReason: qq.pricing?.discountReason || "",
+            includeGst: Boolean(qq.pricing?.includeGst),
+            gstPercentage: qq.pricing?.gstPercentage || 5,
+            gstAmount: qq.pricing?.gstAmount || 0,
             advanceType: qq.pricing?.advanceType || "absolute",
             advanceAmount: qq.pricing?.advanceAmount !== undefined ? qq.pricing?.advanceAmount : (qq.pricing?.advancePayment || 0),
             advancePercentage: qq.pricing?.advancePercentage || 25,
@@ -568,11 +577,22 @@ export default function EditQuickQuotationPage({ params }) {
 
   // Pricing calculations
   const basePrice = Number(form.pricing?.totalPrice) || 0;
-  const markupAmount = Math.max(0, Number(form.pricing?.markupAmount) || 0);
-  const finalPrice = Math.max(0, basePrice + markupAmount);
+  const markupType = form.pricing?.markupType || "absolute";
+  const markupPercentage = Math.max(0, Number(form.pricing?.markupPercentage) || 0);
+  const markupAmount = markupType === "percentage"
+    ? Math.round((basePrice * markupPercentage) / 100)
+    : Math.max(0, Number(form.pricing?.markupAmount) || 0);
+  const discountAmount = Math.max(0, Number(form.pricing?.discountAmount) || 0);
+  const preTaxPrice = Math.max(0, basePrice + markupAmount - discountAmount);
+
+  const includeGst = Boolean(form.pricing?.includeGst);
+  const gstPercentage = Number(form.pricing?.gstPercentage) || 5;
+  const gstAmount = includeGst ? Math.round((preTaxPrice * gstPercentage) / 100) : 0;
+
+  const finalPrice = preTaxPrice + gstAmount;
   const numPax = Math.max(1, form.passengers?.adults || 2);
   const perPersonPrice = Math.round(finalPrice / numPax);
-  const perCouplePrice = finalPrice;
+  const perCouplePrice = Math.round(perPersonPrice * 2);
 
   // Advance Payment calculations (by default Absolute)
   const advanceType = form.pricing?.advanceType || "absolute";
@@ -663,7 +683,14 @@ export default function EditQuickQuotationPage({ params }) {
         pricing: {
           ...form.pricing,
           totalPrice: basePrice,
+          markupType,
+          markupPercentage,
           markupAmount,
+          discountAmount,
+          discountReason: form.pricing?.discountReason || "",
+          includeGst,
+          gstPercentage,
+          gstAmount,
           finalPrice,
           perPersonPrice,
           perCouplePrice,
@@ -1112,13 +1139,12 @@ export default function EditQuickQuotationPage({ params }) {
               onPriceAdjustment={(newAccomCost) => {
                 setForm((p) => {
                   const vehCost = Number(p.vehicle?.vehiclePrice) || 0;
-                  const currentTotal = Number(p.pricing?.totalPrice) || 0;
                   return {
                     ...p,
                     pricing: {
                       ...p.pricing,
                       accommodationTotal: newAccomCost,
-                      totalPrice: currentTotal === 0 ? newAccomCost + vehCost : currentTotal,
+                      totalPrice: newAccomCost + vehCost,
                     },
                   };
                 });
@@ -1505,11 +1531,13 @@ export default function EditQuickQuotationPage({ params }) {
                     type="button"
                     onClick={() => {
                       const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || 1);
-                      const accomCost = Number(form.pricing?.accommodationTotal) ||
-                        (form.hotelStays || []).reduce(
-                          (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
-                          0
-                        );
+                      const activeStays = (form.accommodationOptions && form.accommodationOptions.length > 0)
+                        ? (form.accommodationOptions.find((o) => o.isDefault)?.hotelStays || form.accommodationOptions[0].hotelStays || form.hotelStays || [])
+                        : (form.hotelStays || []);
+                      const accomCost = activeStays.reduce(
+                        (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
+                        0
+                      );
                       const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
                       const calculated = accomCost + vehCost;
                       setForm((p) => ({
@@ -1541,68 +1569,203 @@ export default function EditQuickQuotationPage({ params }) {
                 </div>
               </div>
 
-              {/* 2. 🎯 Negotiation Price Buffer / Markup (+₹) */}
+              {/* 2. 🎯 Negotiation Price Buffer / Markup (% Percent or ₹ Fixed) */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-amber-50/60 border-2 border-emerald-200/90 shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[14px]">🎯</span>
                     <span className="text-[12px] font-black text-emerald-950">
-                      Negotiation Buffer (+₹)
+                      Negotiation Buffer
                     </span>
                   </div>
-                  {markupAmount > 0 && (
-                    <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      +₹{markupAmount.toLocaleString("en-IN")} Buffer
-                    </span>
-                  )}
+
+                  {/* Markup Type Toggle: Fixed ₹ vs % Percent */}
+                  <div className="flex items-center bg-white p-0.5 rounded-xl border border-emerald-300 text-[10.5px] font-black shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupType: "absolute" } }))}
+                      className={`px-2 py-0.5 rounded-lg transition-all ${
+                        markupType === "absolute"
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      ₹ Fixed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupType: "percentage" } }))}
+                      className={`px-2 py-0.5 rounded-lg transition-all ${
+                        markupType === "percentage"
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      % Percent
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-[10.5px] text-slate-500 font-medium leading-tight">
-                  Add buffer to quote higher (e.g. ₹27,000) so when the client bargains down, you still sell at your ₹{basePrice > 0 ? basePrice.toLocaleString("en-IN") : "25,000"} target.
+                  {markupType === "percentage"
+                    ? `Adds a percentage buffer on top of base ₹${basePrice.toLocaleString("en-IN")}.`
+                    : `Add fixed buffer to quote higher so when the client bargains down, you still hit your ₹${basePrice > 0 ? basePrice.toLocaleString("en-IN") : "25,000"} target.`}
                 </p>
 
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-[13px]">+₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.pricing?.markupAmount || ""}
-                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: parseFloat(e.target.value) || 0 } }))}
-                    placeholder="0"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-emerald-300 bg-white text-[14.5px] font-black text-right text-emerald-950 font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
+                {markupType === "percentage" ? (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.pricing?.markupPercentage !== undefined ? form.pricing.markupPercentage : ""}
+                        onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupPercentage: parseFloat(e.target.value) || 0 } }))}
+                        placeholder="e.g. 10"
+                        className="w-full pl-3 pr-8 py-2 rounded-xl border border-emerald-300 bg-white text-[14.5px] font-black text-right text-emerald-950 font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-700 font-bold text-[13px]">%</span>
+                    </div>
+                    {/* Fast % Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {[5, 10, 15, 20].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupPercentage: pct } }))}
+                          className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
+                            markupPercentage === pct
+                              ? "bg-emerald-600 text-white border-emerald-700 font-black shadow-2xs"
+                              : "bg-white hover:bg-emerald-50 text-emerald-900 border-emerald-200"
+                          }`}
+                        >
+                          +{pct}%
+                        </button>
+                      ))}
+                      {markupPercentage > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupPercentage: 0 } }))}
+                          className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200"
+                        >
+                          Clear
+                        </button>
+                      )}
+                      <span className="ml-auto text-[11px] font-black text-emerald-700 font-mono">
+                        +₹{markupAmount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-[13px]">+₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.pricing?.markupAmount || ""}
+                        onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: parseFloat(e.target.value) || 0 } }))}
+                        placeholder="0"
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-emerald-300 bg-white text-[14.5px] font-black text-right text-emerald-950 font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                    {/* Fast ₹ Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {[1000, 2000, 3000, 5000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: amt } }))}
+                          className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
+                            markupAmount === amt
+                              ? "bg-emerald-600 text-white border-emerald-700 font-black shadow-2xs"
+                              : "bg-white hover:bg-emerald-50 text-emerald-900 border-emerald-200"
+                          }`}
+                        >
+                          +₹{amt.toLocaleString("en-IN")}
+                        </button>
+                      ))}
+                      {markupAmount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: 0 } }))}
+                          className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                {/* Fast Buffer Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[10px] font-black uppercase text-slate-400 mr-0.5">Quick Add:</span>
-                  {[1000, 2000, 3000, 5000].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: amt } }))}
-                      className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
-                        markupAmount === amt
-                          ? "bg-emerald-600 text-white border-emerald-700 font-black shadow-2xs"
-                          : "bg-white hover:bg-emerald-50 text-emerald-900 border-emerald-200"
-                      }`}
-                    >
-                      +₹{amt.toLocaleString("en-IN")}
-                    </button>
-                  ))}
-                  {markupAmount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, markupAmount: 0 } }))}
-                      className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200"
-                    >
-                      Clear
-                    </button>
+              {/* 3. 🏷️ Promotional Discount (-₹) (Optional) */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-rose-500" />
+                    <span className="text-[12px] font-bold text-slate-700">Special Discount (-₹)</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-mono">
+                      -₹{discountAmount.toLocaleString("en-IN")}
+                    </span>
                   )}
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="relative col-span-3">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rose-500 font-bold text-[12px]">-₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.pricing?.discountAmount || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountAmount: parseFloat(e.target.value) || 0 } }))}
+                      placeholder="0"
+                      className="w-full pl-7 pr-2 py-1.5 rounded-xl border border-slate-300 bg-white text-[13px] font-bold text-slate-900 text-right font-mono focus:ring-1 focus:ring-rose-500"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={form.pricing?.discountReason || ""}
+                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountReason: e.target.value } }))}
+                    placeholder="Reason (e.g. Festival Deal)"
+                    className="col-span-2 px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-[11px] text-slate-700 focus:ring-1 focus:ring-rose-500 truncate"
+                  />
                 </div>
               </div>
 
-              {/* 3. Final Quoted Proposal Price Sent to Client */}
+              {/* 4. 🏛️ Taxes & GST (5%) Toggle */}
+              <div className={`p-3.5 rounded-2xl border transition-all ${
+                includeGst ? "bg-indigo-50/70 border-indigo-200" : "bg-slate-50 border-slate-200"
+              }`}>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeGst}
+                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, includeGst: e.target.checked } }))}
+                    className="mt-0.5 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-bold text-slate-900">
+                        Include 5% GST in Quotation
+                      </span>
+                      {includeGst && (
+                        <span className="text-[11.5px] font-black text-indigo-900 font-mono">
+                          +₹{gstAmount.toLocaleString("en-IN")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 leading-tight mt-0.5">
+                      {includeGst
+                        ? "5% Goods & Services Tax is added to the client payable total."
+                        : "Quotation will be marked as exclusive of 5% GST."}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* 5. Final Quoted Proposal Price Sent to Client */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white space-y-1.5 shadow-md border border-slate-800">
                 <div className="flex items-center justify-between">
                   <span className="text-[10.5px] font-black uppercase tracking-widest text-amber-400">
@@ -1615,16 +1778,31 @@ export default function EditQuickQuotationPage({ params }) {
                 <div className="text-[26px] font-black text-white font-mono leading-none pt-1">
                   ₹{finalPrice.toLocaleString("en-IN")}
                 </div>
-                {markupAmount > 0 ? (
-                  <div className="pt-1.5 text-[10.5px] text-amber-200 font-medium border-t border-white/10 flex items-center justify-between">
-                    <span>Target Sale: ₹{basePrice.toLocaleString("en-IN")}</span>
-                    <span className="text-emerald-400 font-bold">Negotiation Room: -₹{markupAmount.toLocaleString("en-IN")}</span>
+
+                <div className="pt-2 border-t border-white/10 text-[11px] space-y-1 text-slate-300 font-mono">
+                  <div className="flex items-center justify-between">
+                    <span>Base Target:</span>
+                    <span>₹{basePrice.toLocaleString("en-IN")}</span>
                   </div>
-                ) : (
-                  <div className="pt-1 text-[10.5px] text-slate-400">
-                    Net price without buffer
-                  </div>
-                )}
+                  {markupAmount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-400">
+                      <span>Buffer ({markupType === "percentage" ? `${markupPercentage}%` : "Fixed"}):</span>
+                      <span>+₹{markupAmount.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-rose-400">
+                      <span>Discount ({form.pricing?.discountReason || "Promo"}):</span>
+                      <span>-₹{discountAmount.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {includeGst && (
+                    <div className="flex items-center justify-between text-indigo-300">
+                      <span>GST ({gstPercentage}%):</span>
+                      <span>+₹{gstAmount.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 🌟 Advance Payment Option (Absolute by default OR Percentage) */}
@@ -1761,11 +1939,11 @@ export default function EditQuickQuotationPage({ params }) {
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-[11px]">
                   <div className="bg-white/5 rounded-xl p-2">
-                    <p className="text-slate-400 font-bold text-[10px]">Per Couple</p>
+                    <p className="text-slate-400 font-bold text-[10px]">Per Couple (2 Adults)</p>
                     <p className="font-black text-[13px] text-white">₹{perCouplePrice.toLocaleString("en-IN")}</p>
                   </div>
                   <div className="bg-white/5 rounded-xl p-2">
-                    <p className="text-slate-400 font-bold text-[10px]">Per Person</p>
+                    <p className="text-slate-400 font-bold text-[10px]">Per Adult ({numPax} {numPax === 1 ? "Pax" : "Pax"})</p>
                     <p className="font-black text-[13px] text-white">₹{perPersonPrice.toLocaleString("en-IN")}</p>
                   </div>
                 </div>
