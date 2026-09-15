@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Building2, Star, Loader2, MapPin, Search, Sparkles, BedDouble,
   Table, LayoutGrid, CheckCircle2, ChevronRight, X, Info, IndianRupee,
@@ -160,6 +160,7 @@ export default function AccommodationPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [hotelsMap, setHotelsMap] = useState({});
   const [roomsMap, setRoomsMap] = useState({});
+  const fetchedHotelIdsRef = useRef(new Set());
   const [loadingHotels, setLoadingHotels] = useState({});
   const [loadingRooms, setLoadingRooms] = useState({});
 
@@ -212,7 +213,8 @@ export default function AccommodationPanel({
 
   // Fetch rooms for all loaded hotels
   const fetchRooms = useCallback(async (hotelId) => {
-    if (!hotelId || roomsMap[hotelId]) return;
+    if (!hotelId || fetchedHotelIdsRef.current.has(hotelId)) return;
+    fetchedHotelIdsRef.current.add(hotelId);
     setLoadingRooms((prev) => ({ ...prev, [hotelId]: true }));
     try {
       const res = await fetch(`/api/accommodation/rooms?hotelId=${hotelId}`);
@@ -220,10 +222,11 @@ export default function AccommodationPanel({
       setRoomsMap((prev) => ({ ...prev, [hotelId]: data.rooms || [] }));
     } catch (err) {
       console.error("Failed to fetch rooms:", err);
+      fetchedHotelIdsRef.current.delete(hotelId);
     } finally {
       setLoadingRooms((prev) => ({ ...prev, [hotelId]: false }));
     }
-  }, [roomsMap]);
+  }, []);
 
   useEffect(() => {
     destinations.forEach((d) => {
@@ -235,12 +238,12 @@ export default function AccommodationPanel({
   useEffect(() => {
     Object.values(hotelsMap).forEach((hotelList) => {
       (hotelList || []).forEach((h) => {
-        if (h._id && !roomsMap[h._id]) {
+        if (h._id && !fetchedHotelIdsRef.current.has(h._id)) {
           fetchRooms(h._id);
         }
       });
     });
-  }, [hotelsMap, fetchRooms, roomsMap]);
+  }, [hotelsMap, fetchRooms]);
 
   // Synchronize category options to parent form state with live calculation rates
   useEffect(() => {

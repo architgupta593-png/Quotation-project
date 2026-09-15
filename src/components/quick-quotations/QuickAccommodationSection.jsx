@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Building2, Star, Plus, Trash2, MapPin, Hotel,
   Search, Sparkles, CheckCircle2, AlertCircle, Copy
@@ -157,6 +157,7 @@ export default function QuickAccommodationSection({
 }) {
   const [catalogHotels, setCatalogHotels] = useState([]);
   const [roomsMap, setRoomsMap] = useState({});
+  const fetchedHotelIdsRef = useRef(new Set());
   const [loadingHotels, setLoadingHotels] = useState(false);
   const [activeOptIdx, setActiveOptIdx] = useState(0);
   const [hotelSearchFocusIdx, setHotelSearchFocusIdx] = useState(null);
@@ -223,23 +224,26 @@ export default function QuickAccommodationSection({
 
   // Fetch rooms for all catalog hotels
   const fetchRooms = useCallback(async (hotelId) => {
-    if (!hotelId || roomsMap[hotelId]) return;
+    if (!hotelId || fetchedHotelIdsRef.current.has(hotelId)) return;
+    fetchedHotelIdsRef.current.add(hotelId);
     try {
       const res = await fetch(`/api/accommodation/rooms?hotelId=${hotelId}`);
       const data = await res.json();
       setRoomsMap((prev) => ({ ...prev, [hotelId]: data.rooms || [] }));
     } catch (err) {
       console.error("Failed to fetch rooms:", err);
+      fetchedHotelIdsRef.current.delete(hotelId);
     }
-  }, [roomsMap]);
+  }, []);
 
   useEffect(() => {
+    if (!catalogHotels || catalogHotels.length === 0) return;
     catalogHotels.forEach((h) => {
-      if (h._id && !roomsMap[h._id]) {
+      if (h._id && !fetchedHotelIdsRef.current.has(h._id)) {
         fetchRooms(h._id);
       }
     });
-  }, [catalogHotels, fetchRooms, roomsMap]);
+  }, [catalogHotels, fetchRooms]);
 
   // Normalized City Stay Legs for the active tier
   const currentStays = useMemo(() => {
