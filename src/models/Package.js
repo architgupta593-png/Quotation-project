@@ -52,7 +52,7 @@ const AccommodationNightSchema = new mongoose.Schema(
     hotelName: { type: String, trim: true, default: "" },
     category: {
       type: String,
-      enum: ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
+      enum: ["None", "Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "none", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
       default: "Deluxe",
     },
     roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", default: null },
@@ -72,7 +72,7 @@ const AccommodationOptionSchema = new mongoose.Schema(
     label: { type: String, required: true, trim: true, default: "Option 1 (Deluxe)" },
     category: {
       type: String,
-      enum: ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
+      enum: ["None", "Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", "none", "budget", "deluxe", "deluxe plus", "premium", "premium plus", "luxury", ""],
       default: "Deluxe",
     },
     nights: { type: [AccommodationNightSchema], default: [] },
@@ -134,6 +134,8 @@ const PricingSchema = new mongoose.Schema(
     perCouplePrice: { type: Number, min: 0, default: 0 },
     numberOfPersons: { type: Number, min: 1, default: 2 },
     maxPersonsPerRoom: { type: Number, min: 1, max: 6, default: 2 },
+    discountAmount: { type: Number, min: 0, default: 0 },
+    discountReason: { type: String, trim: true, default: "" },
     currency: { type: String, default: "INR", maxlength: 5 },
     includes: [{ type: String, trim: true }],
     excludes: [{ type: String, trim: true }],

@@ -46,7 +46,7 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
 
   const publicUrl = typeof window !== "undefined"
     ? `${window.location.origin}/quick-quote/${quickQuoteCode}`
-    : `https://mandateholidays.com/quick-quote/${quickQuoteCode}`;
+    : `https://mandeholidays.com/quick-quote/${quickQuoteCode}`;
 
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
@@ -87,7 +87,7 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
       : "";
 
     if (templateType === "short") {
-      return `*MANDATE HOLIDAYS — QUICK TRAVEL QUOTE* ${EMOJI.ZAP} ${EMOJI.SPARKLES}
+      return `*MANDE HOLIDAYS — QUICK TRAVEL QUOTE* ${EMOJI.ZAP} ${EMOJI.SPARKLES}
 Ref: *${quickQuoteCode}*
 Dear *${client?.name || "Valued Traveler"}*,
 
@@ -118,7 +118,7 @@ Feel free to reply for any customization! ${EMOJI.STAR}`;
       : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [${s.roomType || "Deluxe AC"} - ${s.mealPlan || "CP"}]`).join("\n");
 
     if (templateType === "honeymoon") {
-      return `*MANDATE HOLIDAYS — ROMANTIC HONEYMOON PROPOSAL* ${EMOJI.HEARTS} ${EMOJI.CHEERS}
+      return `*MANDE HOLIDAYS — ROMANTIC HONEYMOON PROPOSAL* ${EMOJI.HEARTS} ${EMOJI.CHEERS}
 Ref: *${quickQuoteCode}*
 Dear *${client?.name || "Valued Traveler"}*,
 
@@ -148,11 +148,11 @@ Reply to this message for any customization or date confirmation! ${EMOJI.HEARTS
       : "";
 
     // Default Detailed Template
-    return `*MANDATE HOLIDAYS — QUICK TRAVEL PROPOSAL* ${EMOJI.PALM} ${EMOJI.SPARKLES}
+    return `*MANDE HOLIDAYS — QUICK TRAVEL PROPOSAL* ${EMOJI.PALM} ${EMOJI.SPARKLES}
 Ref: *${quickQuoteCode}*
 Dear *${client?.name || "Valued Traveler"}*,
 
-Thank you for contacting Mandate Holidays! Here is your customized travel proposal:
+Thank you for contacting Mande Holidays! Here is your customized travel proposal:
 
 ${EMOJI.PIN} *Tour:* ${tripDetails?.title || "Custom Holiday"}
 ${EMOJI.CALENDAR} *Dates:* ${startDateStr} to ${endDateStr} (${tripDetails?.nights}N / ${tripDetails?.days}D)

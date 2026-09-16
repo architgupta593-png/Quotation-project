@@ -275,10 +275,14 @@ export default function QuickAccommodationSection({
       (s, st) => s + ((Number(st.pricePerNight) || 0) * (st.nights || 1) * roomMultiplier),
       0
     );
+    const optMarginVal = Number(optionsToUpdate[optIdx]?.margin || 0);
+    const optMarginType = optionsToUpdate[optIdx]?.marginType || "absolute";
+    const optMarginAmt = optMarginType === "percentage" ? (totalStayCost * optMarginVal) / 100 : optMarginVal;
+
     optionsToUpdate[optIdx] = {
       ...optionsToUpdate[optIdx],
       hotelStays: updatedActiveStays,
-      totalPrice: totalStayCost,
+      totalPrice: totalStayCost + optMarginAmt,
     };
     if (onOptionsChange) {
       onOptionsChange(optionsToUpdate);

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 export const HOTEL_CATEGORIES = [
+  "None",
   "Budget",
   "Deluxe",
   "Deluxe Plus",
@@ -17,6 +18,16 @@ export const HOTEL_CATEGORIES = [
 ];
 
 export const CATEGORY_THEMES = {
+  None: {
+    name: "None",
+    badge: "bg-slate-100 text-slate-700 border-slate-300",
+    headerBg: "bg-slate-600 text-white",
+    cardBorder: "border-slate-200 hover:border-slate-400",
+    accentText: "text-slate-700",
+    chipBg: "bg-slate-100 text-slate-800 border-slate-200",
+    priceBg: "bg-slate-100 text-slate-800 border-slate-200",
+    starDefault: "Standard",
+  },
   Budget: {
     name: "Budget",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -88,7 +99,7 @@ export function getCategoryBadgeClass(category) {
 /**
  * Extract all room types & all meal plans (EP, CP, MAP, AP) with their exact rates.
  */
-export function getHotelAllPrices(hotel, rooms = []) {
+export function getHotelAllPrices(hotel, rooms = [], travelDate = "") {
   if (!rooms || rooms.length === 0) {
     return {
       hasPrice: false,
@@ -96,6 +107,9 @@ export function getHotelAllPrices(hotel, rooms = []) {
       roomOptions: [],
     };
   }
+
+  const tripDate = travelDate ? new Date(travelDate) : null;
+  const isValidDate = tripDate && !isNaN(tripDate.getTime());
 
   let overallMinPrice = Infinity;
   const roomOptions = [];
@@ -112,13 +126,54 @@ export function getHotelAllPrices(hotel, rooms = []) {
       mealPrices.CP = Number(r.basePrice);
     }
 
-    (r.seasonalPricing || []).forEach((season) => {
-      (season.meals || []).forEach((m) => {
+    let matchedSeason = null;
+    if (isValidDate && Array.isArray(r.seasonalPricing) && r.seasonalPricing.length > 0) {
+      const tripTime = tripDate.getTime();
+      const tripMonth = tripDate.getMonth();
+      const tripDay = tripDate.getDate();
+      const tripMMDD = (tripMonth + 1) * 100 + tripDay;
+
+      matchedSeason = r.seasonalPricing.find((season) => {
+        return (season.dateRanges || []).some((range) => {
+          if (!range.startDate || !range.endDate) return false;
+          const start = new Date(range.startDate);
+          const end = new Date(range.endDate);
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+
+          // Direct timestamp window check
+          if (tripTime >= start.getTime() && tripTime <= end.getTime()) {
+            return true;
+          }
+
+          // Annual month/day match for recurring seasons
+          const startMMDD = (start.getMonth() + 1) * 100 + start.getDate();
+          const endMMDD = (end.getMonth() + 1) * 100 + end.getDate();
+          if (startMMDD <= endMMDD) {
+            return tripMMDD >= startMMDD && tripMMDD <= endMMDD;
+          } else {
+            // Season spans across new year (e.g. Nov 1 to Jan 15)
+            return tripMMDD >= startMMDD || tripMMDD <= endMMDD;
+          }
+        });
+      });
+    }
+
+    if (matchedSeason && Array.isArray(matchedSeason.meals) && matchedSeason.meals.length > 0) {
+      matchedSeason.meals.forEach((m) => {
         if (m.plan && Number(m.price) > 0) {
           mealPrices[m.plan] = Number(m.price);
         }
       });
-    });
+    } else {
+      // Fallback: collect first valid rates across seasons without blindly overwriting with subsequent seasons
+      (r.seasonalPricing || []).forEach((season) => {
+        (season.meals || []).forEach((m) => {
+          if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {
+            mealPrices[m.plan] = Number(m.price);
+          }
+        });
+      });
+    }
 
     const validPrices = Object.values(mealPrices).filter((p) => p > 0);
     const roomMin = validPrices.length > 0 ? Math.min(...validPrices) : (r.basePrice || 0);
@@ -132,6 +187,9 @@ export function getHotelAllPrices(hotel, rooms = []) {
       name: r.roomType || "Standard Room",
       minPrice: roomMin,
       meals: mealPrices,
+      extraBedPrice: matchedSeason?.extraBedPrice || r.seasonalPricing?.[0]?.extraBedPrice || 0,
+      childWithBedPrice: matchedSeason?.childWithBedPrice || r.seasonalPricing?.[0]?.childWithBedPrice || 0,
+      childNoBedPrice: matchedSeason?.childNoBedPrice || r.seasonalPricing?.[0]?.childNoBedPrice || 0,
     });
   });
 
@@ -143,6 +201,8 @@ export function getHotelAllPrices(hotel, rooms = []) {
     roomOptions,
   };
 }
+
+export const getHotelAllPricesForDate = getHotelAllPrices;
 
 /**
  * AccommodationPanel — Shows All Hotel Prices, Room Types, Meal Plans (EP, CP, MAP, AP),
@@ -700,7 +760,7 @@ export default function AccommodationPanel({
             <table className="w-full text-left border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-slate-50/90 border-b border-slate-200 text-[12px] font-black text-slate-700 uppercase tracking-wider">
-                  <th className="p-4 w-44 border-r border-slate-200/80">
+                  <th className="p-4 w-48 border-r border-slate-200/80 sticky left-0 z-30 bg-slate-50 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.06)]">
                     Destination City
                   </th>
                   {HOTEL_CATEGORIES.map((cat) => {
@@ -726,7 +786,7 @@ export default function AccommodationPanel({
                   return (
                     <tr key={leg.legIdx} className="hover:bg-slate-50/40 transition-colors">
                       {/* Destination Column */}
-                      <td className="p-4 bg-slate-50/50 border-r border-slate-200/80 align-top">
+                      <td className="p-4 bg-slate-50/95 backdrop-blur-xs border-r border-slate-200/80 align-top sticky left-0 z-20 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.06)]">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <span className="w-6 h-6 rounded-lg bg-slate-900 text-white text-[11px] font-black flex items-center justify-center">
@@ -817,14 +877,17 @@ export default function AccommodationPanel({
                                                         e.stopPropagation();
                                                         handleSelectHotelForLiveCalc(cat, leg, hotel, r, plan, p);
                                                       }}
-                                                      className={`px-1.5 py-1 rounded-md text-left transition-all border ${
+                                                      className={`px-1.5 py-1 rounded-md text-left transition-all border flex items-center justify-between ${
                                                         isPlanActive
-                                                          ? "bg-indigo-600 text-white border-indigo-600 font-black shadow-2xs scale-102"
+                                                          ? "bg-indigo-600 text-white border-indigo-600 font-black shadow-2xs scale-102 ring-1 ring-indigo-400"
                                                           : "bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300"
                                                       }`}
                                                     >
-                                                      <span className="font-bold text-[9px] opacity-80">{plan}:</span>{" "}
-                                                      <span className="font-black">₹{p.toLocaleString("en-IN")}</span>
+                                                      <span>
+                                                        <span className="font-bold text-[9px] opacity-80">{plan}:</span>{" "}
+                                                        <span className="font-black">₹{p.toLocaleString("en-IN")}</span>
+                                                      </span>
+                                                      {isPlanActive && <Check className="w-2.5 h-2.5 text-emerald-300 flex-shrink-0" />}
                                                     </button>
                                                   );
                                                 })}

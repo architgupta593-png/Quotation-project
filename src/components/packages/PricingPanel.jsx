@@ -2,10 +2,36 @@
 
 import { useState, useEffect } from "react";
 import {
-  IndianRupee, Plus, Trash2, Percent, Calculator, Layers, CheckCircle2, XCircle, Users, HeartHandshake, Receipt, Car,
+  IndianRupee, Percent, Calculator, Layers, Users, Car,
+  Sparkles, CheckCircle2, AlertCircle, XCircle, Trash2, Plus, Check,
 } from "lucide-react";
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED"];
+
+const INCLUSION_PRESETS = [
+  "Accommodation on CP (Daily Breakfast) basis",
+  "Private AC vehicle for all transfers and sightseeing",
+  "All fuel charges, toll taxes, parking fees & driver allowances",
+  "Airport / Railway station pickup & drop transfers",
+  "Assistance upon arrival and departure",
+  "24x7 On-trip operations & concierge support",
+  "Welcome drink on arrival (non-alcoholic)",
+  "Interstate road permits & border vehicle taxes",
+  "Complimentary hotel Wi-Fi access",
+];
+
+const EXCLUSION_PRESETS = [
+  "Airfare / Train tickets",
+  "Entry tickets to monuments, museums & national parks",
+  "Personal expenses (laundry, room service, telephone)",
+  "Lunch & Dinner (unless explicitly specified)",
+  "Optional adventure activities & water sports",
+  "GST 5% (unless explicitly specified in pricing)",
+  "Early check-in and late check-out charges",
+  "Camera / Video fees at sightseeing points",
+  "Guide / Tour escort services",
+  "Travel insurance coverage",
+];
 
 /**
  * PricingPanel — Vibrant & High-Contrast Pricing Panel
@@ -27,6 +53,8 @@ export default function PricingPanel({
 }) {
   const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0);
   const [selectedVehicleIdx, setSelectedVehicleIdx] = useState(0);
+  const [newInclusion, setNewInclusion] = useState("");
+  const [newExclusion, setNewExclusion] = useState("");
 
   const activePeriodsList = (Array.isArray(vehiclePeriods) && vehiclePeriods.length > 0)
     ? vehiclePeriods
@@ -85,6 +113,8 @@ export default function PricingPanel({
     includeGst: false,
     gstPercentage: 5,
     rateBasis: "per_couple",
+    discountAmount: 0,
+    discountReason: "",
     finalPrice: 0,
     perPersonPrice: 0,
     perCouplePrice: 0,
@@ -97,12 +127,14 @@ export default function PricingPanel({
     margin: activeMargin,
   };
 
-  const [newInclude, setNewInclude] = useState("");
-  const [newExclude, setNewExclude] = useState("");
+  const numPersons = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2);
+  const autoRooms = Math.max(1, Math.ceil(numPersons / 2));
+  const numRooms = pricing.numberOfRooms ? Math.max(1, parseInt(pricing.numberOfRooms, 10)) : autoRooms;
 
-  const baseAccomTotal = selectedOption
+  const singleRoomAccomTotal = selectedOption
     ? (selectedOption.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0)
     : 0;
+  const baseAccomTotal = singleRoomAccomTotal * numRooms;
 
   const subtotal = baseAccomTotal + vTotal + actTotal;
   let marginAmount = 0;
@@ -112,11 +144,13 @@ export default function PricingPanel({
     marginAmount = subtotal * (activeMargin / 100);
   }
 
-  const preTaxTotal = subtotal + marginAmount;
-  const gstAmount = pricing.includeGst ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100)) : 0;
+  const preDiscountTotal = subtotal + marginAmount;
   const discountAmount = pricing.discountAmount || 0;
-  const rawFinalPrice = Math.max(0, preTaxTotal + gstAmount - discountAmount);
+  const rawFinalPrice = Math.max(0, preDiscountTotal - discountAmount);
   const finalPrice = Math.round(rawFinalPrice / 100) * 100;
+
+  const perPersonPriceCalc = Math.round(finalPrice / numPersons);
+  const perCouplePriceCalc = Math.round(perPersonPriceCalc * 2);
 
   useEffect(() => {
     if (
@@ -127,11 +161,11 @@ export default function PricingPanel({
       pricing.finalPrice !== finalPrice ||
       pricing.selectedOptionIndex !== selectedIdx ||
       pricing.marginType !== activeMarginType ||
-      pricing.margin !== activeMargin
+      pricing.margin !== activeMargin ||
+      pricing.perPersonPrice !== perPersonPriceCalc ||
+      pricing.perCouplePrice !== perCouplePriceCalc ||
+      pricing.numberOfRooms !== numRooms
     ) {
-      const numPersons = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2);
-      const perPersonPriceCalc = Math.round(finalPrice / numPersons);
-      const perCouplePriceCalc = Math.round(perPersonPriceCalc * 2);
       onChange({
         ...pricing,
         selectedOptionIndex: selectedIdx,
@@ -146,6 +180,7 @@ export default function PricingPanel({
         finalPrice,
         perPersonPrice: perPersonPriceCalc,
         perCouplePrice: perCouplePriceCalc,
+        numberOfRooms: numRooms,
       });
     }
   }, [
@@ -155,12 +190,14 @@ export default function PricingPanel({
     subtotal,
     activeMargin,
     activeMarginType,
-    pricing.includeGst,
-    pricing.gstPercentage,
     pricing.numberOfPersons,
     pricing.discountAmount,
+    numRooms,
     selectedIdx,
     safeVehIdx,
+    finalPrice,
+    perPersonPriceCalc,
+    perCouplePriceCalc,
   ]);
 
   function update(patch) {
@@ -239,14 +276,13 @@ export default function PricingPanel({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {accommodationOptions.map((opt, i) => {
-                const optBaseAccom = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
+                const optSingleAccom = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
+                const optBaseAccom = optSingleAccom * numRooms;
                 const optSubtotal = optBaseAccom + vTotal + actTotal;
                 const optMarginType = opt.marginType || "absolute";
                 const optMargin = opt.margin || 0;
                 const optMarginAmount = optMarginType === "absolute" ? optMargin : optSubtotal * (optMargin / 100);
-                const optPreTax = optSubtotal + optMarginAmount;
-                const optGst = pricing.includeGst ? Math.round(optPreTax * ((pricing.gstPercentage || 5) / 100)) : 0;
-                const optRawFinal = optPreTax + optGst;
+                const optRawFinal = optSubtotal + optMarginAmount;
                 const optFinal = Math.round(optRawFinal / 100) * 100;
                 const isSelected = i === selectedIdx;
 
@@ -271,7 +307,7 @@ export default function PricingPanel({
                     <div className="space-y-0.5 text-[11px]">
                       <div className="flex justify-between">
                         <span className={isSelected ? "text-indigo-200" : "text-slate-500"}>Base Accom:</span>
-                        <span className="font-bold">₹{optBaseAccom.toLocaleString("en-IN")}</span>
+                        <span className="font-bold">₹{optBaseAccom.toLocaleString("en-IN")}{numRooms > 1 ? ` (${numRooms}R)` : ""}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className={isSelected ? "text-indigo-200" : "text-slate-500"}>
@@ -370,8 +406,8 @@ export default function PricingPanel({
                         <span className="font-bold">₹{unitRate.toLocaleString("en-IN")} / cab</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className={isSelected ? "text-sky-100" : "text-slate-500"}>AC Type:</span>
-                        <span className="font-bold">{veh?.acType || "AC"}</span>
+                        <span className={isSelected ? "text-sky-100" : "text-slate-500"}>Capacity:</span>
+                        <span className="font-bold">{veh?.seats || 4} Seats • {veh?.acType || "AC"}</span>
                       </div>
                     </div>
 
@@ -422,8 +458,20 @@ export default function PricingPanel({
             <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/40">
               <span className="text-slate-700 font-semibold flex items-center gap-2">
                 🏨 Accommodation ({selectedOption?.label || "Option 1"})
+                {numRooms > 1 && (
+                  <span className="text-[11px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">
+                    {numRooms} Rooms
+                  </span>
+                )}
               </span>
-              <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
+              <div className="text-right">
+                <span className="font-extrabold text-slate-900">₹{baseAccomTotal.toLocaleString("en-IN")}</span>
+                {numRooms > 1 && (
+                  <span className="block text-[10.5px] text-slate-400 font-medium">
+                    (₹{singleRoomAccomTotal.toLocaleString("en-IN")} × {numRooms} rooms)
+                  </span>
+                )}
+              </div>
             </div>
           )}
           <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/40">
@@ -443,10 +491,9 @@ export default function PricingPanel({
               <span className="font-extrabold text-slate-900">₹{actTotal.toLocaleString("en-IN")}</span>
             </div>
           )}
-          <br/>
-          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-200">
-            <span className="text-slate-900 font-extrabold">Subtotal Base Cost</span>
-            <span className="font-extrabold text-slate-900 text-[15px]">₹{subtotal.toLocaleString("en-IN")}</span>
+          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100 font-extrabold border-t border-slate-200">
+            <span className="text-slate-900">Subtotal Base Cost</span>
+            <span className="text-slate-900 text-[15px]">₹{subtotal.toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 bg-amber-50/60">
             <span className="text-amber-900 font-bold">
@@ -454,229 +501,455 @@ export default function PricingPanel({
             </span>
             <span className="font-extrabold text-amber-700 text-[14.5px]">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
           </div>
-          {pricing.includeGst && (
-            <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60">
-              <span className="text-blue-900 font-bold flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-blue-600" />
-                GST Tax ({pricing.gstPercentage || 5}%)
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/70 border-l-4 border-rose-500">
+              <span className="text-rose-900 font-bold flex items-center gap-1.5">
+                <Percent className="w-4 h-4 text-rose-600" />
+                Promotional Discount {pricing.discountReason ? `(${pricing.discountReason})` : ""}
               </span>
-              <span className="font-extrabold text-blue-800 text-[14.5px]">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
+              <span className="font-black text-rose-700 text-[14.5px]">- ₹{discountAmount.toLocaleString("en-IN")}</span>
             </div>
           )}
-          <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white">
-            <div className="flex items-center gap-2.5">
-              <span className="font-black text-[15px]">Grand Package Total</span>
-              <span className="text-[10.5px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full text-emerald-100 border border-white/20">
-                Rounded to nearest ₹100
-              </span>
+          <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="font-black text-[16px]">Grand Package Total</span>
+                <span className="text-[10.5px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full text-emerald-100 border border-white/20">
+                  Rounded to nearest ₹100
+                </span>
+              </div>
+              <span className="font-black text-[22px]">₹{finalPrice.toLocaleString("en-IN")}</span>
             </div>
-            <span className="font-black text-[21px]">₹{finalPrice.toLocaleString("en-IN")}</span>
-          </div>
-        </div>
-
-        {/* Controls Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          {/* Currency */}
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Currency
-            </label>
-            <select
-              value={pricing.currency}
-              onChange={(e) => update({ currency: e.target.value })}
-              className={inputCls}
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Margin Type */}
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-              <span>Margin Type</span>
-              {selectedOption?.label && (
-                <span className="text-[10.5px] font-semibold text-indigo-600">({selectedOption.label})</span>
-              )}
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => updateMargin({ marginType: "absolute" })}
-                className={`flex-1 py-2.5 rounded-xl border text-[13px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  pricing.marginType === "absolute"
-                    ? "bg-slate-900 border-slate-900 text-white shadow-xs"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <IndianRupee className="w-3.5 h-3.5" />
-                Absolute
-              </button>
-              <button
-                type="button"
-                onClick={() => updateMargin({ marginType: "percentage" })}
-                className={`flex-1 py-2.5 rounded-xl border text-[13px] font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                  pricing.marginType === "percentage"
-                    ? "bg-slate-900 border-slate-900 text-white shadow-xs"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <Percent className="w-3.5 h-3.5" />
-                Percentage
-              </button>
-            </div>
-          </div>
-
-          {/* Margin Value */}
-          <div>
-            <label className="block text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Margin Value {pricing.marginType === "percentage" ? "(%)" : "(₹)"}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[14px] font-bold text-slate-400">
-                {pricing.marginType === "percentage" ? "%" : "₹"}
-              </span>
-              <input
-                type="number"
-                min={0}
-                value={pricing.margin === 0 ? "" : pricing.margin}
-                onWheel={(e) => e.target.blur()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "") {
-                    updateMargin({ margin: 0 });
-                  } else {
-                    const parsed = parseFloat(val);
-                    updateMargin({ margin: isNaN(parsed) ? 0 : parsed });
-                  }
-                }}
-                placeholder="0"
-                className={`${inputCls} pl-9 font-bold`}
-              />
+            <div className="flex items-center justify-between pt-2 border-t border-white/20 flex-wrap gap-2 text-[12px]">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-emerald-100 font-semibold">
+                  Retail Rates:
+                </span>
+                <span className="bg-white/15 px-2.5 py-0.5 rounded-lg font-black text-white">
+                  ₹{perPersonPriceCalc.toLocaleString("en-IN")} / Person ({numPersons} Pax)
+                </span>
+                <span className="bg-white/15 px-2.5 py-0.5 rounded-lg font-black text-white">
+                  ₹{perCouplePriceCalc.toLocaleString("en-IN")} / Couple
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ── Optional Discount & Promo Offers Section ── */}
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-50 via-pink-50/60 to-rose-50 border border-rose-200/80 space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-extrabold text-rose-950 flex items-center gap-1.5">
-                <Percent className="w-4 h-4 text-rose-600" />
-                Promotional Discount &amp; Special Offer
-              </span>
-            </div>
-            {discountAmount > 0 && (
-              <span className="text-[11.5px] font-black text-rose-700 bg-rose-100 px-3 py-0.5 rounded-full border border-rose-200 animate-pulse">
-                🎉 SAVE ₹{discountAmount.toLocaleString("en-IN")} DISCOUNT
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {/* Pricing Configuration Controls */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {/* Card 1: Currency & Guest Capacity */}
+          <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Discount Amount (₹)
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                Currency
+              </label>
+              <select
+                value={pricing.currency}
+                onChange={(e) => update({ currency: e.target.value })}
+                className={inputCls}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Pricing Basis (Pax Count)</span>
+                <span className="text-[11px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                  {numPersons === 2 ? "Per Couple (2 Guests)" : `${numPersons} Guests`}
+                </span>
+              </label>
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-2xs flex-1 min-w-[140px]">
+                  <button
+                    type="button"
+                    onClick={() => update({ numberOfPersons: Math.max(1, numPersons - 1) })}
+                    disabled={numPersons <= 1}
+                    className="w-8 h-8 rounded-lg hover:bg-white disabled:opacity-20 flex items-center justify-center font-black text-[15px] text-slate-700 transition-all shadow-2xs"
+                    title="Decrease Pax"
+                  >
+                    -
+                  </button>
+                  <div className="flex items-center justify-center flex-1">
+                    <Users className="w-3.5 h-3.5 text-indigo-600 mr-1.5" />
+                    <span className="font-black text-[13px] text-slate-900">{numPersons} Pax</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => update({ numberOfPersons: Math.min(50, numPersons + 1) })}
+                    className="w-8 h-8 rounded-lg hover:bg-white flex items-center justify-center font-black text-[15px] text-slate-700 transition-all shadow-2xs"
+                    title="Increase Pax"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {[2, 4, 6, 8].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => update({ numberOfPersons: p })}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                        numPersons === p
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      {p}P
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Room Multiplier Stepper */}
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Rooms Multiplier</span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {numRooms === autoRooms ? `Auto: ${autoRooms} Room${autoRooms > 1 ? "s" : ""}` : `Manual: ${numRooms} Room${numRooms > 1 ? "s" : ""}`}
+                </span>
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-2xs flex-1 min-w-[140px]">
+                  <button
+                    type="button"
+                    onClick={() => update({ numberOfRooms: Math.max(1, numRooms - 1) })}
+                    disabled={numRooms <= 1}
+                    className="w-8 h-8 rounded-lg hover:bg-white disabled:opacity-20 flex items-center justify-center font-black text-[15px] text-slate-700 transition-all shadow-2xs"
+                    title="Decrease Rooms"
+                  >
+                    -
+                  </button>
+                  <div className="flex items-center justify-center flex-1">
+                    <span className="text-[13px] mr-1.5">🏨</span>
+                    <span className="font-black text-[13px] text-slate-900">{numRooms} Room{numRooms > 1 ? "s" : ""}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => update({ numberOfRooms: Math.min(25, numRooms + 1) })}
+                    className="w-8 h-8 rounded-lg hover:bg-white flex items-center justify-center font-black text-[15px] text-slate-700 transition-all shadow-2xs"
+                    title="Increase Rooms"
+                  >
+                    +
+                  </button>
+                </div>
+                {pricing.numberOfRooms && pricing.numberOfRooms !== autoRooms && (
+                  <button
+                    type="button"
+                    onClick={() => update({ numberOfRooms: null })}
+                    className="px-2.5 py-2 rounded-xl text-[10.5px] font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all flex-shrink-0"
+                    title="Reset to Auto (Math.ceil(Pax / 2))"
+                  >
+                    Reset Auto ({autoRooms}R)
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Profit Margin Configuration */}
+          <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Profit Margin Type</span>
+                {selectedOption?.label && (
+                  <span className="text-[10.5px] font-semibold text-indigo-600 truncate max-w-[120px]">({selectedOption.label})</span>
+                )}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateMargin({ marginType: "absolute" })}
+                  className={`py-2.5 px-3 rounded-xl border text-[12.5px] font-black transition-all flex items-center justify-center gap-1.5 ${
+                    pricing.marginType === "absolute"
+                      ? "bg-slate-900 border-slate-900 text-white shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <IndianRupee className="w-3.5 h-3.5" />
+                  Absolute (₹)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateMargin({ marginType: "percentage" })}
+                  className={`py-2.5 px-3 rounded-xl border text-[12.5px] font-black transition-all flex items-center justify-center gap-1.5 ${
+                    pricing.marginType === "percentage"
+                      ? "bg-slate-900 border-slate-900 text-white shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  Percentage (%)
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                Margin Value {pricing.marginType === "percentage" ? "(%)" : "(₹)"}
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[13px]">
-                  ₹
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-bold text-slate-400">
+                  {pricing.marginType === "percentage" ? "%" : "₹"}
                 </span>
                 <input
                   type="number"
                   min={0}
-                  value={pricing.discountAmount === 0 ? "" : pricing.discountAmount}
+                  value={pricing.margin === 0 ? "" : pricing.margin}
                   onWheel={(e) => e.target.blur()}
                   onChange={(e) => {
                     const val = e.target.value;
-                    update({ discountAmount: val === "" ? 0 : parseFloat(val) || 0 });
+                    if (val === "") {
+                      updateMargin({ margin: 0 });
+                    } else {
+                      const parsed = parseFloat(val);
+                      updateMargin({ margin: isNaN(parsed) ? 0 : parsed });
+                    }
                   }}
-                  placeholder="e.g. 2000"
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-rose-200 bg-white text-[13px] font-black text-slate-900 focus:outline-none focus:border-rose-500 shadow-xs"
+                  placeholder="0"
+                  className={`${inputCls} pl-9 font-bold`}
                 />
               </div>
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 pt-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">Quick:</span>
+                {pricing.marginType === "percentage" ? (
+                  [10, 15, 20, 25].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => updateMargin({ margin: pct })}
+                      className={`px-2 py-0.5 rounded-md text-[10.5px] font-black border transition-all ${
+                        pricing.margin === pct
+                          ? "bg-amber-500 text-white border-amber-500 shadow-2xs"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      +{pct}%
+                    </button>
+                  ))
+                ) : (
+                  [2000, 5000, 10000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => updateMargin({ margin: amt })}
+                      className={`px-2 py-0.5 rounded-md text-[10.5px] font-black border transition-all ${
+                        pricing.margin === amt
+                          ? "bg-amber-500 text-white border-amber-500 shadow-2xs"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      +₹{(amt / 1000)}k
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
+          </div>
+        </div>
 
+        {/* ── Package Inclusions & Exclusions Section ── */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Offer Tag / Reason (optional)
-              </label>
-              <input
-                type="text"
-                value={pricing.discountReason || ""}
-                onChange={(e) => update({ discountReason: e.target.value })}
-                placeholder="e.g. Early Bird Offer, Honeymoon Special"
-                className="w-full px-3 py-2 rounded-xl border border-rose-200 bg-white text-[12.5px] font-semibold text-slate-900 focus:outline-none focus:border-rose-500 shadow-xs"
-              />
+              <h3 className="text-[14.5px] font-black text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                Package Inclusions &amp; Exclusions
+              </h3>
+              <p className="text-[11.5px] text-slate-400 font-medium mt-0.5">
+                Included services vs client out-of-pocket expenses for this package
+              </p>
             </div>
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              {(pricing.includes || []).length} Included • {(pricing.excludes || []).length} Excluded
+            </span>
           </div>
-        </div>
-      </div>
 
-      {/* Inclusions & Exclusions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {/* Inclusions */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 text-emerald-700 font-extrabold text-[14px]">
-            <CheckCircle2 className="w-4.5 h-4.5" />
-            Inclusions
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {pricing.includes.map((inc, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-[12.5px] font-bold text-slate-800">
-                <span>{inc}</span>
-                <button type="button" onClick={() => removeItem("includes", i)} className="text-slate-400 hover:text-rose-600">
-                  <Trash2 className="w-3.5 h-3.5" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* INCLUSIONS */}
+            <div className="space-y-3 p-4 rounded-xl bg-emerald-50/40 border border-emerald-100">
+              <div className="flex items-center justify-between">
+                <span className="text-[12.5px] font-black text-emerald-950 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  What's Included ({(pricing.includes || []).length})
+                </span>
+              </div>
+
+              {/* 1-Click Presets */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1">
+                  {INCLUSION_PRESETS.map((p) => {
+                    const exists = (pricing.includes || []).includes(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          const list = pricing.includes || [];
+                          const updated = exists ? list.filter((x) => x !== p) : [...list, p];
+                          update({ includes: updated });
+                        }}
+                        className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md border transition-all ${
+                          exists
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-2xs"
+                            : "bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100"
+                        }`}
+                      >
+                        {exists ? "✓ " : "+ "}{p.length > 25 ? `${p.slice(0, 25)}…` : p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Inclusions List */}
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {(pricing.includes || []).map((inc, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-emerald-200/70 text-[12px] font-semibold text-slate-800 shadow-2xs">
+                    <span className="truncate flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      {inc}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => update({ includes: (pricing.includes || []).filter((_, idx) => idx !== i) })}
+                      className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors flex-shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom Add */}
+              <div className="flex gap-1.5 pt-1">
+                <input
+                  type="text"
+                  value={newInclusion}
+                  onChange={(e) => setNewInclusion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (newInclusion.trim()) {
+                        update({ includes: [...(pricing.includes || []), newInclusion.trim()] });
+                        setNewInclusion("");
+                      }
+                    }
+                  }}
+                  placeholder="Add custom inclusion..."
+                  className="flex-1 px-3 py-1.5 text-[12px] rounded-lg border border-emerald-200 bg-white focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newInclusion.trim()) {
+                      update({ includes: [...(pricing.includes || []), newInclusion.trim()] });
+                      setNewInclusion("");
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold"
+                >
+                  Add
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newInclude}
-              onChange={(e) => setNewInclude(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addItem("includes", newInclude, setNewInclude))}
-              placeholder="e.g. Welcome drink on arrival"
-              className={inputCls}
-            />
-            <button type="button" onClick={() => addItem("includes", newInclude, setNewInclude)} className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-extrabold hover:bg-emerald-700">
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+            </div>
 
-        {/* Exclusions */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 text-rose-600 font-extrabold text-[14px]">
-            <XCircle className="w-4.5 h-4.5" />
-            Exclusions
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {pricing.excludes.map((exc, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/60 border border-rose-100 text-[12.5px] font-bold text-slate-800">
-                <span>{exc}</span>
-                <button type="button" onClick={() => removeItem("excludes", i)} className="text-slate-400 hover:text-rose-600">
-                  <Trash2 className="w-3.5 h-3.5" />
+            {/* EXCLUSIONS */}
+            <div className="space-y-3 p-4 rounded-xl bg-rose-50/40 border border-rose-100">
+              <div className="flex items-center justify-between">
+                <span className="text-[12.5px] font-black text-rose-950 flex items-center gap-1.5">
+                  <XCircle className="w-4 h-4 text-rose-600" />
+                  What's Excluded ({(pricing.excludes || []).length})
+                </span>
+              </div>
+
+              {/* 1-Click Presets */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1">
+                  {EXCLUSION_PRESETS.map((p) => {
+                    const exists = (pricing.excludes || []).includes(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          const list = pricing.excludes || [];
+                          const updated = exists ? list.filter((x) => x !== p) : [...list, p];
+                          update({ excludes: updated });
+                        }}
+                        className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md border transition-all ${
+                          exists
+                            ? "bg-rose-600 text-white border-rose-700 shadow-2xs"
+                            : "bg-white text-rose-900 border-rose-200 hover:bg-rose-100"
+                        }`}
+                      >
+                        {exists ? "✓ " : "+ "}{p.length > 25 ? `${p.slice(0, 25)}…` : p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Exclusions List */}
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {(pricing.excludes || []).map((exc, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-rose-200/70 text-[12px] font-semibold text-slate-800 shadow-2xs">
+                    <span className="truncate flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                      {exc}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => update({ excludes: (pricing.excludes || []).filter((_, idx) => idx !== i) })}
+                      className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors flex-shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom Add */}
+              <div className="flex gap-1.5 pt-1">
+                <input
+                  type="text"
+                  value={newExclusion}
+                  onChange={(e) => setNewExclusion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (newExclusion.trim()) {
+                        update({ excludes: [...(pricing.excludes || []), newExclusion.trim()] });
+                        setNewExclusion("");
+                      }
+                    }
+                  }}
+                  placeholder="Add custom exclusion..."
+                  className="flex-1 px-3 py-1.5 text-[12px] rounded-lg border border-rose-200 bg-white focus:outline-none focus:border-rose-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newExclusion.trim()) {
+                      update({ excludes: [...(pricing.excludes || []), newExclusion.trim()] });
+                      setNewExclusion("");
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold"
+                >
+                  Add
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newExclude}
-              onChange={(e) => setNewExclude(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addItem("excludes", newExclude, setNewExclude))}
-              placeholder="e.g. Personal expenses"
-              className={inputCls}
-            />
-            <button type="button" onClick={() => addItem("excludes", newExclude, setNewExclude)} className="px-4 py-2.5 bg-rose-600 text-white rounded-xl font-extrabold hover:bg-rose-700">
-              <Plus className="w-4 h-4" />
-            </button>
+            </div>
           </div>
         </div>
       </div>

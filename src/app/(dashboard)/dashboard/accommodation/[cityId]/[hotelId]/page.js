@@ -105,15 +105,18 @@ function RoomDetailCard({ room }) {
             </div>
           </div>
           {room.seasonalPricing?.length > 0 && (() => {
-            const prices = room.seasonalPricing.map((s) => Number(s.pricePerNight)).filter((p) => p > 0);
-            if (!prices.length) return null;
-            const min = Math.min(...prices);
-            const max = Math.max(...prices);
+            const allMealPrices = (room.seasonalPricing || [])
+              .flatMap((s) => s.meals || [])
+              .map((m) => Number(m.price))
+              .filter((p) => p > 0);
+            if (!allMealPrices.length) return null;
+            const min = Math.min(...allMealPrices);
+            const max = Math.max(...allMealPrices);
             return (
               <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex-shrink-0">
                 <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-[15px] font-black text-emerald-800">
-                  {min === max ? min.toLocaleString() : `${min.toLocaleString()} – ${max.toLocaleString()}`}
+                <span className="text-[14px] font-black text-emerald-800">
+                  {min === max ? min.toLocaleString("en-IN") : `${min.toLocaleString("en-IN")} – ${max.toLocaleString("en-IN")}`}
                 </span>
                 <span className="text-[10px] text-emerald-600 ml-0.5">/night</span>
               </div>
@@ -130,27 +133,56 @@ function RoomDetailCard({ room }) {
           </div>
         )}
 
-        {/* Meal Plans */}
-        {room.meals?.length > 0 && (
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Utensils className="w-3 h-3" /> Meal Plans
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {room.meals.map((m, i) => {
-                const info = MEAL_LABELS[m.plan] || { label: m.plan, color: "bg-gray-100 text-gray-700 border-gray-200" };
-                return (
-                  <div key={i} className={`flex items-center justify-between rounded-xl px-3 py-2 border ${info.color}`}>
-                    <span className="text-[11px] font-semibold">{info.label}</span>
-                    <span className="text-[12px] font-bold ml-2">
-                      {m.price > 0 ? `+₹${Number(m.price).toLocaleString()}/pax` : "Incl."}
-                    </span>
-                  </div>
-                );
-              })}
+        {/* Meal Plans across seasons */}
+        {(() => {
+          const planMap = {};
+          (room.seasonalPricing || []).forEach((s) => {
+            (s.meals || []).forEach((m) => {
+              if (m.plan && Number(m.price) > 0) {
+                if (!planMap[m.plan]) planMap[m.plan] = [];
+                planMap[m.plan].push(Number(m.price));
+              }
+            });
+          });
+          const planEntries = Object.entries(planMap);
+          if (!planEntries.length && !room.meals?.length) return null;
+
+          return (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Utensils className="w-3 h-3" /> Available Meal Plans & Rates
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {planEntries.length > 0
+                  ? planEntries.map(([plan, prices], i) => {
+                      const info = MEAL_LABELS[plan] || { label: plan, color: "bg-gray-100 text-gray-700 border-gray-200" };
+                      const minP = Math.min(...prices);
+                      const maxP = Math.max(...prices);
+                      return (
+                        <div key={i} className={`flex items-center justify-between rounded-xl px-3 py-2 border ${info.color}`}>
+                          <span className="text-[11px] font-semibold">{info.label}</span>
+                          <span className="text-[12px] font-bold ml-2">
+                            ₹{minP === maxP ? minP.toLocaleString("en-IN") : `${minP.toLocaleString("en-IN")} – ${maxP.toLocaleString("en-IN")}`}
+                            <span className="text-[9px] font-normal opacity-70">/night</span>
+                          </span>
+                        </div>
+                      );
+                    })
+                  : (room.meals || []).map((m, i) => {
+                      const info = MEAL_LABELS[m.plan] || { label: m.plan, color: "bg-gray-100 text-gray-700 border-gray-200" };
+                      return (
+                        <div key={i} className={`flex items-center justify-between rounded-xl px-3 py-2 border ${info.color}`}>
+                          <span className="text-[11px] font-semibold">{info.label}</span>
+                          <span className="text-[12px] font-bold ml-2">
+                            {m.price > 0 ? `₹${Number(m.price).toLocaleString("en-IN")}` : "Included"}
+                          </span>
+                        </div>
+                      );
+                    })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Season Calendar (seasonal pricing moved to room level) */}
         <div>

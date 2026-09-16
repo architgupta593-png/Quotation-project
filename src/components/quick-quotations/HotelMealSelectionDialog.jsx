@@ -235,7 +235,10 @@ export default function HotelMealSelectionDialog({
         hotelCity.includes(cleanCity) ||
         cleanCity.includes(hotelCity);
 
-      const matchCat = h.category && h.category.toLowerCase() === activeCategory.toLowerCase();
+      const matchCat =
+        activeCategory.toLowerCase() === "none"
+          ? (!h.category || h.category.toLowerCase() === "none" || h.category === "")
+          : (h.category && h.category.toLowerCase() === activeCategory.toLowerCase());
 
       const matchSearch =
         !searchQuery.trim() ||

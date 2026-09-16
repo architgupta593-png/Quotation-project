@@ -118,29 +118,67 @@ export async function POST(req, { params }) {
       }
     });
 
-    const accommodationOptions = [
-      {
-        label: "Option 1 (Standard)",
-        nights: nightsArr,
-        totalPrice: qq.pricing.baseCost || 0,
-        marginType: qq.pricing.marginType || "absolute",
-        margin: qq.pricing.margin || 0,
-      },
-      {
-        label: "Option 2 (Deluxe Premium)",
-        nights: nightsArr.map((n) => ({ ...n, roomType: "Premium Suite", starRating: 4 })),
-        totalPrice: Math.round((qq.pricing.baseCost || 0) * 1.25),
-        marginType: qq.pricing.marginType || "absolute",
-        margin: qq.pricing.margin || 0,
-      },
-      {
-        label: "Option 3 (Luxury 5-Star)",
-        nights: nightsArr.map((n) => ({ ...n, roomType: "Luxury Villa", starRating: 5 })),
-        totalPrice: Math.round((qq.pricing.baseCost || 0) * 1.6),
-        marginType: qq.pricing.marginType || "absolute",
-        margin: qq.pricing.margin || 0,
-      },
-    ];
+    const effectiveBaseCost = Number(qq.pricing?.baseCost) || Number(qq.pricing?.totalPrice) || 0;
+    const marginType = qq.pricing?.markupType || qq.pricing?.marginType || "absolute";
+    const margin = marginType === "percentage"
+      ? (Number(qq.pricing?.markupPercentage) ?? Number(qq.pricing?.margin) ?? 0)
+      : (Number(qq.pricing?.markupAmount) ?? Number(qq.pricing?.margin) ?? 0);
+
+    let accommodationOptions = [];
+
+    if (Array.isArray(qq.accommodationOptions) && qq.accommodationOptions.length > 0) {
+      accommodationOptions = qq.accommodationOptions.map((opt, oIdx) => {
+        const optNightsArr = [];
+        let cNight = 1;
+        (opt.hotelStays || []).forEach((s) => {
+          const stayNights = Math.max(1, parseInt(s.nights, 10) || 1);
+          for (let k = 0; k < stayNights; k++) {
+            optNightsArr.push({
+              night: cNight++,
+              cityName: s.cityName || qq.tripDetails.destination,
+              hotelName: s.hotelName || "Quality Certified Hotel",
+              starRating: s.starRating || 3,
+              roomType: s.roomType || "Deluxe AC Room",
+              mealPlan: s.mealPlan || "CP",
+              pricePerNight: s.pricePerNight || 0,
+              notes: s.notes || "",
+            });
+          }
+        });
+
+        return {
+          label: opt.label || `Option ${oIdx + 1}`,
+          nights: optNightsArr.length > 0 ? optNightsArr : nightsArr,
+          totalPrice: Number(opt.totalPrice) || effectiveBaseCost,
+          marginType,
+          margin,
+        };
+      });
+    } else {
+      accommodationOptions = [
+        {
+          label: "Option 1 (Standard)",
+          nights: nightsArr,
+          totalPrice: effectiveBaseCost,
+          marginType,
+          margin,
+        },
+        {
+          label: "Option 2 (Deluxe Premium)",
+          nights: nightsArr.map((n) => ({ ...n, roomType: "Premium Suite", starRating: 4 })),
+          totalPrice: Math.round(effectiveBaseCost * 1.25),
+          marginType,
+          margin,
+        },
+        {
+          label: "Option 3 (Luxury 5-Star)",
+          nights: nightsArr.map((n) => ({ ...n, roomType: "Luxury Villa", starRating: 5 })),
+          totalPrice: Math.round(effectiveBaseCost * 1.6),
+          marginType,
+          margin,
+        },
+      ];
+    }
 
     // Create Full Quotation Record
     const fullQuotation = new Quotation({
@@ -168,24 +206,24 @@ export async function POST(req, { params }) {
       accommodationOptions,
       selectedOptionIndex: 0,
       vehicle: {
-        vehicleType: qq.vehicle.vehicleType,
-        model: qq.vehicle.model,
-        seats: qq.vehicle.seats,
-        acType: qq.vehicle.acType,
-        vehiclePrice: qq.vehicle.vehiclePrice,
-        notes: qq.vehicle.notes,
+        vehicleType: qq.vehicle?.vehicleType || "Sedan",
+        model: qq.vehicle?.model || "",
+        seats: qq.vehicle?.seats || 4,
+        acType: qq.vehicle?.acType || "AC",
+        vehiclePrice: qq.vehicle?.vehiclePrice || 0,
+        notes: qq.vehicle?.notes || "",
       },
       pricing: {
-        baseCost: qq.pricing.baseCost,
-        marginType: qq.pricing.marginType,
-        margin: qq.pricing.margin,
-        discountAmount: qq.pricing.discountAmount,
-        discountReason: qq.pricing.discountReason,
-        includeGst: qq.pricing.includeGst,
-        gstPercentage: qq.pricing.gstPercentage,
-        finalPrice: qq.pricing.finalPrice,
-        perCouplePrice: qq.pricing.perCouplePrice,
-        perPersonPrice: qq.pricing.perPersonPrice,
+        baseCost: effectiveBaseCost,
+        marginType,
+        margin,
+        discountAmount: qq.pricing?.discountAmount || 0,
+        discountReason: qq.pricing?.discountReason || "",
+        includeGst: Boolean(qq.pricing?.includeGst),
+        gstPercentage: qq.pricing?.gstPercentage || 5,
+        finalPrice: qq.pricing?.finalPrice || 0,
+        perCouplePrice: qq.pricing?.perCouplePrice || 0,
+        perPersonPrice: qq.pricing?.perPersonPrice || 0,
         rateBasis: "per_couple",
         includes: qq.inclusions || [],
         excludes: qq.exclusions || [],

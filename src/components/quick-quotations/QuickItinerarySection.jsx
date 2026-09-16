@@ -7,7 +7,7 @@ import {
   Calendar, Layers, CheckCheck, Sun, Moon, Coffee,
   Camera, Navigation, Flag, ShieldCheck, Edit3, X,
   FileText, CheckCircle2, ArrowUp, ArrowDown, Copy,
-  Eye, EyeOff,
+  Eye, EyeOff, Hotel,
 } from "lucide-react";
 import DescriptionEditorDialog from "@/components/packages/DescriptionEditorDialog";
 
@@ -74,6 +74,180 @@ export function getActivityIcon(text = "") {
   return "✨";
 }
 
+export const MEAL_PLAN_DESCRIPTIONS = {
+  EP: {
+    code: "EP",
+    name: "Room Only",
+    industryTerm: "European Plan",
+    meaning: "Room Only (No Meals Included)",
+    shortMeaning: "Room Only (No Meals)",
+    tag: "Room Only",
+    badge: "EP • Room Only (No Meals)",
+    clientExplanation: "Accommodation only. No meals (Breakfast, Lunch or Dinner) are included in this stay.",
+  },
+  CP: {
+    code: "CP",
+    name: "Bed & Breakfast",
+    industryTerm: "Continental Plan",
+    meaning: "Daily Breakfast Included (Bed & Breakfast)",
+    shortMeaning: "Breakfast Included",
+    tag: "Breakfast Included",
+    badge: "CP • Breakfast Included",
+    clientExplanation: "Daily delicious morning breakfast included at the hotel.",
+  },
+  MAP: {
+    code: "MAP",
+    name: "Half Board",
+    industryTerm: "Modified American Plan",
+    meaning: "Breakfast + Dinner Included (Half Board)",
+    shortMeaning: "Breakfast & Dinner Included",
+    tag: "Breakfast + Dinner",
+    badge: "MAP • Breakfast & Dinner Included",
+    clientExplanation: "Both daily morning breakfast and evening dinner included at the hotel.",
+  },
+  AP: {
+    code: "AP",
+    name: "Full Board",
+    industryTerm: "American Plan",
+    meaning: "All Meals Included (Breakfast, Lunch & Dinner)",
+    shortMeaning: "All Meals Included (B+L+D)",
+    tag: "All Meals Included",
+    badge: "AP • All Meals Included",
+    clientExplanation: "All 3 daily meals included: Breakfast, Lunch, and Dinner at the hotel.",
+  },
+};
+
+export function getMealPlanLabel(planCode) {
+  const p = String(planCode || "CP").toUpperCase().trim();
+  return MEAL_PLAN_DESCRIPTIONS[p] || {
+    code: p,
+    name: "Custom Plan",
+    industryTerm: `${p} Plan`,
+    meaning: `${p} Meal Plan`,
+    shortMeaning: `${p} Plan`,
+    tag: `${p} Plan`,
+    badge: `${p} Plan`,
+    clientExplanation: `${p} meal plan assigned by hotel.`,
+  };
+}
+
+/**
+ * Resolves the corresponding hotel stay leg for a given itinerary day index.
+ * Accounts for variable stay night counts (e.g. 2 nights Munnar, 1 night Thekkady).
+ */
+export function getStayForDay(dayIndex, hotelStays = []) {
+  if (!hotelStays || hotelStays.length === 0) return null;
+  let currentDay = 0;
+  for (let i = 0; i < hotelStays.length; i++) {
+    const stay = hotelStays[i];
+    const nights = Math.max(1, parseInt(stay.nights, 10) || 1);
+    if (dayIndex >= currentDay && dayIndex < currentDay + nights) {
+      return { ...stay, stayIndex: i, stayNight: dayIndex - currentDay + 1, isDepartureDay: false };
+    }
+    currentDay += nights;
+  }
+  // For the final departure day (dayIndex >= currentDay), guest checks out from the last stay
+  const lastStay = hotelStays[hotelStays.length - 1];
+  return lastStay ? { ...lastStay, stayIndex: hotelStays.length - 1, stayNight: lastStay.nights || 1, isDepartureDay: true } : null;
+}
+
+/**
+ * Derives the exact meal inclusions according to the hotel's selected meal plan.
+ * EP: Room Only (No meals)
+ * CP: Bed & Breakfast (Morning Breakfast only; on arrival day check-in is afternoon so no breakfast)
+ * MAP: Half Board (Breakfast + Dinner; arrival day has dinner, departure day has breakfast)
+ * AP: Full Board (All Meals: Breakfast + Lunch + Dinner; arrival day has lunch/dinner, departure day has breakfast)
+ */
+export function getMealsFromStay(stay, dayIndex, totalDays) {
+  const isFirstDay = dayIndex === 0;
+  const isLastDay = dayIndex === totalDays - 1;
+  const hasHotel = Boolean(stay && (stay.hotelName?.trim() || stay.hotelId));
+
+  if (!hasHotel) {
+    return {
+      hasHotel: false,
+      hotelName: "",
+      roomType: "",
+      mealPlan: null,
+      mealPlanLabel: "",
+      mealPlanMeaning: "",
+      planDesc: null,
+      meals: { breakfast: false, lunch: false, dinner: false },
+    };
+  }
+
+  const plan = String(stay.mealPlan || "CP").toUpperCase().trim();
+  const planDesc = getMealPlanLabel(plan);
+  let meals = { breakfast: false, lunch: false, dinner: false };
+
+  switch (plan) {
+    case "EP":
+      meals = { breakfast: false, lunch: false, dinner: false };
+      break;
+
+    case "CP":
+      meals = {
+        breakfast: totalDays === 1 ? true : !isFirstDay,
+        lunch: false,
+        dinner: false,
+      };
+      break;
+
+    case "MAP":
+      meals = {
+        breakfast: totalDays === 1 ? true : !isFirstDay,
+        lunch: false,
+        dinner: totalDays === 1 ? true : !isLastDay,
+      };
+      break;
+
+    case "AP":
+      meals = {
+        breakfast: totalDays === 1 ? true : !isFirstDay,
+        lunch: !isLastDay,
+        dinner: !isLastDay,
+      };
+      break;
+
+    default:
+      meals = {
+        breakfast: !isFirstDay,
+        lunch: false,
+        dinner: false,
+      };
+      break;
+  }
+
+  return {
+    hasHotel: true,
+    hotelName: stay.hotelName,
+    roomType: stay.roomType,
+    mealPlan: plan,
+    mealPlanLabel: planDesc.badge,
+    mealPlanMeaning: planDesc.meaning,
+    planDesc,
+    meals,
+  };
+}
+
+/**
+ * Synchronizes an itinerary array's meals with the current hotel stays.
+ */
+export function syncItineraryWithHotelStays(itinerary = [], hotelStays = [], totalDays = null) {
+  const daysCount = totalDays || itinerary.length || (hotelStays.reduce((acc, s) => acc + (Math.max(1, parseInt(s.nights, 10) || 1)), 0) + 1);
+
+  return itinerary.map((dayItem, idx) => {
+    const stayInfo = getStayForDay(idx, hotelStays);
+    const mealInfo = getMealsFromStay(stayInfo, idx, daysCount);
+
+    return {
+      ...dayItem,
+      city: dayItem.city || stayInfo?.cityName || "",
+      meals: mealInfo.meals,
+    };
+  });
+}
+
 export default function QuickItinerarySection({
   itinerary = [],
   onChange,
@@ -89,7 +263,7 @@ export default function QuickItinerarySection({
   const [richEditorDayIdx, setRichEditorDayIdx] = useState(null); // index of day being edited in TipTap rich text modal
   const [newActivityInput, setNewActivityInput] = useState("");
 
-  // Auto-generate realistic itinerary based on destination, duration and theme
+  // Auto-generate realistic itinerary based on destination, duration, theme and hotel meal plans
   function generateDefaultItinerary() {
     const dest = destination.trim() || "Destination";
     const themeKey = THEME_PRESETS[theme] ? theme : "general";
@@ -97,7 +271,8 @@ export default function QuickItinerarySection({
     const generated = [];
 
     for (let i = 1; i <= daysCount; i++) {
-      const matchingStay = hotelStays[Math.min(i - 1, hotelStays.length - 1)];
+      const matchingStay = getStayForDay(i - 1, hotelStays);
+      const mealInfo = getMealsFromStay(matchingStay, i - 1, daysCount);
       const city = matchingStay?.cityName || dest;
       const template = templates[Math.min(i - 1, templates.length - 1)];
 
@@ -125,11 +300,7 @@ export default function QuickItinerarySection({
         title,
         description,
         activities,
-        meals: {
-          breakfast: true,
-          lunch: false,
-          dinner: i === 1 || theme === "honeymoon",
-        },
+        meals: mealInfo.meals,
       });
     }
 
@@ -391,8 +562,9 @@ export default function QuickItinerarySection({
           <div className="space-y-4">
             {displayedDays.map((dayItem, realIdx) => {
               const idx = activeTabDay === "all" ? realIdx : activeTabDay;
-              const meals = dayItem.meals || { breakfast: true, lunch: false, dinner: false };
-              const matchingStay = hotelStays[Math.min(idx, hotelStays.length - 1)];
+              const matchingStay = getStayForDay(idx, hotelStays);
+              const mealInfo = getMealsFromStay(matchingStay, idx, daysCount || itinerary.length);
+              const meals = dayItem.meals || mealInfo.meals || { breakfast: false, lunch: false, dinner: false };
               const cityLeg = dayItem.city || matchingStay?.cityName || destination;
 
               return (
@@ -403,8 +575,8 @@ export default function QuickItinerarySection({
                   {/* Subtle top ambient gradient line */}
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
 
-                  {/* Header Row: Hero Day Tile + Title + Location + Meals & Actions */}
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  {/* Header Row: Hero Day Tile + Title + Location + Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3 border-b border-slate-100">
                     <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
                       {/* Hero Day Number Squircle Tile */}
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
@@ -416,7 +588,7 @@ export default function QuickItinerarySection({
                         </span>
                       </div>
 
-                      <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           {cityLeg && (
                             <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
@@ -424,6 +596,17 @@ export default function QuickItinerarySection({
                               <span>{cityLeg}</span>
                             </span>
                           )}
+
+                          {/* Hotel & Meal Plan Connection Badge - Only shown when hotel is selected */}
+                          {mealInfo.hasHotel && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[11px] flex items-center gap-1.5 shadow-2xs">
+                              <Hotel className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                              <span className="truncate max-w-[170px]">{mealInfo.hotelName}</span>
+                              <span className="text-emerald-400">•</span>
+                              <span className="text-emerald-800 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} • ${mealInfo.planDesc?.shortMeaning}`}</span>
+                            </span>
+                          )}
+
                           <span className="text-[10.5px] font-bold text-slate-400">
                             Milestone #{dayItem.day || idx + 1}
                           </span>
@@ -439,95 +622,47 @@ export default function QuickItinerarySection({
                       </div>
                     </div>
 
-                    {/* Meal Pills & Actions Toolbar */}
-                    <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-50">
-                      {/* Interactive Meal Inclusion Pills */}
-                      <div className="flex items-center gap-1.5 bg-slate-50/90 p-1 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    {/* Day Action Buttons */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0 self-start sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => setEditingDayIndex(idx)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
+                        title="Edit Day Details in Studio Modal"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Edit</span>
+                      </button>
+
+                      <div className="flex items-center bg-slate-50 p-0.5 rounded-xl border border-slate-200">
                         <button
                           type="button"
-                          onClick={() => handleMealToggle(idx, "breakfast")}
-                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
-                            meals.breakfast
-                              ? "bg-amber-400 text-slate-950 border-amber-500 font-black shadow-2xs"
-                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
-                          }`}
-                          title="Click to toggle Breakfast inclusion"
+                          onClick={() => handleMoveDay(idx, -1)}
+                          disabled={idx === 0}
+                          className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                          title="Move Day Up"
                         >
-                          <span>🌅</span>
-                          <span>Breakfast</span>
+                          <ArrowUp className="w-3.5 h-3.5" />
                         </button>
-
                         <button
                           type="button"
-                          onClick={() => handleMealToggle(idx, "lunch")}
-                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
-                            meals.lunch
-                              ? "bg-orange-400 text-slate-950 border-orange-500 font-black shadow-2xs"
-                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
-                          }`}
-                          title="Click to toggle Lunch inclusion"
+                          onClick={() => handleMoveDay(idx, 1)}
+                          disabled={idx === itinerary.length - 1}
+                          className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                          title="Move Day Down"
                         >
-                          <span>☀️</span>
-                          <span>Lunch</span>
+                          <ArrowDown className="w-3.5 h-3.5" />
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleMealToggle(idx, "dinner")}
-                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 border ${
-                            meals.dinner
-                              ? "bg-purple-600 text-white border-purple-700 font-black shadow-2xs"
-                              : "bg-transparent text-slate-400 border-transparent hover:text-slate-700"
-                          }`}
-                          title="Click to toggle Dinner inclusion"
-                        >
-                          <span>🌙</span>
-                          <span>Dinner</span>
-                        </button>
-                      </div>
-
-                      {/* Day Action Buttons */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setEditingDayIndex(idx)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
-                          title="Edit Day Details in Studio Modal"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Edit</span>
-                        </button>
-
-                        <div className="flex items-center bg-slate-50 p-0.5 rounded-xl border border-slate-200">
+                        {itinerary.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => handleMoveDay(idx, -1)}
-                            disabled={idx === 0}
-                            className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
-                            title="Move Day Up"
+                            onClick={() => handleRemoveDay(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Delete Day"
                           >
-                            <ArrowUp className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveDay(idx, 1)}
-                            disabled={idx === itinerary.length - 1}
-                            className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
-                            title="Move Day Down"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          {itinerary.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveDay(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                              title="Delete Day"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -672,49 +807,84 @@ export default function QuickItinerarySection({
                 </div>
               </div>
 
-              {/* Meal Plan Included Toggles */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  Included Meals for Day {editingDay.day || editingDayIndex + 1}
-                </label>
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleMealToggle(editingDayIndex, "breakfast")}
-                    className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                      editingDay.meals?.breakfast
-                        ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                    }`}
-                  >
-                    <span>🌅</span> <span>Breakfast</span>
-                  </button>
+              {/* Meal Plan Included Toggles - Connected to Hotel Selection */}
+              {(() => {
+                const stay = getStayForDay(editingDayIndex, hotelStays);
+                const minfo = getMealsFromStay(stay, editingDayIndex, daysCount || itinerary.length);
 
-                  <button
-                    type="button"
-                    onClick={() => handleMealToggle(editingDayIndex, "lunch")}
-                    className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                      editingDay.meals?.lunch
-                        ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                    }`}
-                  >
-                    <span>☀️</span> <span>Lunch</span>
-                  </button>
+                if (!minfo.hasHotel) {
+                  return (
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-between text-[11.5px] text-slate-500">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Hotel className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Meal plan automatically activates when a hotel is selected for this stay.</span>
+                      </span>
+                    </div>
+                  );
+                }
 
-                  <button
-                    type="button"
-                    onClick={() => handleMealToggle(editingDayIndex, "dinner")}
-                    className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                      editingDay.meals?.dinner
-                        ? "bg-purple-600 text-white border-purple-700 shadow-2xs"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                    }`}
-                  >
-                    <span>🌙</span> <span>Dinner</span>
-                  </button>
-                </div>
-              </div>
+                return (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <label className="block text-[11.5px] font-bold text-slate-800">
+                          Included Meals for Day {editingDay.day || editingDayIndex + 1}
+                        </label>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {minfo.planDesc?.clientExplanation || minfo.mealPlanMeaning}
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                        <Hotel className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="font-extrabold">{minfo.hotelName}</span>
+                        <span>•</span>
+                        <span className="text-emerald-700">{minfo.planDesc?.badge || `${minfo.mealPlan} (${minfo.mealPlanMeaning})`}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleMealToggle(editingDayIndex, "breakfast")}
+                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
+                          editingDay.meals?.breakfast
+                            ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
+                        }`}
+                        title="Toggle Breakfast inclusion"
+                      >
+                        <span>🌅</span> <span>Breakfast</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleMealToggle(editingDayIndex, "lunch")}
+                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
+                          editingDay.meals?.lunch
+                            ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
+                        }`}
+                        title="Toggle Lunch inclusion"
+                      >
+                        <span>☀️</span> <span>Lunch</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleMealToggle(editingDayIndex, "dinner")}
+                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
+                          editingDay.meals?.dinner
+                            ? "bg-purple-600 text-white border-purple-700 shadow-2xs"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
+                        }`}
+                        title="Toggle Dinner inclusion"
+                      >
+                        <span>🌙</span> <span>Dinner</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Day Description Narrative */}
               <div>

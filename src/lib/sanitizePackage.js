@@ -106,7 +106,7 @@ export function sanitizePackagePayload(body) {
   }
 
   // Sanitize accommodationOptions (Hotel Categories Wise)
-  const VALID_CATEGORIES = ["Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", ""];
+  const VALID_CATEGORIES = ["None", "Budget", "Deluxe", "Deluxe Plus", "Premium", "Premium Plus", "Luxury", ""];
   if (Array.isArray(sanitized.accommodationOptions)) {
     sanitized.accommodationOptions = sanitized.accommodationOptions.map((opt, idx) => {
       const nights = Array.isArray(opt.nights)

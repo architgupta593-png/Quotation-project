@@ -11,6 +11,7 @@ import { HOTEL_FEATURES_LIST, ACTIVITIES_LIST } from "@/data/activity";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const HOTEL_CATEGORIES = [
+  { value: "None", label: "None", desc: "No specific category", bg: "bg-slate-100 text-slate-700 border-slate-300" },
   { value: "Budget", label: "Budget", desc: "Economical Value", bg: "bg-emerald-50 text-emerald-700 border-emerald-300" },
   { value: "Deluxe", label: "Deluxe", desc: "Standard Comfort", bg: "bg-sky-50 text-sky-700 border-sky-300" },
   { value: "Deluxe Plus", label: "Deluxe Plus", desc: "Upgraded Deluxe", bg: "bg-blue-50 text-blue-700 border-blue-300" },
@@ -65,7 +66,11 @@ function buildMealPricesFromRooms(seasonalPricing = []) {
   const mp = {};
   seasonalPricing.forEach(s => {
     if (s.label) {
-      mp[s.label] = {};
+      mp[s.label] = {
+        extraBedPrice: s.extraBedPrice ? String(s.extraBedPrice) : "",
+        childWithBedPrice: s.childWithBedPrice ? String(s.childWithBedPrice) : "",
+        childNoBedPrice: s.childNoBedPrice ? String(s.childNoBedPrice) : "",
+      };
       (s.meals||[]).forEach(m => { mp[s.label][m.plan] = String(m.price ?? ""); });
     }
   });
@@ -357,6 +362,61 @@ function RoomInlineForm({ room, index, onChange, onRemove, hotelSeasons }) {
                           </select>
                         </div>
                       )}
+
+                      {/* Supplements (Extra Bed / Child) */}
+                      <div className="pt-2.5 mt-2.5 border-t border-slate-100 space-y-1.5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          Extra Bed & Child Supplements / Night (Optional)
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/80">
+                            <span className="block text-[10px] font-bold text-slate-600 truncate">Extra Bed (Adult)</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-[11px] font-bold text-slate-400">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={mp.extraBedPrice ?? ""}
+                                onWheel={(e) => e.target.blur()}
+                                onChange={(e) => setMealPrice(season.label, "extraBedPrice", e.target.value)}
+                                placeholder="0"
+                                className="w-full text-[11.5px] font-bold bg-white px-2 py-1 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                              />
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/80">
+                            <span className="block text-[10px] font-bold text-slate-600 truncate">Child with Bed</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-[11px] font-bold text-slate-400">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={mp.childWithBedPrice ?? ""}
+                                onWheel={(e) => e.target.blur()}
+                                onChange={(e) => setMealPrice(season.label, "childWithBedPrice", e.target.value)}
+                                placeholder="0"
+                                className="w-full text-[11.5px] font-bold bg-white px-2 py-1 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                              />
+                            </div>
+                          </div>
+                          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/80">
+                            <span className="block text-[10px] font-bold text-slate-600 truncate">Child No Bed</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-[11px] font-bold text-slate-400">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={mp.childNoBedPrice ?? ""}
+                                onWheel={(e) => e.target.blur()}
+                                onChange={(e) => setMealPrice(season.label, "childNoBedPrice", e.target.value)}
+                                placeholder="0"
+                                className="w-full text-[11.5px] font-bold bg-white px-2 py-1 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -588,6 +648,9 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
             meals: MEAL_PLANS
               .map(p => ({ plan:p.value, price: parseFloat((room.mealPrices||{})[s.label]?.[p.value])||0 }))
               .filter(m => m.price > 0),
+            extraBedPrice: parseFloat((room.mealPrices||{})[s.label]?.extraBedPrice) || 0,
+            childWithBedPrice: parseFloat((room.mealPrices||{})[s.label]?.childWithBedPrice) || 0,
+            childNoBedPrice: parseFloat((room.mealPrices||{})[s.label]?.childNoBedPrice) || 0,
           }));
         const rPayload = {
           hotel:hotelId, roomType:room.roomType, maxOccupancy:parseInt(room.maxOccupancy,10)||2,

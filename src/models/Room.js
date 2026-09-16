@@ -57,9 +57,12 @@ const DateRangeSchema = new mongoose.Schema(
  */
 const SeasonalPriceSchema = new mongoose.Schema(
   {
-    label:      { type: String, trim: true, default: "" },
-    dateRanges: { type: [DateRangeSchema], default: [] },
-    meals:      { type: [MealOptionSchema], default: [] },
+    label:              { type: String, trim: true, default: "" },
+    dateRanges:         { type: [DateRangeSchema], default: [] },
+    meals:              { type: [MealOptionSchema], default: [] },
+    extraBedPrice:      { type: Number, min: 0, default: 0 },
+    childWithBedPrice:  { type: Number, min: 0, default: 0 },
+    childNoBedPrice:    { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );

@@ -47,12 +47,14 @@ const HotelSchema = new mongoose.Schema(
     category: {
       type: String,
       enum: [
+        "None",
         "Budget",
         "Deluxe",
         "Deluxe Plus",
         "Premium",
         "Premium Plus",
         "Luxury",
+        "none",
         "budget",
         "deluxe",
         "deluxe plus",
@@ -67,6 +69,7 @@ const HotelSchema = new mongoose.Schema(
       set: (v) => {
         if (!v) return "Deluxe";
         const map = {
+          none: "None",
           budget: "Budget",
           deluxe: "Deluxe",
           "deluxe plus": "Deluxe Plus",

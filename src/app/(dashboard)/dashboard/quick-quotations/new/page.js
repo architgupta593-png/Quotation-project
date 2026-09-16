@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,12 +9,12 @@ import {
   Tag, ShieldCheck, Heart, Mountain, Compass, Waves, Trees,
   Baby, CheckCircle2, ChevronRight, FileText, Info, HelpCircle,
   Star, Clock, Building, Compass as CompassIcon, Shield, CheckCheck, Edit3,
-  Package as PackageIcon, Percent,
+  Package as PackageIcon, Percent, X,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
 import InstructionsEditorModal from "@/components/quick-quotations/InstructionsEditorModal";
 import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFetchModal";
-import QuickItinerarySection from "@/components/quick-quotations/QuickItinerarySection";
+import QuickItinerarySection, { syncItineraryWithHotelStays } from "@/components/quick-quotations/QuickItinerarySection";
 import QuickAccommodationSection from "@/components/quick-quotations/QuickAccommodationSection";
 import CustomDatePicker from "@/components/quick-quotations/CustomDatePicker";
 
@@ -172,23 +172,8 @@ export default function NewQuickQuotationPage() {
 
   const [importedPkg, setImportedPkg] = useState(null);
 
-  // Auto-fetch package from URL query param if present
-  const packageIdParam = searchParams?.get("packageId");
-
-  useEffect(() => {
-    if (!packageIdParam) return;
-    fetch(`/api/packages/${packageIdParam}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.package) {
-          handleSelectPackage(data.package);
-        }
-      })
-      .catch((err) => console.error("Failed to auto-fetch package from URL", err));
-  }, [packageIdParam]);
-
   // Fetch package handler to auto-populate all quotation parameters
-  function handleSelectPackage(pkg) {
+  const handleSelectPackage = useCallback((pkg) => {
     if (!pkg) return;
     setImportedPkg(pkg);
 
@@ -202,7 +187,6 @@ export default function NewQuickQuotationPage() {
         (pkg.accommodation && pkg.accommodation[0]?.nights?.length) ||
         (pkg.destinations && pkg.destinations.reduce((acc, d) => acc + (parseInt(d.nights, 10) || 1), 0)) ||
         (pkg.itinerary && pkg.itinerary.length > 1 ? pkg.itinerary.length - 1 : 0) ||
-        form.tripDetails.nights ||
         4,
         10
       )
@@ -220,7 +204,7 @@ export default function NewQuickQuotationPage() {
     );
 
     // Calculate return date based on current departure date and package nights
-    const s = form.tripDetails.startDate || getTomorrowDate();
+    const s = getTomorrowDate();
     const d = new Date(s);
     d.setDate(d.getDate() + nights);
     const end = d.toISOString().split("T")[0];
@@ -228,7 +212,7 @@ export default function NewQuickQuotationPage() {
     const primaryDest =
       pkg.destination ||
       (pkg.destinations && pkg.destinations.map((d) => d.cityName).filter(Boolean).join(", ")) ||
-      form.tripDetails.destination || "Destination";
+      "Destination";
 
     // Extract hotel stays from package grouped by destination / city
     let stays = [];
@@ -295,8 +279,14 @@ export default function NewQuickQuotationPage() {
       });
     }
 
+    // Calculate pure Net Base Cost: Hotels Base Cost (with room multiplier) + Cab Fleet Cost + Activities
+    const roomMult = Math.max(1, parseInt(pkg.pricing?.numberOfRooms, 10) || Math.ceil((parseInt(pkg.pricing?.numberOfPersons || form.passengers?.adults, 10) || 2) / 2) || 1);
+    
     // Extract multi-tier accommodation options from package if available
     let allAccommodationOptions = [];
+    const pkgMarginType = pkg.pricing?.marginType || "absolute";
+    const pkgMargin = Number(pkg.pricing?.margin) || 0;
+
     if (pkg.accommodationOptions && Array.isArray(pkg.accommodationOptions) && pkg.accommodationOptions.length > 0) {
       allAccommodationOptions = pkg.accommodationOptions.map((opt, oIdx) => {
         let optStays = [];
@@ -328,19 +318,33 @@ export default function NewQuickQuotationPage() {
             }
           });
         }
+        const optBaseCost = optStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult), 0);
+        const optMarginVal = Number(opt.margin) > 0 ? Number(opt.margin) : pkgMargin;
+        const optMarginType = (Number(opt.margin) > 0 && opt.marginType) ? opt.marginType : pkgMarginType;
+        const optMarginAmt = optMarginType === "percentage" ? (optBaseCost * optMarginVal) / 100 : optMarginVal;
+        const optSellingPrice = optBaseCost + optMarginAmt;
+
         return {
-          label: opt.label || `Option ${oIdx + 1}`,
+          label: opt.label || (opt.category ? `Option ${oIdx + 1} (${opt.category})` : `Option ${oIdx + 1}`),
+          category: opt.category || "",
           hotelStays: optStays.length > 0 ? optStays : stays,
-          totalPrice: opt.totalPrice || 0,
+          totalPrice: optSellingPrice,
+          marginType: optMarginType,
+          margin: optMarginVal,
         };
       });
     }
 
     if (allAccommodationOptions.length === 0) {
+      const standardCost = stays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult), 0);
+      const standardMarginAmt = pkgMarginType === "percentage" ? (standardCost * pkgMargin) / 100 : pkgMargin;
       allAccommodationOptions.push({
         label: "Option 1 (Standard 3★)",
+        category: "Standard",
         hotelStays: stays,
-        totalPrice: 0,
+        totalPrice: standardCost + standardMarginAmt,
+        marginType: pkgMarginType,
+        margin: pkgMargin,
       });
     }
 
@@ -405,79 +409,119 @@ export default function NewQuickQuotationPage() {
       0
     );
 
-    // Calculate total price: if package pricing has breakdown, add dynamic vehicle total
-    let pkgPrice = 0;
-    if (pkg.pricing?.accommodationTotal !== undefined && pkg.pricing?.margin !== undefined) {
-      const accomTot = Number(pkg.pricing.accommodationTotal) || 0;
-      const actTot = Number(pkg.pricing.activitiesTotal) || 0;
-      const margin = Number(pkg.pricing.margin) || 0;
-      const mType = pkg.pricing.marginType || "absolute";
-      const sub = accomTot + periodVehTotal + actTot;
-      const mAmount = mType === "percentage" ? (sub * margin) / 100 : margin;
-      const preTax = sub + mAmount;
-      const gst = pkg.pricing.includeGst ? (preTax * (pkg.pricing.gstPercentage || 5)) / 100 : 0;
-      pkgPrice = Math.round((preTax + gst) / 100) * 100;
-    } else {
-      pkgPrice =
-        pkg.pricing?.finalPrice ||
-        pkg.pricing?.totalSellingPrice ||
-        pkg.pricing?.grandTotal ||
-        pkg.pricing?.subtotal ||
-        pkg.pricing?.totalPrice ||
-        pkg.price ||
-        form.pricing?.totalPrice ||
-        0;
+    const primaryOptionStays = (allAccommodationOptions[0]?.hotelStays && allAccommodationOptions[0].hotelStays.length > 0)
+      ? allAccommodationOptions[0].hotelStays
+      : stays;
+    const hotelBaseCost = primaryOptionStays.reduce(
+      (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
+      0
+    );
+
+    let actTot = Number(pkg.pricing?.activitiesTotal) || 0;
+    if (!actTot && Array.isArray(pkg.itinerary)) {
+      pkg.itinerary.forEach((day) => {
+        (day.activities || []).forEach((act) => {
+          if (typeof act === "object" && act !== null) {
+            actTot += Number(act.price) || 0;
+          }
+        });
+      });
     }
 
-    const pkgInclusions = (pkg.inclusions && pkg.inclusions.length > 0)
-      ? pkg.inclusions
-      : (pkg.pricing?.includes && pkg.pricing.includes.length > 0)
-      ? pkg.pricing.includes
-      : form.inclusions;
+    let netBaseCost = hotelBaseCost + periodVehTotal + actTot;
+    if (netBaseCost <= 0 && pkg.pricing?.subtotal) {
+      netBaseCost = Number(pkg.pricing.subtotal) || 0;
+    }
+    if (netBaseCost <= 0 && pkg.pricing?.totalPrice) {
+      netBaseCost = Number(pkg.pricing.totalPrice) || 0;
+    }
 
-    const pkgExclusions = (pkg.exclusions && pkg.exclusions.length > 0)
-      ? pkg.exclusions
-      : (pkg.pricing?.excludes && pkg.pricing.excludes.length > 0)
-      ? pkg.pricing.excludes
-      : form.exclusions;
+    // Automatically calculate package margin into base selling price
+    const selectedOptIdx = pkg.pricing?.selectedOptionIndex || 0;
+    const selectedOpt = pkg.accommodationOptions?.[selectedOptIdx] || pkg.accommodationOptions?.[0];
+    const resolvedMargin = Number(selectedOpt?.margin) > 0 ? Number(selectedOpt.margin) : pkgMargin;
+    const resolvedMarginType = (Number(selectedOpt?.margin) > 0 && selectedOpt?.marginType) ? selectedOpt.marginType : pkgMarginType;
+    const pkgMarginAmount = resolvedMarginType === "percentage" ? (netBaseCost * resolvedMargin) / 100 : resolvedMargin;
 
-    const clientPart = form.client.name.trim() ? ` for ${form.client.name.trim()}` : "";
-    const newTitle = pkg.title ? `${pkg.title}${clientPart}` : `${nights}N/${days}D ${primaryDest} Holiday${clientPart}`;
+    // Automatic calculation: Package Selling Price = Net Base Cost + Internal Package Margin
+    const packageSellingPrice = netBaseCost + pkgMarginAmount;
 
-    setForm((prev) => ({
-      ...prev,
-      tripDetails: {
-        ...prev.tripDetails,
-        title: newTitle,
-        destination: primaryDest,
-        theme: pkg.theme || pkg.category || prev.tripDetails.theme || "honeymoon",
-        startDate: s,
-        endDate: end,
-        nights: nights,
-        days: days,
-      },
-      hotelStays: stays,
-      accommodationOptions: allAccommodationOptions,
-      itinerary: itineraryDays,
-      vehicle: {
-        vehicleType: primaryVeh.vehicleType || prev.vehicle.vehicleType || "Sedan",
-        model: primaryVeh.model || prev.vehicle.model || "Dzire / Etios",
-        seats: primaryVeh.seats || prev.vehicle.seats || 4,
-        acType: primaryVeh.acType || prev.vehicle.acType || "AC",
-        vehiclePrice: periodVehTotal,
-        notes: primaryVeh.notes || "Includes fuel, toll taxes, parking & driver allowance",
-      },
-      inclusions: pkgInclusions,
-      exclusions: pkgExclusions,
-      pricing: {
-        ...prev.pricing,
-        totalPrice: pkgPrice,
-        includeGst: Boolean(pkg.pricing?.includeGst),
-        gstPercentage: pkg.pricing?.gstPercentage || 5,
-        discountAmount: 0,
-      },
-    }));
-  }
+    setForm((prev) => {
+      const clientPart = prev.client?.name?.trim() ? ` for ${prev.client.name.trim()}` : "";
+      const newTitle = pkg.title ? `${pkg.title}${clientPart}` : `${nights}N/${days}D ${primaryDest} Holiday${clientPart}`;
+      const pkgInclusions = (pkg.inclusions && pkg.inclusions.length > 0)
+        ? pkg.inclusions
+        : (pkg.pricing?.includes && pkg.pricing.includes.length > 0)
+        ? pkg.pricing.includes
+        : prev.inclusions;
+
+      const pkgExclusions = (pkg.exclusions && pkg.exclusions.length > 0)
+        ? pkg.exclusions
+        : (pkg.pricing?.excludes && pkg.pricing.excludes.length > 0)
+        ? pkg.pricing.excludes
+        : prev.exclusions;
+
+      const currentStart = prev.tripDetails?.startDate || s;
+      const curD = new Date(currentStart);
+      curD.setDate(curD.getDate() + nights);
+      const currentEnd = curD.toISOString().split("T")[0];
+
+      return {
+        ...prev,
+        tripDetails: {
+          ...prev.tripDetails,
+          title: newTitle,
+          destination: primaryDest,
+          theme: pkg.theme || pkg.category || prev.tripDetails.theme || "honeymoon",
+          startDate: currentStart,
+          endDate: currentEnd,
+          nights: nights,
+          days: days,
+        },
+        hotelStays: primaryOptionStays,
+        accommodationOptions: allAccommodationOptions,
+        itinerary: syncItineraryWithHotelStays(itineraryDays, primaryOptionStays, days),
+        vehicle: {
+          vehicleType: primaryVeh.vehicleType || prev.vehicle.vehicleType || "Sedan",
+          model: primaryVeh.model || prev.vehicle.model || "Dzire / Etios",
+          seats: primaryVeh.seats || prev.vehicle.seats || 4,
+          acType: primaryVeh.acType || prev.vehicle.acType || "AC",
+          vehiclePrice: periodVehTotal,
+          notes: primaryVeh.notes || "Includes fuel, toll taxes, parking & driver allowance",
+        },
+        inclusions: pkgInclusions,
+        exclusions: pkgExclusions,
+        pricing: {
+          ...prev.pricing,
+          totalPrice: packageSellingPrice,
+          packageMargin: resolvedMargin,
+          packageMarginType: resolvedMarginType,
+          markupType: "absolute",
+          markupAmount: 0,
+          markupPercentage: 0,
+          discountAmount: Number(pkg.pricing?.discountAmount) || 0,
+          discountReason: pkg.pricing?.discountReason || "",
+          includeGst: Boolean(pkg.pricing?.includeGst),
+          gstPercentage: Number(pkg.pricing?.gstPercentage) || 5,
+        },
+      };
+    });
+  }, []);
+
+  // Auto-fetch package from URL query param if present
+  const packageIdParam = searchParams?.get("packageId");
+
+  useEffect(() => {
+    if (!packageIdParam) return;
+    fetch(`/api/packages/${packageIdParam}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.package) {
+          handleSelectPackage(data.package);
+        }
+      })
+      .catch((err) => console.error("Failed to auto-fetch package from URL", err));
+  }, [packageIdParam, handleSelectPackage]);
 
   // When user changes Departure Date (startDate), automatically shift Return Date (endDate) while preserving existing nights duration
   function handleStartDateChange(newStartDate) {
@@ -778,6 +822,7 @@ export default function NewQuickQuotationPage() {
         accommodationOptions: normalizedOptions.length > 0 ? normalizedOptions : undefined,
         pricing: {
           ...form.pricing,
+          baseCost: basePrice,
           totalPrice: basePrice,
           markupType,
           markupPercentage,
@@ -1256,22 +1301,40 @@ export default function NewQuickQuotationPage() {
               accommodationOptions={form.accommodationOptions || []}
               onOptionsChange={(opts) => setForm((p) => ({ ...p, accommodationOptions: opts }))}
               hotelStays={form.hotelStays || []}
-              onChange={(updated) => setForm((p) => ({ ...p, hotelStays: updated }))}
+              onChange={(updated) => {
+                setForm((p) => {
+                  const updatedItinerary = syncItineraryWithHotelStays(p.itinerary || [], updated, p.tripDetails?.days);
+                  return {
+                    ...p,
+                    hotelStays: updated,
+                    itinerary: updatedItinerary,
+                  };
+                });
+              }}
               totalNights={form.tripDetails.nights}
               primaryDestination={form.tripDetails.destination}
               startDate={form.tripDetails.startDate}
               totalRooms={form.passengers.totalRooms || 1}
               adults={form.passengers?.adults || 2}
               passengers={form.passengers}
-              onPriceAdjustment={(newAccomCost) => {
+              onPriceAdjustment={(newAccomCost, optIdx = 0) => {
                 setForm((p) => {
                   const vehCost = Number(p.vehicle?.vehiclePrice) || 0;
+                  const actCost = (p.itinerary || []).reduce((sum, d) => sum + (d.activities || []).reduce((asum, a) => asum + (Number(a.price) || 0), 0), 0);
+                  const netCost = newAccomCost + vehCost + actCost;
+                  
+                  const activeOpt = (p.accommodationOptions && p.accommodationOptions[optIdx]) || p.accommodationOptions?.[0];
+                  const mVal = Number(activeOpt?.margin !== undefined && activeOpt?.margin > 0 ? activeOpt.margin : (p.pricing?.packageMargin || 0));
+                  const mType = (activeOpt?.margin !== undefined && activeOpt?.margin > 0 && activeOpt?.marginType) ? activeOpt.marginType : (p.pricing?.packageMarginType || "absolute");
+                  const marginAmt = mType === "percentage" ? (netCost * mVal) / 100 : mVal;
+                  const calculated = netCost + marginAmt;
+                  
                   return {
                     ...p,
                     pricing: {
                       ...p.pricing,
                       accommodationTotal: newAccomCost,
-                      totalPrice: newAccomCost + vehCost,
+                      totalPrice: calculated,
                     },
                   };
                 });
@@ -1296,6 +1359,57 @@ export default function NewQuickQuotationPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Vehicle Seating Capacity Alert */}
+              {(() => {
+                const totalGuests = (Number(form.passengers?.adults) || 0) + (Number(form.passengers?.childrenCount) || 0);
+                const vehicleSeats = Number(form.vehicle?.seats) || 4;
+                if (totalGuests <= vehicleSeats) return null;
+
+                const suitableVehicles = VEHICLE_OPTIONS.filter((v) => v.seats >= totalGuests);
+
+                return (
+                  <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 via-rose-50/80 to-amber-50/40 p-4 sm:p-5 text-rose-950 shadow-xs space-y-3 animate-in fade-in">
+                    <div className="flex items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                          <AlertCircle className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-[13.5px] font-black text-rose-950">
+                            Vehicle Overcapacity Alert ({totalGuests} Guests vs {vehicleSeats} Seats)
+                          </h4>
+                          <p className="text-[12px] text-rose-800 font-medium">
+                            Your party has {form.passengers?.adults || 0} Adults{form.passengers?.childrenCount > 0 ? ` + ${form.passengers.childrenCount} Children` : ""}, exceeding the capacity of this {form.vehicle?.vehicleType || "Cab"} ({vehicleSeats} seats).
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-rose-200/80 text-rose-900 border border-rose-300 flex-shrink-0">
+                        RTO Seating Warning
+                      </span>
+                    </div>
+
+                    {suitableVehicles.length > 0 && (
+                      <div className="pt-2 border-t border-rose-200/60">
+                        <p className="text-[11px] font-bold text-rose-900 mb-2">1-Click Upgrade to Accommodate All {totalGuests} Guests:</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {suitableVehicles.slice(0, 3).map((v) => (
+                            <button
+                              key={v.type}
+                              type="button"
+                              onClick={() => setForm((p) => ({ ...p, vehicle: { ...p.vehicle, vehicleType: v.type, model: v.model, seats: v.seats } }))}
+                              className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-100/80 border-2 border-rose-200 hover:border-rose-400 text-rose-950 text-[11.5px] font-bold shadow-2xs transition-all flex items-center gap-1.5 active:scale-95"
+                            >
+                              <Car className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Upgrade to {v.type} ({v.seats} Seats)</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Fetched Package Vehicles (Only show when package has vehicles) */}
               {availablePackageVehicles.length > 0 && (
@@ -1660,31 +1774,38 @@ export default function NewQuickQuotationPage() {
                   <label className="block text-[12px] font-black text-slate-800">
                     Target / Base Package Price (₹) *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || 1);
-                      const activeStays = (form.accommodationOptions && form.accommodationOptions.length > 0)
-                        ? (form.accommodationOptions.find((o) => o.isDefault)?.hotelStays || form.accommodationOptions[0].hotelStays || form.hotelStays || [])
-                        : (form.hotelStays || []);
-                      const accomCost = activeStays.reduce(
-                        (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
-                        0
-                      );
-                      const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
-                      const calculated = accomCost + vehCost;
-                      setForm((p) => ({
-                        ...p,
-                        pricing: {
-                          ...p.pricing,
-                          accommodationTotal: accomCost,
-                          totalPrice: calculated,
-                        },
-                      }));
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                    title="Auto-calculate: Accommodation Total + Vehicle Price"
-                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || Math.ceil((parseInt(form.passengers?.adults, 10) || 2) / 2) || 1);
+                        const activeStays = (form.accommodationOptions && form.accommodationOptions.length > 0)
+                          ? (form.accommodationOptions.find((o) => o.isDefault)?.hotelStays || form.accommodationOptions[0].hotelStays || form.hotelStays || [])
+                          : (form.hotelStays || []);
+                        const accomCost = activeStays.reduce(
+                          (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
+                          0
+                        );
+                        const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
+                        const actCost = (form.itinerary || []).reduce((sum, d) => sum + (d.activities || []).reduce((asum, a) => asum + (Number(a.price) || 0), 0), 0);
+                        const netCost = accomCost + vehCost + actCost;
+                        
+                        const mVal = Number(form.pricing?.packageMargin !== undefined ? form.pricing.packageMargin : (importedPkg?.pricing?.margin || 0));
+                        const mType = form.pricing?.packageMarginType || importedPkg?.pricing?.marginType || "absolute";
+                        const marginAmt = mType === "percentage" ? (netCost * mVal) / 100 : mVal;
+                        const calculated = netCost + marginAmt;
+
+                        setForm((p) => ({
+                          ...p,
+                          pricing: {
+                            ...p.pricing,
+                            accommodationTotal: accomCost,
+                            totalPrice: calculated,
+                          },
+                        }));
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                      title="Auto-calculate: Accommodation Total + Vehicle Price + Package Margin"
+                    >
                     <Sparkles className="w-3 h-3 text-amber-600" />
                     <span>⚡ Auto-Calculate</span>
                   </button>

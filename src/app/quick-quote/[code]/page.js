@@ -7,10 +7,10 @@ import {
   IndianRupee, MessageSquare, Mail, Printer, Sparkles, Heart,
   Mountain, Palmtree, Castle, Trees, Flame, Compass, ChevronRight,
   ShieldCheck, Clock, CheckCircle2, Phone, X, Award, ExternalLink,
-  ChevronDown, Star, Layers,
+  ChevronDown, Star, Layers, Loader2,
 } from "lucide-react";
+import { getActivityIcon, getStayForDay, getMealsFromStay, MEAL_PLAN_DESCRIPTIONS, getMealPlanLabel } from "@/components/quick-quotations/QuickItinerarySection";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
-import { getActivityIcon } from "@/components/quick-quotations/QuickItinerarySection";
 
 const THEMES = {
   honeymoon: {
@@ -72,10 +72,10 @@ const THEMES = {
 };
 
 const MEAL_PLANS = {
-  EP: "Room Only (EP)",
-  CP: "Bed & Breakfast (CP)",
-  MAP: "Breakfast + Dinner (MAP)",
-  AP: "All Meals Included (AP)",
+  EP: "Room Only (EP - No Meals Included)",
+  CP: "Daily Breakfast Included (CP - Bed & Breakfast)",
+  MAP: "Breakfast + Dinner Included (MAP - Half Board)",
+  AP: "All Meals Included (AP - Breakfast, Lunch & Dinner)",
   "": "Standard Meal Plan",
 };
 
@@ -196,21 +196,52 @@ export default function QuickQuotationPublicPage({ params }) {
     : "Flexible";
 
   const numPax = Math.max(1, passengers?.adults || 2);
-  const finalPrice = pricing?.finalPrice || 0;
+  const totalRooms = Math.max(1, parseInt(passengers?.totalRooms, 10) || 1);
+
+  // Dynamic Tier-Adjusted Price when client toggles between option tiers
+  const baseOption = availableOptions[0];
+  const currentOption = availableOptions[selectedOptionIdx] || baseOption;
+
+  const getOptionCost = (opt) => {
+    const stays = opt?.hotelStays || [];
+    if (stays.length > 0) {
+      return stays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * totalRooms), 0);
+    }
+    if (opt?.totalPrice && Number(opt.totalPrice) > 0) return Number(opt.totalPrice);
+    return 0;
+  };
+
+  const getOptionWithMargin = (opt) => {
+    const rawCost = getOptionCost(opt);
+    const mType = opt?.marginType || pricing?.packageMarginType || "absolute";
+    const mVal = Number(opt?.margin !== undefined ? opt.margin : (pricing?.packageMargin || 0));
+    const mAmount = mType === "percentage" ? (rawCost * mVal) / 100 : mVal;
+    return rawCost + mAmount;
+  };
+
+  const baseOptCost = getOptionWithMargin(baseOption);
+  const currentOptCost = getOptionWithMargin(currentOption);
+  const tierCostDelta = (baseOptCost > 0 && currentOptCost > 0) ? (currentOptCost - baseOptCost) : 0;
+
+  const baseFinalPrice = pricing?.finalPrice || 0;
+  const includeGst = Boolean(pricing?.includeGst);
+  const gstRate = Number(pricing?.gstPercentage) || 5;
+  const deltaWithTax = includeGst ? Math.round(tierCostDelta * (1 + gstRate / 100)) : tierCostDelta;
+
+  const finalPrice = Math.max(0, baseFinalPrice + deltaWithTax);
   const discountAmount = pricing?.discountAmount || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
   const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
-  const perPerson = pricing?.perPersonPrice || Math.round(finalPrice / numPax);
+  const perPerson = Math.round(finalPrice / numPax);
   const perCouple = Math.round(perPerson * 2);
-  const includeGst = Boolean(pricing?.includeGst);
-  const gstAmount = pricing?.gstAmount || 0;
+  const gstAmount = includeGst ? Math.round((finalPrice * gstRate) / (100 + gstRate)) : 0;
 
   // Advance Payment calculations (Absolute / Percentage)
   const advanceType = pricing?.advanceType || "absolute";
   const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
   const advancePercentage = pricing?.advancePercentage || 25;
   let advancePayment = 0;
-  if (pricing?.advancePayment !== undefined && pricing?.advancePayment > 0) {
+  if (pricing?.advancePayment !== undefined && pricing?.advancePayment > 0 && tierCostDelta === 0) {
     advancePayment = pricing.advancePayment;
   } else if (advanceType === "percentage") {
     advancePayment = Math.round((finalPrice * advancePercentage) / 100);
@@ -253,7 +284,7 @@ export default function QuickQuotationPublicPage({ params }) {
           <div className="relative h-8 w-28 sm:w-36">
             <Image
               src="/logo (2).png"
-              alt="Mandate Holidays"
+              alt="Mande Holidays"
               fill
               sizes="(max-width: 640px) 112px, 144px"
               className="object-contain object-left"
@@ -415,8 +446,11 @@ export default function QuickQuotationPublicPage({ params }) {
                 {/* Luxury Journey Stream Layout */}
                 <div className="space-y-4">
                   {quickQuote.itinerary.map((dayItem, idx) => {
-                    const cityLeg = dayItem.city || hotelStays[Math.min(idx, hotelStays.length - 1)]?.cityName;
-                    const meals = dayItem.meals || { breakfast: true, lunch: false, dinner: false };
+                    const matchingStay = getStayForDay(idx, hotelStays);
+                    const mealInfo = getMealsFromStay(matchingStay, idx, quickQuote.itinerary.length);
+                    const cityLeg = dayItem.city || matchingStay?.cityName || quickQuote.tripDetails?.destination;
+                    const meals = dayItem.meals || mealInfo.meals || { breakfast: false, lunch: false, dinner: false };
+                    const hasAnyMeal = Boolean(meals.breakfast || meals.lunch || meals.dinner);
 
                     return (
                       <div
@@ -439,7 +473,7 @@ export default function QuickQuotationPublicPage({ params }) {
                               </span>
                             </div>
 
-                            <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex-1 min-w-0 space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 {cityLeg && (
                                   <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
@@ -447,6 +481,17 @@ export default function QuickQuotationPublicPage({ params }) {
                                     <span>{cityLeg}</span>
                                   </span>
                                 )}
+
+                                {/* Hotel & Meal Plan badge - Shown ONLY when hotel is selected */}
+                                {mealInfo.hasHotel && (
+                                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[11px] flex items-center gap-1.5 shadow-2xs">
+                                    <Hotel className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                    <span className="truncate max-w-[170px]">{mealInfo.hotelName}</span>
+                                    <span className="text-emerald-400">•</span>
+                                    <span className="text-emerald-800 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} • ${mealInfo.planDesc?.shortMeaning || "Meals"}`}</span>
+                                  </span>
+                                )}
+
                                 <span className="text-[10.5px] font-bold text-slate-400">
                                   Milestone #{dayItem.day || idx + 1}
                                 </span>
@@ -458,27 +503,35 @@ export default function QuickQuotationPublicPage({ params }) {
                             </div>
                           </div>
 
-                          {/* Meals Included Pills */}
-                          <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
-                            {meals.breakfast && (
-                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-950 border border-amber-200 shadow-2xs flex items-center gap-1">
-                                <span>🌅</span>
-                                <span>Breakfast</span>
-                              </span>
-                            )}
-                            {meals.lunch && (
-                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-orange-50 text-orange-950 border border-orange-200 shadow-2xs flex items-center gap-1">
-                                <span>☀️</span>
-                                <span>Lunch</span>
-                              </span>
-                            )}
-                            {meals.dinner && (
-                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 text-purple-950 border border-purple-200 shadow-2xs flex items-center gap-1">
-                                <span>🌙</span>
-                                <span>Dinner</span>
-                              </span>
-                            )}
-                          </div>
+                          {/* Meals Included Pills - ONLY shown when hotel is selected */}
+                          {mealInfo.hasHotel && (
+                            <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
+                              {meals.breakfast && (
+                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-950 border border-amber-200 shadow-2xs flex items-center gap-1" title="Daily Morning Breakfast Included">
+                                  <span>🌅</span>
+                                  <span>Breakfast Included</span>
+                                </span>
+                              )}
+                              {meals.lunch && (
+                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-orange-50 text-orange-950 border border-orange-200 shadow-2xs flex items-center gap-1" title="Lunch Included">
+                                  <span>☀️</span>
+                                  <span>Lunch Included</span>
+                                </span>
+                              )}
+                              {meals.dinner && (
+                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 text-purple-950 border border-purple-200 shadow-2xs flex items-center gap-1" title="Evening Dinner Included">
+                                  <span>🌙</span>
+                                  <span>Dinner Included</span>
+                                </span>
+                              )}
+                              {!hasAnyMeal && mealInfo.mealPlan === "EP" && (
+                                <span className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-slate-50 text-slate-600 border border-slate-200 shadow-2xs flex items-center gap-1" title="Room Only - No meals included in this stay">
+                                  <span>🍽️</span>
+                                  <span>Room Only (No Meals)</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Narrative Story Description */}
@@ -601,8 +654,9 @@ export default function QuickQuotationPublicPage({ params }) {
 
                     {stay.mealPlan && (
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-                        <span className="px-3 py-1 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-[11.5px] font-black">
-                          {MEAL_PLANS[stay.mealPlan] || stay.mealPlan}
+                        <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-950 border border-indigo-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
+                          <span>🍽️</span>
+                          <span>{MEAL_PLANS[stay.mealPlan] || `${stay.mealPlan} Meal Plan`}</span>
                         </span>
                       </div>
                     )}
@@ -853,7 +907,7 @@ export default function QuickQuotationPublicPage({ params }) {
 
                 {/* WhatsApp Connect */}
                 <a
-                  href={`https://api.whatsapp.com/send?phone=919876543210&text=Hi%20Mandate%20Holidays,%20I%20am%20reviewing%20my%20Quick%20Proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title)}.%20Please%20connect%20with%20me.`}
+                  href={`https://api.whatsapp.com/send?phone=919876543210&text=Hi%20Mande%20Holidays,%20I%20am%20reviewing%20my%20Quick%20Proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Holiday")}.%20Please%20connect%20with%20me.`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-bold text-[13px] transition-all flex items-center justify-center gap-2"

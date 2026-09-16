@@ -149,9 +149,12 @@ export default function QuickPackageFetchModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filtered.map((pkg) => {
                 const isFetching = fetchingId === pkg._id;
-                const nights = pkg.duration?.nights || 0;
-                const days = pkg.duration?.days || 0;
-                const dest = pkg.destination || pkg.destinations?.map((d) => d.cityName).join(", ") || "Custom";
+                const destNights = Array.isArray(pkg.destinations) && pkg.destinations.length > 0
+                  ? pkg.destinations.reduce((s, d) => s + (parseInt(d?.nights, 10) || 1), 0)
+                  : 0;
+                const nights = Number(pkg.nights) || destNights || Number(pkg.duration?.nights) || (Array.isArray(pkg.itinerary) && pkg.itinerary.length > 1 ? pkg.itinerary.length - 1 : 1);
+                const days = Number(pkg.days) || Number(pkg.duration?.days) || (nights + 1);
+                const dest = pkg.destination || pkg.destinations?.map((d) => d.cityName).filter(Boolean).join(", ") || "Custom";
                 const price = pkg.pricing?.finalPrice || pkg.pricing?.totalSellingPrice || pkg.pricing?.grandTotal || pkg.price || 0;
 
                 // Accommodations count

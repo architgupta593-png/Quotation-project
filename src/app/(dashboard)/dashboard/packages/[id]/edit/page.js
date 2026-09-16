@@ -39,6 +39,7 @@ export default function EditPackagePage() {
 
   // Fetch package data & cities
   useEffect(() => {
+    if (!id) return;
     Promise.all([
       fetch(`/api/packages/${id}`).then((r) => r.json()),
       fetch("/api/accommodation/cities").then((r) => r.json()),
@@ -58,19 +59,26 @@ export default function EditPackagePage() {
             vehiclePeriods: p.vehiclePeriods || [],
             vehicles: p.vehicles && p.vehicles.length > 0 ? p.vehicles : (p.vehicle?.vehicleType ? [p.vehicle] : []),
             vehicle: p.vehicle || (p.vehicles && p.vehicles[0]) || { vehicleType: "Sedan", model: "", seats: 4, quantity: 1, acType: "AC", price: 5000, vehiclePrice: 5000, notes: "" },
-            pricing: p.pricing || {
-              selectedOptionIndex: 0,
-              accommodationTotal: 0,
-              vehicleTotal: 0,
-              subtotal: 0,
-              marginType: "absolute",
-              margin: 0,
-              finalPrice: 0,
-              perPersonPrice: 0,
-              numberOfPersons: 1,
-              currency: "INR",
-              includes: [],
-              excludes: [],
+            pricing: {
+              selectedOptionIndex: p.pricing?.selectedOptionIndex || 0,
+              accommodationTotal: p.pricing?.accommodationTotal || 0,
+              vehicleTotal: p.pricing?.vehicleTotal || 0,
+              activitiesTotal: p.pricing?.activitiesTotal || 0,
+              subtotal: p.pricing?.subtotal || 0,
+              marginType: p.pricing?.marginType || "absolute",
+              margin: p.pricing?.margin || 0,
+              includeGst: p.pricing?.includeGst || false,
+              gstPercentage: p.pricing?.gstPercentage || 5,
+              rateBasis: p.pricing?.rateBasis || "per_couple",
+              discountAmount: p.pricing?.discountAmount || 0,
+              discountReason: p.pricing?.discountReason || "",
+              finalPrice: p.pricing?.finalPrice || 0,
+              perPersonPrice: p.pricing?.perPersonPrice || 0,
+              numberOfPersons: p.pricing?.numberOfPersons || 2,
+              currency: p.pricing?.currency || "INR",
+              includes: p.pricing?.includes || [],
+              excludes: p.pricing?.excludes || [],
+              ...(p.pricing || {}),
             },
             instructions: p.instructions || [],
             status: p.status || "draft",
@@ -190,7 +198,7 @@ export default function EditPackagePage() {
       return form.vehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
     }
     return form?.vehicle?.vehiclePrice || 0;
-  }, [form?.vehiclePeriods, form?.vehicles, form?.vehicle]);
+  }, [form]);
 
   const activitiesTotal = useMemo(() => {
     let perPersonSum = 0;
@@ -221,10 +229,10 @@ export default function EditPackagePage() {
   const liveMarginAmount = activeMarginType === "percentage"
     ? liveSubtotal * (activeMargin / 100)
     : activeMargin;
-  const livePreTaxTotal = liveSubtotal + liveMarginAmount;
-  const liveGstAmount = form?.pricing?.includeGst ? Math.round(livePreTaxTotal * ((form?.pricing?.gstPercentage || 5) / 100)) : 0;
+  const livePreDiscountTotal = liveSubtotal + liveMarginAmount;
   const liveDiscount = form?.pricing?.discountAmount || 0;
-  const liveGrandTotal = Math.max(0, Math.round(livePreTaxTotal + liveGstAmount - liveDiscount));
+  const rawLiveGrandTotal = Math.max(0, livePreDiscountTotal - liveDiscount);
+  const liveGrandTotal = Math.round(rawLiveGrandTotal / 100) * 100;
   const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form?.pricing?.finalPrice || 0);
 
   const numPax = Math.max(1, parseInt(form?.pricing?.numberOfPersons, 10) || 2);
@@ -647,6 +655,12 @@ export default function EditPackagePage() {
                   destinations={form.destinations}
                   accommodationOptions={form.accommodationOptions}
                   selectedCategory={form.accommodationOptions?.[selectedOptIdx]?.category || "Deluxe Plus"}
+                  currency={form.pricing?.currency || "INR"}
+                  travelDate={form.pricing?.travelDate || ""}
+                  pricingSeason={form.pricing?.pricingSeason || ""}
+                  onSeasonChange={({ travelDate, pricingSeason }) =>
+                    updateForm({ pricing: { ...form.pricing, travelDate, pricingSeason } })
+                  }
                   onSelectOptionIndex={(idx) => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: idx } })}
                   onChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />
@@ -697,6 +711,7 @@ export default function EditPackagePage() {
                   vehicle={form.vehicle}
                   vehicleTotal={vehicleTotal}
                   vehiclePrice={vehicleTotal}
+                  activitiesTotal={activitiesTotal}
                 />
               </div>
             )}

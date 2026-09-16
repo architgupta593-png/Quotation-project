@@ -159,12 +159,14 @@ export default function VehiclePanel({
           ? v.vehiclePrice
           : (v?.price !== undefined && v?.price !== null ? v.price : (v?.dailyRate !== undefined && v?.dailyRate !== null ? v.dailyRate : typeCfg.defaultPrice));
         const qty = Math.max(1, parseInt(v?.quantity, 10) || 1);
+        const parsedSeats = parseInt(v?.seats, 10);
+        const seatsVal = v?.seats === "" ? "" : (!isNaN(parsedSeats) && parsedSeats > 0 ? parsedSeats : typeCfg.defaultSeats);
 
         return {
           ...v,
           vehicleType: v?.vehicleType || "Sedan",
           model: v?.model || typeCfg.models,
-          seats: Math.max(1, parseInt(v?.seats, 10) || typeCfg.defaultSeats),
+          seats: seatsVal,
           quantity: qty,
           acType: v?.acType || "AC",
           price: rawPrice,
@@ -191,11 +193,16 @@ export default function VehiclePanel({
   const triggerChange = useCallback((updatedPeriods, currentActiveIdx = safeActiveIdx) => {
     const targetIdx = Math.min(Math.max(0, currentActiveIdx), Math.max(0, updatedPeriods.length - 1));
     const curPeriod = updatedPeriods[targetIdx] || updatedPeriods[0] || createDefaultPeriod();
-    const curVehicles = (curPeriod?.vehicles || []).map((v) => ({
-      ...v,
-      vehiclePrice: Number(v?.vehiclePrice) || 0,
-      price: Number(v?.vehiclePrice) || 0,
-    }));
+    const curVehicles = (curPeriod?.vehicles || []).map((v) => {
+      const typeCfg = VEHICLE_TYPES.find((t) => t.type === v?.vehicleType) || VEHICLE_TYPES[0];
+      const parsedSeats = parseInt(v?.seats, 10);
+      return {
+        ...v,
+        seats: !isNaN(parsedSeats) && parsedSeats > 0 ? parsedSeats : typeCfg.defaultSeats,
+        vehiclePrice: Number(v?.vehiclePrice) || 0,
+        price: Number(v?.vehiclePrice) || 0,
+      };
+    });
     const total = curVehicles.reduce(
       (sum, v) => sum + ((Number(v.vehiclePrice) || 0) * (parseInt(v.quantity, 10) || 1)),
       0
@@ -263,6 +270,15 @@ export default function VehiclePanel({
           updated.model = typeCfg.models;
           updated.price = typeCfg.defaultPrice;
           updated.vehiclePrice = typeCfg.defaultPrice;
+        }
+
+        if (patch.seats !== undefined) {
+          if (patch.seats === "") {
+            updated.seats = "";
+          } else {
+            const s = parseInt(patch.seats, 10);
+            updated.seats = isNaN(s) ? 1 : Math.max(1, Math.min(99, s));
+          }
         }
 
         if (patch.vehiclePrice !== undefined) {
@@ -539,8 +555,58 @@ export default function VehiclePanel({
                 </div>
               </div>
 
-              {/* Right: Quantity, Price Input, Subtotal, Delete */}
+              {/* Right: Seats, Quantity, Price Input, Subtotal, Delete */}
               <div className="flex items-center justify-between md:justify-end gap-3.5 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                {/* Seats Stepper */}
+                <div>
+                  <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                    Seats / Cab
+                  </span>
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-2xs" title="Seating Capacity per Cab">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const curSeats = parseInt(veh?.seats, 10) || typeCfg.defaultSeats;
+                        handleUpdateVehicle(vIdx, { seats: Math.max(1, curSeats - 1) });
+                      }}
+                      disabled={(parseInt(veh?.seats, 10) || typeCfg.defaultSeats) <= 1}
+                      className="w-6 h-6 rounded-lg hover:bg-white disabled:opacity-20 flex items-center justify-center font-black text-[13px] text-slate-700 transition-all shadow-2xs"
+                      title="Decrease seats"
+                    >
+                      -
+                    </button>
+                    <div className="flex items-center justify-center px-0.5 min-w-[30px]">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={veh?.seats !== undefined && veh?.seats !== null ? veh.seats : typeCfg.defaultSeats}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9]/g, "");
+                          handleUpdateVehicle(vIdx, { seats: raw });
+                        }}
+                        className="w-7 text-center font-black text-[12.5px] text-slate-900 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        title="Number of seats per vehicle"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const curSeats = parseInt(veh?.seats, 10) || typeCfg.defaultSeats;
+                        handleUpdateVehicle(vIdx, { seats: Math.min(99, curSeats + 1) });
+                      }}
+                      className="w-6 h-6 rounded-lg hover:bg-white flex items-center justify-center font-black text-[13px] text-slate-700 transition-all shadow-2xs"
+                      title="Increase seats"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
                 {/* Quantity Stepper */}
                 <div>
                   <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider block mb-1">

@@ -58,8 +58,11 @@ const HotelStaySchema = new mongoose.Schema(
 const AccommodationOptionSchema = new mongoose.Schema(
   {
     label: { type: String, trim: true, default: "Option 1 (Standard)" },
+    category: { type: String, trim: true, default: "" },
     hotelStays: { type: [HotelStaySchema], default: [] },
     totalPrice: { type: Number, min: 0, default: 0 },
+    marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
+    margin: { type: Number, min: 0, default: 0 },
   },
   { _id: false }
 );
@@ -224,6 +227,12 @@ const QuickQuotationSchema = new mongoose.Schema(
         default: "absolute",
       },
       markupPercentage: { type: Number, min: 0, default: 0 },
+      packageMargin: { type: Number, min: 0, default: 0 },
+      packageMarginType: {
+        type: String,
+        enum: ["absolute", "percentage"],
+        default: "absolute",
+      },
       markupAmount: { type: Number, min: 0, default: 0 },
       markupReason: { type: String, trim: true, default: "" },
       discountAmount: { type: Number, min: 0, default: 0 },

@@ -7,18 +7,19 @@ import {
   ArrowLeft, MapPin, Moon, Sun, Building2, Car, IndianRupee,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, Loader2, Pencil,
   Star, HeartHandshake, Users, Sparkles, FileText, Check, Compass,
-  Utensils, Camera, Clock3, Zap, Shield, Receipt, Navigation,
+  Utensils, Camera, Clock3, Zap, Shield, Navigation, Share2, Printer,
+  Layers, Tag, Info, AlertCircle, Copy
 } from "lucide-react";
 
 const MEAL_PLAN_LABELS = {
-  EP: "Room Only",
-  CP: "Bed & Breakfast",
-  MAP: "Breakfast + Dinner",
-  AP: "All Meals",
+  EP: "Room Only (EP)",
+  CP: "Bed & Breakfast (CP)",
+  MAP: "Breakfast + Dinner (MAP)",
+  AP: "All Meals (AP)",
   "": "Not specified",
 };
 
-const MEAL_EMOJI = { breakfast: "🌅", lunch: "☀️", dinner: "🌙" };
+const MEAL_EMOJI = { breakfast: "🌅 Breakfast", lunch: "☀️ Lunch", dinner: "🌙 Dinner" };
 
 function getVehicleImage(vehicleType = "") {
   const type = (vehicleType || "").toLowerCase();
@@ -36,17 +37,27 @@ export default function PackageViewPage() {
   const [pkg, setPkg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [openDay, setOpenDay] = useState(0);
+  
+  // Interactive UI states
+  const [expandedDays, setExpandedDays] = useState({ 0: true });
+  const [allExpanded, setAllExpanded] = useState(false);
   const [activeAccomTab, setActiveAccomTab] = useState(0);
   const [activeVehiclePeriodTab, setActiveVehiclePeriodTab] = useState(0);
   const [selectedVehicleIdx, setSelectedVehicleIdx] = useState(0);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     fetch(`/api/packages/${id}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.package) setPkg(data.package);
-        else setError("Package not found");
+        if (data.package) {
+          setPkg(data.package);
+          // Default expand first day
+          setExpandedDays({ 0: true });
+        } else {
+          setError("Package not found");
+        }
       })
       .catch(() => setError("Failed to load package"))
       .finally(() => setLoading(false));
@@ -77,6 +88,7 @@ export default function PackageViewPage() {
   }
 
   const pax = Math.max(1, pkg.pricing?.numberOfPersons || 2);
+  const numRooms = Math.max(1, Number(pkg.pricing?.numberOfRooms) || Math.ceil(pax / 2));
 
   // Period and vehicle calculation
   const periodsList = (Array.isArray(pkg.vehiclePeriods) && pkg.vehiclePeriods.length > 0)
@@ -113,452 +125,421 @@ export default function PackageViewPage() {
 
   const activeTransportCost = safeVehIdx === "all" ? periodGrandTransportTotal : (chosenVehCost || pkg.pricing?.vehicleTotal || 0);
 
-  // Hotel option calculation
+  // Accommodation calculation (including room multiplier)
   const selectedAccomOption = pkg.accommodationOptions?.[activeAccomTab] || pkg.accommodationOptions?.[0];
-  const activeAccomCost = selectedAccomOption
-    ? (selectedAccomOption.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0)
+  const rawAccomNightsCost = selectedAccomOption
+    ? (selectedAccomOption.nights || []).reduce((s, n) => s + ((Number(n.pricePerNight) || 0) * (Number(n.count) || 1)), 0)
+    : 0;
+  const activeAccomCost = rawAccomNightsCost > 0 
+    ? (rawAccomNightsCost * numRooms)
     : (pkg.pricing?.accommodationTotal || 0);
 
+  // Activities calculation
   const actTotal = pkg.pricing?.activitiesTotal || 0;
+
+  // Base Subtotal
   const liveSubtotal = activeAccomCost + activeTransportCost + actTotal;
 
-  const marginVal = selectedAccomOption?.margin ?? pkg.pricing?.margin ?? 0;
-  const marginType = selectedAccomOption?.marginType || pkg.pricing?.marginType || "absolute";
-  const marginAmount = marginType === "percentage" ? (liveSubtotal * marginVal) / 100 : marginVal;
+  // Tier Margin Resolution
+  const tierMargin = Number(selectedAccomOption?.margin) > 0 
+    ? Number(selectedAccomOption.margin) 
+    : Number(pkg.pricing?.margin || 0);
+  const tierMarginType = (Number(selectedAccomOption?.margin) > 0 && selectedAccomOption?.marginType) 
+    ? selectedAccomOption.marginType 
+    : (pkg.pricing?.marginType || "absolute");
 
-  const preTax = liveSubtotal + marginAmount;
-  const gstAmount = pkg.pricing?.includeGst ? Math.round(preTax * ((pkg.pricing?.gstPercentage || 5) / 100)) : 0;
-  const liveFinalPrice = Math.round((preTax + gstAmount) / 100) * 100;
-  const livePerPerson = Math.round(liveFinalPrice / pax);
-  const livePerCouple = Math.round(livePerPerson * 2);
+  const marginAmount = tierMarginType === "percentage" ? (liveSubtotal * tierMargin) / 100 : tierMargin;
+  const preDiscount = liveSubtotal + marginAmount;
+  const discountAmount = Number(pkg.pricing?.discountAmount) || 0;
+  const preTax = Math.max(0, preDiscount - discountAmount);
+
+  // GST Calculation (Fixed: Accurately computed when includeGst is true)
+  const includeGst = Boolean(pkg.pricing?.includeGst);
+  const gstPercentage = Number(pkg.pricing?.gstPercentage) || 5;
+  const gstAmount = includeGst ? (preTax * gstPercentage) / 100 : 0;
+
+  // Final Price Breakdown
+  const rawFinal = preTax + gstAmount;
+  const liveFinalPrice = Math.round(rawFinal / 100) * 100;
+  const livePerPerson = pax > 0 ? Math.round(liveFinalPrice / pax) : liveFinalPrice;
+  const livePerCouple = Math.round((liveFinalPrice / Math.max(1, pax)) * 2);
+
+  // Toggle Day Expand
+  const toggleDay = (idx) => {
+    setExpandedDays((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const toggleAllDays = () => {
+    if (allExpanded) {
+      setExpandedDays({});
+      setAllExpanded(false);
+    } else {
+      const all = {};
+      (pkg.itinerary || []).forEach((_, idx) => { all[idx] = true; });
+      setExpandedDays(all);
+      setAllExpanded(true);
+    }
+  };
+
+  // WhatsApp Share Text
+  const generateWhatsAppMessage = () => {
+    const text = `🌟 *${pkg.title}*\n` +
+      `📍 *Destination:* ${pkg.destination || "Custom Tour"}\n` +
+      `⏳ *Duration:* ${pkg.days} Days / ${pkg.nights} Nights\n` +
+      `🏨 *Accommodation:* ${selectedAccomOption?.label || "Standard"}\n` +
+      `🚗 *Vehicle:* ${safeVehIdx === "all" ? "All Fleet Included" : (chosenVeh?.vehicleType || "Private Cab")}\n` +
+      `💰 *Package Rate:* ₹${liveFinalPrice.toLocaleString("en-IN")} ${includeGst ? `(Incl. ${gstPercentage}% GST)` : ""}\n` +
+      `👥 *Per Couple:* ₹${livePerCouple.toLocaleString("en-IN")} | *Per Person:* ₹${livePerPerson.toLocaleString("en-IN")}\n` +
+      (pkg.highlights?.length ? `\n✨ *Key Highlights:*\n• ` + pkg.highlights.slice(0, 4).join("\n• ") : "") +
+      `\n\n_Generated via Travel CRM_`;
+    return encodeURIComponent(text);
+  };
+
+  const copyShareLink = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] font-sans text-slate-900">
+    <div className="min-h-screen bg-[#f0f4f8] font-sans text-slate-900 pb-24">
 
-      {/* ── Sticky Top Bar ── */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-5 py-3 flex items-center justify-between shadow-sm">
+      {/* ── Sticky Top Header ── */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs print:hidden">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/dashboard/packages"
-            className="flex-shrink-0 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
+            className="flex-shrink-0 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+            title="Back to Packages List"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4.5 h-4.5" />
           </Link>
-          <div className="hidden sm:block min-w-0">
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500">Package Preview</p>
-            <h1 className="text-[14px] font-black text-slate-900 truncate max-w-xs">{pkg.title}</h1>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Travel Package Preview</p>
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+                pkg.status === "published"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+              }`}>
+                {pkg.status === "published" ? "● Live" : "◌ Draft"}
+              </span>
+            </div>
+            <h1 className="text-[14.5px] font-black text-slate-900 truncate max-w-sm sm:max-w-md">{pkg.title}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2.5">
-          <span className={`px-3 py-1 rounded-full text-[10.5px] font-black uppercase tracking-wider border ${
-            pkg.status === "published"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-amber-50 text-amber-700 border-amber-200"
-          }`}>
-            {pkg.status === "published" ? "● Live" : "◌ Draft"}
-          </span>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {/* WhatsApp Share */}
+          <a
+            href={`https://wa.me/?text=${generateWhatsAppMessage()}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-extrabold transition-all shadow-sm"
+            title="Share proposal on WhatsApp"
+          >
+            <Share2 className="w-3.5 h-3.5" /> WhatsApp
+          </a>
+
+          {/* Print / PDF */}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12px] font-extrabold transition-all border border-slate-200"
+            title="Print or Save PDF"
+          >
+            <Printer className="w-3.5 h-3.5" /> Print
+          </button>
+
+          {/* Full Quotation */}
+          <Link
+            href={`/dashboard/quotations/new?packageId=${id}`}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[12px] font-black transition-all border border-indigo-200"
+          >
+            <FileText className="w-3.5 h-3.5" /> Full Quote
+          </Link>
+
+          {/* Quick Quote CTA */}
           <Link
             href={`/dashboard/quick-quotations/new?packageId=${id}`}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[12.5px] font-black transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white text-[12.5px] font-black transition-all shadow-sm shadow-amber-500/20"
           >
             <Zap className="w-3.5 h-3.5" /> ⚡ Quick Quote
           </Link>
+
+          {/* Edit */}
           <Link
             href={`/dashboard/packages/${id}/edit`}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[12.5px] font-extrabold transition-all shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[12.5px] font-extrabold transition-all shadow-sm"
           >
             <Pencil className="w-3.5 h-3.5" /> Edit
           </Link>
         </div>
       </header>
 
-      {/* ── Hero Section ── */}
-      <div className="relative bg-slate-900 text-white overflow-hidden" style={{ minHeight: "420px" }}>
-        {/* Cover image */}
+      {/* ── Hero Banner Section ── */}
+      <div className="relative bg-slate-950 text-white overflow-hidden print:bg-white print:text-slate-900" style={{ minHeight: "440px" }}>
+        {/* Cover image backdrop */}
         {pkg.coverImage?.url ? (
           <img
             src={pkg.coverImage.url}
             alt={pkg.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover opacity-45 filter brightness-95 print:hidden"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900" />
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 opacity-90 print:hidden" />
         )}
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/70 to-slate-900/20" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/60 to-transparent" />
+        
+        {/* Gradients */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent print:hidden" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent print:hidden" />
 
-        <div className="relative max-w-5xl mx-auto px-6 pt-12 pb-14 flex flex-col justify-end h-full" style={{ minHeight: "420px" }}>
+        <div className="relative max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12 flex flex-col justify-end h-full">
 
-          {/* Destination route */}
-          {pkg.destination && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[12px] font-bold backdrop-blur-sm">
-                <Navigation className="w-3 h-3" />
+          {/* Destination Badge & Category */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {pkg.destination && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 text-[12px] font-extrabold backdrop-blur-md">
+                <Navigation className="w-3.5 h-3.5 text-indigo-400" />
                 {pkg.destination}
               </span>
-            </div>
-          )}
-
-          {/* Title */}
-          <h1 className="text-[32px] sm:text-[42px] font-black leading-tight text-white tracking-tight mb-4 max-w-2xl">
-            {pkg.title}
-          </h1>
-
-          {/* Duration + Cities pills */}
-          <div className="flex flex-wrap items-center gap-2.5 mb-8">
-            <span className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-[12.5px] font-bold backdrop-blur-md">
-              <Moon className="w-3.5 h-3.5 text-purple-300" /> {pkg.nights} Nights
-            </span>
-            <span className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-[12.5px] font-bold backdrop-blur-md">
-              <Sun className="w-3.5 h-3.5 text-amber-300" /> {pkg.days} Days
-            </span>
-            {pkg.destinations?.map((dest, i) => (
-              <span key={i} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-500/20 border border-rose-400/30 text-rose-200 text-[12px] font-bold backdrop-blur-md">
-                <MapPin className="w-3 h-3" /> {dest.cityName} ({dest.nights}N)
+            )}
+            {pkg.category && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-purple-500/25 border border-purple-400/30 text-purple-200 text-[11.5px] font-bold backdrop-blur-md uppercase tracking-wider">
+                <Tag className="w-3 h-3 text-purple-300" />
+                {pkg.category}
+              </span>
+            )}
+            {pkg.tags?.map((t, idx) => (
+              <span key={idx} className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 text-[11px] font-medium backdrop-blur-sm">
+                #{t}
               </span>
             ))}
           </div>
 
-          {/* Pricing Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
-            <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-400/25 backdrop-blur-md">
-              <p className="text-[9.5px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-1 mb-1">
-                <HeartHandshake className="w-3 h-3" /> Per Couple
-              </p>
-              <p className="text-[22px] font-black text-emerald-300 leading-none">
-                ₹{livePerCouple.toLocaleString("en-IN")}
-              </p>
-              <p className="text-[10px] text-emerald-400/70 mt-0.5">for 2 persons</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-indigo-500/15 border border-indigo-400/25 backdrop-blur-md">
-              <p className="text-[9.5px] font-black uppercase tracking-widest text-indigo-300 flex items-center gap-1 mb-1">
-                <Users className="w-3 h-3" /> Per Person
-              </p>
-              <p className="text-[22px] font-black text-indigo-300 leading-none">
-                ₹{livePerPerson.toLocaleString("en-IN")}
-              </p>
-              <p className="text-[10px] text-indigo-400/70 mt-0.5">per pax</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-400/25 backdrop-blur-md">
-              <p className="text-[9.5px] font-black uppercase tracking-widest text-amber-300 flex items-center gap-1 mb-1">
-                <Sparkles className="w-3 h-3" /> Package Total
-              </p>
-              <p className="text-[22px] font-black text-amber-300 leading-none">
+          {/* Title */}
+          <h1 className="text-[28px] sm:text-[40px] font-black leading-tight text-white tracking-tight mb-3.5 max-w-3xl drop-shadow-sm">
+            {pkg.title}
+          </h1>
+
+          {/* Duration & Cities Route */}
+          <div className="flex flex-wrap items-center gap-2.5 mb-7">
+            <span className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-[12.5px] font-black backdrop-blur-md shadow-xs">
+              <Moon className="w-3.5 h-3.5 text-purple-300" /> {pkg.nights} Nights
+            </span>
+            <span className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/15 border border-white/20 text-white text-[12.5px] font-black backdrop-blur-md shadow-xs">
+              <Sun className="w-3.5 h-3.5 text-amber-300" /> {pkg.days} Days
+            </span>
+            {pkg.destinations?.map((dest, i) => (
+              <span key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-400/30 text-rose-200 text-[12px] font-bold backdrop-blur-md">
+                <MapPin className="w-3 h-3 text-rose-300" /> {dest.cityName} ({dest.nights}N)
+              </span>
+            ))}
+          </div>
+
+          {/* Pricing Highlight Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-3xl">
+            {/* Total Package Price */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-400/30 backdrop-blur-md relative overflow-hidden">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> Total Price
+                </p>
+                {includeGst && (
+                  <span className="text-[9.5px] font-black px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200">
+                    +{gstPercentage}% GST
+                  </span>
+                )}
+              </div>
+              <p className="text-[24px] sm:text-[26px] font-black text-emerald-300 leading-none">
                 ₹{liveFinalPrice.toLocaleString("en-IN")}
               </p>
-              <p className="text-[10px] text-amber-400/70 mt-0.5">all inclusive</p>
+              <p className="text-[10.5px] text-emerald-200/80 mt-1 font-semibold">
+                For {pax} Guests • {numRooms} Room{numRooms > 1 ? "s" : ""}
+              </p>
+            </div>
+
+            {/* Per Couple */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/10 border border-purple-400/30 backdrop-blur-md">
+              <p className="text-[10px] font-black uppercase tracking-widest text-purple-300 flex items-center gap-1 mb-1">
+                <HeartHandshake className="w-3.5 h-3.5" /> Per Couple
+              </p>
+              <p className="text-[24px] sm:text-[26px] font-black text-purple-300 leading-none">
+                ₹{livePerCouple.toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10.5px] text-purple-200/80 mt-1 font-semibold">2 Adults rate</p>
+            </div>
+
+            {/* Per Person */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-500/20 to-blue-500/10 border border-sky-400/30 backdrop-blur-md">
+              <p className="text-[10px] font-black uppercase tracking-widest text-sky-300 flex items-center gap-1 mb-1">
+                <Users className="w-3.5 h-3.5" /> Per Person
+              </p>
+              <p className="text-[24px] sm:text-[26px] font-black text-sky-300 leading-none">
+                ₹{livePerPerson.toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10.5px] text-sky-200/80 mt-1 font-semibold">Base rate / pax</p>
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* ── Main Content ── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+      {/* ── Main Container ── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-7">
+
+        {/* Overview & Description */}
+        {pkg.overview && (
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
+            <h2 className="text-[15px] font-black text-slate-900 flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <Info className="w-4 h-4 text-indigo-600" />
+              </div>
+              Package Overview
+            </h2>
+            <p className="text-[13.5px] text-slate-600 leading-relaxed font-medium">
+              {pkg.overview}
+            </p>
+          </section>
+        )}
 
         {/* Highlights */}
         {pkg.highlights?.length > 0 && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
-            <h2 className="text-[16px] font-black text-slate-900 flex items-center gap-2 mb-4">
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
+            <h2 className="text-[15px] font-black text-slate-900 flex items-center gap-2 mb-4">
               <div className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-amber-600" />
               </div>
-              Package Highlights
+              Trip Highlights
             </h2>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
               {pkg.highlights.map((h, i) => (
-                <span key={i} className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-full text-[12.5px] font-extrabold text-amber-900">
-                  ✨ {h}
-                </span>
+                <div key={i} className="flex items-center gap-2.5 px-3.5 py-2.5 bg-gradient-to-r from-amber-50/80 to-orange-50/60 border border-amber-200/70 rounded-2xl text-[12.5px] font-bold text-amber-950 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                  <span>{h}</span>
+                </div>
               ))}
             </div>
           </section>
         )}
 
-        {/* Day-by-Day Itinerary */}
-        {pkg.itinerary?.length > 0 && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[16px] font-black text-slate-900 flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-indigo-100 flex items-center justify-center">
-                  <Sun className="w-4 h-4 text-indigo-600" />
-                </div>
-                Day-by-Day Itinerary
-                <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                  {pkg.itinerary.length} Days
-                </span>
-              </h2>
+        {/* Accommodation Categories & Hotel Stays */}
+        {((pkg.accommodationOptions && pkg.accommodationOptions.length > 0) || (pkg.hotels && pkg.hotels.length > 0)) && (
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-[17px] font-black text-slate-900 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center">
+                    <Building2 className="w-4.5 h-4.5 text-violet-600" />
+                  </div>
+                  Accommodations & Hotel Stays
+                </h2>
+                <p className="text-[12px] font-semibold text-slate-400 mt-0.5">
+                  Select a category tier below to simulate live pricing with specific hotels
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Stays Cost</span>
+                <span className="text-[19px] font-black text-violet-950">₹{activeAccomCost.toLocaleString("en-IN")}</span>
+                <span className="text-[10.5px] text-slate-400 block font-semibold">({numRooms} Room{numRooms > 1 ? "s" : ""})</span>
+              </div>
             </div>
 
-            {/* Timeline */}
-            <div className="relative">
-              {/* Vertical timeline line */}
-              <div className="absolute left-[18px] top-6 bottom-6 w-0.5 bg-gradient-to-b from-indigo-200 via-purple-200 to-rose-200 rounded-full hidden sm:block" />
-
-              <div className="space-y-3">
-                {pkg.itinerary.map((day, i) => {
-                  const isOpen = openDay === i;
-                  const mealsArr = Object.entries(day.meals || {}).filter(([, v]) => v).map(([k]) => k);
-                  const actCount = day.activities?.filter(Boolean).length || 0;
-                  const hasImages = day.images?.length > 0;
-
+            {/* Interactive Category Tier Switcher */}
+            {pkg.accommodationOptions && pkg.accommodationOptions.length > 1 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1">
+                {pkg.accommodationOptions.map((opt, oIdx) => {
+                  const isSel = activeAccomTab === oIdx;
+                  const optNightsCost = (opt.nights || []).reduce((s, n) => s + ((Number(n.pricePerNight) || 0) * (Number(n.count) || 1)), 0);
+                  const optTotal = optNightsCost * numRooms;
                   return (
-                    <div key={i} className="sm:pl-10 relative">
-                      {/* Day badge on timeline */}
-                      <div className="hidden sm:flex absolute left-0 top-4 w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white text-[12px] font-black items-center justify-center shadow-md shadow-indigo-500/25 z-10">
-                        D{day.day}
+                    <button
+                      key={oIdx}
+                      type="button"
+                      onClick={() => setActiveAccomTab(oIdx)}
+                      className={`p-3 rounded-2xl border text-left transition-all relative ${
+                        isSel
+                          ? "bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-500/20 scale-[1.02]"
+                          : "bg-slate-50/70 border-slate-200/90 text-slate-800 hover:bg-violet-50/50 hover:border-violet-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[12.5px] font-black truncate">{opt.label || `Option ${oIdx + 1}`}</span>
+                        {isSel && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
                       </div>
-
-                      <div className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
-                        isOpen
-                          ? "border-indigo-200 shadow-md shadow-indigo-500/10"
-                          : "border-slate-200/80 hover:border-indigo-200 hover:shadow-sm"
-                      }`}>
-                        {/* Header */}
-                        <button
-                          type="button"
-                          onClick={() => setOpenDay(isOpen ? -1 : i)}
-                          className={`w-full flex items-center gap-3 px-5 py-4 text-left transition-colors ${
-                            isOpen ? "bg-indigo-50/80" : "bg-white hover:bg-slate-50"
-                          }`}
-                        >
-                          {/* Mobile day badge */}
-                          <div className="sm:hidden flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 text-white text-[11px] font-black flex items-center justify-center">
-                            D{day.day}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-black text-slate-900 truncate">
-                              {day.title || `Day ${day.day} — Schedule`}
-                            </p>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              {actCount > 0 && (
-                                <span className="text-[11px] font-bold text-indigo-600 flex items-center gap-1">
-                                  <Zap className="w-3 h-3" /> {actCount} activities
-                                </span>
-                              )}
-                              {mealsArr.length > 0 && (
-                                <span className="text-[11px] font-bold text-slate-500">
-                                  {mealsArr.map(m => MEAL_EMOJI[m]).join(" ")} meals included
-                                </span>
-                              )}
-                              {hasImages && (
-                                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                                  <Camera className="w-3 h-3" /> {day.images.length} photos
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                            isOpen ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400"
-                          }`}>
-                            {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </div>
-                        </button>
-
-                        {/* Body */}
-                        {isOpen && (
-                          <div className="border-t border-slate-100 bg-white px-5 pb-5 pt-4 space-y-5">
-                            {/* Description — HTML from Tiptap */}
-                            {day.description && (
-                              <div
-                                className="text-[13.5px] text-slate-700 leading-relaxed bg-indigo-50/40 border border-indigo-100/80 p-4 rounded-2xl itinerary-description"
-                                dangerouslySetInnerHTML={{ __html: day.description }}
-                              />
-                            )}
-
-                            {/* Day images */}
-                            {day.images?.length > 0 && (
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                {day.images.map((img, ii) => (
-                                  <div key={ii} className="relative aspect-video rounded-xl overflow-hidden">
-                                    <img
-                                      src={img.url}
-                                      alt={img.caption || `Day ${day.day} photo`}
-                                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Activities */}
-                            {actCount > 0 && (
-                              <div>
-                                <p className="text-[10.5px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                  <Zap className="w-3.5 h-3.5 text-rose-400" /> Activities & Sightseeings
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {day.activities.filter(Boolean).map((act, ai) => {
-                                    const name = typeof act === "string" ? act : act?.name || "";
-                                    const price = typeof act === "string" ? 0 : act?.price || 0;
-                                    return (
-                                      <span key={ai} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-[12.5px] font-bold text-rose-900">
-                                        <Zap className="w-3 h-3 text-rose-500" />
-                                        {name}
-                                        {price > 0 && <span className="text-[10.5px] text-emerald-700 font-black">(₹{price.toLocaleString("en-IN")})</span>}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Meals */}
-                            {mealsArr.length > 0 && (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10.5px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                  <Utensils className="w-3 h-3" /> Meals:
-                                </span>
-                                {["breakfast", "lunch", "dinner"].map((meal) => (
-                                  <span
-                                    key={meal}
-                                    className={`px-3 py-1 rounded-full text-[11.5px] font-bold border ${
-                                      day.meals?.[meal]
-                                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                                        : "bg-slate-100 border-slate-200 text-slate-400 line-through opacity-50"
-                                    }`}
-                                  >
-                                    {MEAL_EMOJI[meal]} {meal.charAt(0).toUpperCase() + meal.slice(1)}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                      <p className={`text-[11px] font-bold ${isSel ? "text-violet-200" : "text-slate-500"}`}>
+                        ₹{optTotal.toLocaleString("en-IN")}
+                      </p>
+                    </button>
                   );
                 })}
               </div>
-            </div>
-          </section>
-        )}
-
-        {/* Accommodation Tiers — Tabbed */}
-        {pkg.accommodationOptions?.length > 0 && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-xl bg-violet-100 flex items-center justify-center">
-                <Building2 className="w-4 h-4 text-violet-600" />
-              </div>
-              <h2 className="text-[16px] font-black text-slate-900">Accommodation Options</h2>
-            </div>
-
-            {/* Tabs for accommodation tiers */}
-            {pkg.accommodationOptions.length > 1 && (
-              <div className="flex gap-2 mb-5 flex-wrap">
-                {pkg.accommodationOptions.map((opt, ti) => (
-                  <button
-                    key={ti}
-                    type="button"
-                    onClick={() => setActiveAccomTab(ti)}
-                    className={`px-4 py-1.5 rounded-xl text-[12.5px] font-extrabold border transition-all ${
-                      activeAccomTab === ti
-                        ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300"
-                    }`}
-                  >
-                    {opt.label || `Option ${ti + 1}`}
-                  </button>
-                ))}
-              </div>
             )}
 
+            {/* Active Selected Accommodations Legs List */}
             {(() => {
-              const opt = pkg.accommodationOptions[activeAccomTab];
-              if (!opt) return null;
-
-              // Group consecutive nights at same hotel
-              const legs = [];
-              (opt.nights || []).forEach((n) => {
-                const last = legs[legs.length - 1];
-                if (last && last.hotelName === n.hotelName && last.cityName === n.cityName && last.roomType === n.roomType) {
-                  last.endNight = n.night;
-                  last.count += 1;
-                } else {
-                  legs.push({ ...n, startNight: n.night, endNight: n.night, count: 1 });
-                }
-              });
-
-              const total = (opt.nights || []).reduce((s, n) => s + (n.pricePerNight || 0), 0);
-
+              const activeOpt = selectedAccomOption;
+              const legs = activeOpt?.nights || [];
+              if (legs.length === 0) {
+                return (
+                  <p className="text-[13px] text-slate-400 italic py-4 text-center">
+                    No hotel details recorded for this category.
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {/* Option header */}
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-violet-50/60 border border-violet-100">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-violet-600">Selected Tier</p>
-                      <p className="text-[16px] font-black text-slate-900">{opt.label}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Accommodation Total</p>
-                      <p className="text-[20px] font-black text-violet-900">₹{total.toLocaleString("en-IN")}</p>
-                    </div>
-                  </div>
-
-                  {/* Hotel legs */}
-                  <div className="space-y-2">
-                    {legs.map((leg, li) => (
-                      <div key={li} className="flex items-start gap-4 p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-violet-200 transition-all">
-                        {/* Night badge */}
-                        <div className="flex-shrink-0 text-center">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-[11px] font-black flex items-center justify-center shadow-sm">
-                            {leg.count > 1 ? `N${leg.startNight}–${leg.endNight}` : `N${leg.startNight}`}
-                          </div>
-                          <p className="text-[9.5px] font-bold text-slate-400 mt-1">{leg.count}N</p>
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[14px] font-black text-slate-900">
-                              {leg.hotelName || "Hotel TBC"}
-                            </p>
-                            {leg.starRating > 0 && (
-                              <div className="flex">
-                                {Array.from({ length: leg.starRating }).map((_, si) => (
-                                  <Star key={si} className="w-3 h-3 fill-amber-400 text-amber-400" />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {leg.category && (
-                              <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] font-black text-indigo-700">
-                                🏷️ {leg.category}
-                              </span>
-                            )}
-                            <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[11px] font-bold text-violet-800">
-                              📍 {leg.cityName}
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {legs.map((leg, lIdx) => (
+                      <div
+                        key={lIdx}
+                        className="p-4.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 hover:border-violet-200 transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 text-[11px] font-black">
+                              Night {leg.nightNumber || lIdx + 1}{leg.count > 1 ? `–${(leg.nightNumber || lIdx + 1) + leg.count - 1} (${leg.count}N)` : ""}
                             </span>
-                            {leg.roomType && (
-                              <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700">
-                                🛏 {leg.roomType}
-                              </span>
-                            )}
-                            {leg.mealPlan && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-800">
-                                🍽 {MEAL_PLAN_LABELS[leg.mealPlan] || leg.mealPlan}
+                            {leg.rating && (
+                              <span className="flex items-center gap-1 text-[11px] font-extrabold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                                {leg.rating} Star
                               </span>
                             )}
                           </div>
-                          {leg.notes && (
-                            <p className="text-[11.5px] text-slate-500 italic mt-1.5">📌 {leg.notes}</p>
-                          )}
+
+                          <h3 className="text-[14.5px] font-black text-slate-900 leading-snug">
+                            {leg.hotelName || "Standard Hotel"}
+                          </h3>
+                          <p className="text-[12px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            {leg.cityName || pkg.destination || "Destination"}
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                            {leg.roomType && (
+                              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-bold">
+                                🛏️ {leg.roomType}
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+                              🍽️ {MEAL_PLAN_LABELS[leg.mealPlan] || leg.mealPlan || "Room Only"}
+                            </span>
+                          </div>
                         </div>
 
                         {leg.pricePerNight > 0 && (
-                          <div className="flex-shrink-0 text-right">
-                            <p className="text-[14px] font-black text-slate-900">
-                              ₹{leg.pricePerNight.toLocaleString("en-IN")}
-                            </p>
-                            <p className="text-[10.5px] text-slate-400 font-semibold">/ night</p>
-                            {leg.count > 1 && (
-                              <p className="text-[11px] font-black text-indigo-600 mt-0.5">
-                                ₹{(leg.pricePerNight * leg.count).toLocaleString("en-IN")} total
-                              </p>
-                            )}
+                          <div className="pt-3 mt-3 border-t border-slate-200/70 flex items-center justify-between text-right">
+                            <span className="text-[11px] font-semibold text-slate-400">Nightly Rate</span>
+                            <div>
+                              <span className="text-[13.5px] font-black text-slate-900">
+                                ₹{Number(leg.pricePerNight).toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-bold ml-1">/ night</span>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -567,6 +548,144 @@ export default function PackageViewPage() {
                 </div>
               );
             })()}
+          </section>
+        )}
+
+        {/* Day-by-Day Itinerary */}
+        {pkg.itinerary?.length > 0 && (
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h2 className="text-[17px] font-black text-slate-900 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <Sun className="w-4.5 h-4.5 text-indigo-600" />
+                </div>
+                Day-by-Day Itinerary
+                <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                  {pkg.itinerary.length} Days
+                </span>
+              </h2>
+
+              <button
+                type="button"
+                onClick={toggleAllDays}
+                className="text-[12px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-all"
+              >
+                {allExpanded ? "Collapse All" : "Expand All"}
+              </button>
+            </div>
+
+            {/* Timeline */}
+            <div className="relative space-y-3.5">
+              {pkg.itinerary.map((day, i) => {
+                const isOpen = Boolean(expandedDays[i]);
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-2xl border transition-all overflow-hidden ${
+                      isOpen ? "bg-white border-indigo-200 shadow-sm" : "bg-slate-50/70 border-slate-200/80 hover:bg-slate-50"
+                    }`}
+                  >
+                    {/* Day Header Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(i)}
+                      className="w-full p-4 sm:p-4.5 flex items-center justify-between gap-3 text-left transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white font-black text-[13px] flex items-center justify-center shadow-xs">
+                          D{day.dayNumber || i + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="text-[14px] font-black text-slate-900 truncate">
+                            {day.title || `Day ${day.dayNumber || i + 1}`}
+                          </h3>
+                          {day.location && (
+                            <p className="text-[11.5px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              {day.location}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Meal Plan Badges */}
+                        <div className="hidden sm:flex items-center gap-1">
+                          {day.meals?.breakfast && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                              Breakfast
+                            </span>
+                          )}
+                          {day.meals?.lunch && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-200">
+                              Lunch
+                            </span>
+                          )}
+                          {day.meals?.dinner && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                              Dinner
+                            </span>
+                          )}
+                        </div>
+
+                        {isOpen ? (
+                          <ChevronUp className="w-4 h-4 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Day Expanded Details */}
+                    {isOpen && (
+                      <div className="px-5 pb-5 pt-1 border-t border-slate-100 space-y-4">
+                        {/* Description */}
+                        {day.description && (
+                          <div
+                            className="text-[13px] text-slate-700 leading-relaxed itinerary-description pt-2"
+                            dangerouslySetInnerHTML={{ __html: day.description }}
+                          />
+                        )}
+
+                        {/* Activities list */}
+                        {day.activities?.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                              Included Activities & Sightseeing
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {day.activities.map((act, aIdx) => (
+                                <div
+                                  key={aIdx}
+                                  className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start justify-between gap-2"
+                                >
+                                  <div>
+                                    <p className="text-[12.5px] font-black text-slate-800 flex items-center gap-1.5">
+                                      <Camera className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                                      {act.activityName || act.name || "Sightseeing Activity"}
+                                    </p>
+                                    {act.timing && (
+                                      <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-400 mt-1">
+                                        <Clock3 className="w-3 h-3" /> {act.timing}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {act.price > 0 && (
+                                    <span className="text-[12px] font-black text-slate-700">
+                                      ₹{Number(act.price).toLocaleString("en-IN")}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
         )}
 
@@ -587,8 +706,8 @@ export default function PackageViewPage() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Active Transport Cost</span>
-                  <span className="text-[20px] font-black text-sky-950">₹{activeTransportCost.toLocaleString("en-IN")}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Transport Cost</span>
+                  <span className="text-[19px] font-black text-sky-950">₹{activeTransportCost.toLocaleString("en-IN")}</span>
                 </div>
               </div>
 
@@ -671,7 +790,7 @@ export default function PackageViewPage() {
                       <div className="h-16 w-full flex items-center justify-center my-1">
                         <img
                           src={imgPath}
-                          alt={veh.vehicleType}
+                          alt={veh.vehicleType || "Vehicle"}
                           className="max-h-14 max-w-full object-contain filter drop-shadow-sm"
                         />
                       </div>
@@ -734,7 +853,7 @@ export default function PackageViewPage() {
           );
         })()}
 
-        {/* Pricing & Inclusions */}
+        {/* Pricing Breakdown & Inclusions */}
         {pkg.pricing && (
           <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-6">
             <h2 className="text-[17px] font-black text-slate-900 flex items-center gap-2">
@@ -748,40 +867,55 @@ export default function PackageViewPage() {
             <div className="rounded-2xl border border-slate-200/80 overflow-hidden text-[13px] shadow-2xs">
               <div className="flex items-center justify-between px-5 py-3.5 bg-violet-50/60">
                 <span className="font-semibold text-slate-700">
-                  🏨 Accommodation ({selectedAccomOption?.label || "Option 1"})
+                  🏨 Accommodation ({selectedAccomOption?.label || "Standard"} • {numRooms} Room{numRooms > 1 ? "s" : ""})
                 </span>
                 <span className="font-extrabold text-slate-900">₹{activeAccomCost.toLocaleString("en-IN")}</span>
               </div>
+
               <div className="flex items-center justify-between px-5 py-3.5 bg-sky-50/60 border-t border-slate-100">
                 <span className="font-semibold text-slate-700">
                   🚗 Vehicle Transport ({safeVehIdx === "all" ? "All Fleet" : (chosenVeh?.vehicleType || "Sedan")})
                 </span>
                 <span className="font-extrabold text-slate-900">₹{activeTransportCost.toLocaleString("en-IN")}</span>
               </div>
+
               {actTotal > 0 && (
                 <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/60 border-t border-slate-100">
                   <span className="font-semibold text-slate-700">⚡ Activities Cost</span>
                   <span className="font-extrabold text-slate-900">₹{actTotal.toLocaleString("en-IN")}</span>
                 </div>
               )}
+
               <div className="flex items-center justify-between px-5 py-3.5 bg-slate-100 border-t border-slate-100">
-                <span className="font-extrabold text-slate-900">📊 Base Subtotal</span>
+                <span className="font-extrabold text-slate-900">📊 Base Net Subtotal</span>
                 <span className="font-extrabold text-slate-900 text-[14.5px]">₹{liveSubtotal.toLocaleString("en-IN")}</span>
               </div>
-              <div className="flex items-center justify-between px-5 py-3.5 bg-amber-50/60 border-t border-slate-100">
-                <span className="font-semibold text-slate-700">
-                  📈 Profit Margin ({marginType === "percentage" ? `${marginVal}%` : "Absolute"})
-                </span>
-                <span className="font-extrabold text-amber-700">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
-              </div>
-              {pkg.pricing.includeGst && (
-                <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60 border-t border-slate-100">
-                  <span className="font-semibold text-blue-900 flex items-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5" /> GST ({pkg.pricing.gstPercentage || 5}%)
+
+              {marginAmount > 0 && (
+                <div className="flex items-center justify-between px-5 py-3.5 bg-amber-50/60 border-t border-slate-100">
+                  <span className="font-semibold text-slate-700">
+                    📈 Profit Margin ({tierMarginType === "percentage" ? `${tierMargin}%` : "Absolute"})
                   </span>
-                  <span className="font-bold text-blue-800">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
+                  <span className="font-extrabold text-amber-700">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
                 </div>
               )}
+
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/60 border-t border-slate-100">
+                  <span className="font-semibold text-slate-700">🏷️ Special Discount</span>
+                  <span className="font-extrabold text-rose-600">- ₹{discountAmount.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
+              {includeGst && (
+                <div className="flex items-center justify-between px-5 py-3.5 bg-emerald-50/60 border-t border-slate-100">
+                  <span className="font-semibold text-slate-700">
+                    🏛️ GST ({gstPercentage}%)
+                  </span>
+                  <span className="font-extrabold text-emerald-700">+ ₹{Math.round(gstAmount).toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white">
                 <span className="font-black text-[15px] flex items-center gap-2">
                   <Sparkles className="w-4 h-4" /> Grand Total Package Price
@@ -847,14 +981,14 @@ export default function PackageViewPage() {
           </section>
         )}
 
-        {/* Instructions & Terms */}
+        {/* Instructions & Policies */}
         {pkg.instructions?.length > 0 && (
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5">
+          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs space-y-5">
             <h2 className="text-[16px] font-black text-slate-900 flex items-center gap-2">
               <div className="w-7 h-7 rounded-xl bg-purple-100 flex items-center justify-center">
                 <Shield className="w-4 h-4 text-purple-600" />
               </div>
-              Instructions & Terms
+              Instructions &amp; Policy Terms
             </h2>
             <div className="space-y-4">
               {pkg.instructions.map((block, idx) => {
@@ -903,8 +1037,38 @@ export default function PackageViewPage() {
         )}
       </div>
 
-      {/* Itinerary description prose styles */}
-      <style>{`
+      {/* ── Sticky Floating Bottom Bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 py-3 px-4 sm:px-8 shadow-lg flex items-center justify-between print:hidden">
+        <div className="flex items-center gap-4">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider block">Live Selected Total</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[20px] font-black text-slate-900">₹{liveFinalPrice.toLocaleString("en-IN")}</span>
+              <span className="text-[11.5px] font-bold text-slate-500">
+                ({selectedAccomOption?.label || "Standard"} • {chosenVeh?.vehicleType || "Cab"})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/quick-quotations/new?packageId=${id}`}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[13px] font-black transition-all shadow-md shadow-amber-500/20"
+          >
+            <Zap className="w-4 h-4" /> ⚡ Quick Quote
+          </Link>
+          <Link
+            href={`/dashboard/packages/${id}/edit`}
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-extrabold transition-all"
+          >
+            <Pencil className="w-4 h-4" /> Edit Package
+          </Link>
+        </div>
+      </div>
+
+      {/* ── Stylesheet for Itinerary Prose & Print Layout ── */}
+      <style jsx global>{`
         .itinerary-description p { margin: 0 0 0.5em; }
         .itinerary-description ul { list-style: disc; padding-left: 1.4em; margin: 0.3em 0; }
         .itinerary-description ol { list-style: decimal; padding-left: 1.4em; margin: 0.3em 0; }
@@ -913,6 +1077,16 @@ export default function PackageViewPage() {
         .itinerary-description em { font-style: italic; }
         .itinerary-description u { text-decoration: underline; }
         .itinerary-description p:last-child { margin-bottom: 0; }
+
+        @media print {
+          body { background: white !important; color: black !important; }
+          header, .print\\:hidden { display: none !important; }
+          .shadow-xs, .shadow-sm, .shadow-md, .shadow-lg { box-shadow: none !important; }
+          .border { border-color: #e2e8f0 !important; }
+          .max-w-5xl { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .rounded-3xl, .rounded-2xl { border-radius: 8px !important; }
+          @page { margin: 1.2cm; size: A4; }
+        }
       `}</style>
     </div>
   );

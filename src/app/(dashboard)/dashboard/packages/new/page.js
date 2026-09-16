@@ -58,7 +58,6 @@ const DEFAULT_FORM = {
 
 export default function NewPackagePage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
   const [currentSection, setCurrentSection] = useState("basics");
   const [form, setForm] = useState(DEFAULT_FORM);
   const [newHighlight, setNewHighlight] = useState("");
@@ -66,10 +65,6 @@ export default function NewPackagePage() {
   const [error, setError] = useState("");
   const [cities, setCities] = useState([]);
   const [loadingCities, setLoadingCities] = useState(true);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Fetch cities
   useEffect(() => {
@@ -175,7 +170,7 @@ export default function NewPackagePage() {
       return form.vehicles.reduce((sum, v) => sum + ((Number(v.vehiclePrice ?? v.price) || 0) * (parseInt(v.quantity, 10) || 1)), 0);
     }
     return form.vehicle?.vehiclePrice || 0;
-  }, [form.vehiclePeriods, form.vehicles, form.vehicle]);
+  }, [form]);
 
   const activitiesTotal = useMemo(() => {
     let perPersonSum = 0;
@@ -203,10 +198,10 @@ export default function NewPackagePage() {
   const liveMarginAmount = activeMarginType === "percentage"
     ? liveSubtotal * (activeMargin / 100)
     : activeMargin;
-  const livePreTaxTotal = liveSubtotal + liveMarginAmount;
-  const liveGstAmount = form.pricing?.includeGst ? Math.round(livePreTaxTotal * ((form.pricing?.gstPercentage || 5) / 100)) : 0;
+  const livePreDiscountTotal = liveSubtotal + liveMarginAmount;
   const liveDiscount = form.pricing?.discountAmount || 0;
-  const liveGrandTotal = Math.max(0, Math.round(livePreTaxTotal + liveGstAmount - liveDiscount));
+  const rawLiveGrandTotal = Math.max(0, livePreDiscountTotal - liveDiscount);
+  const liveGrandTotal = Math.round(rawLiveGrandTotal / 100) * 100;
   const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form.pricing?.finalPrice || 0);
 
   const numPax = Math.max(1, parseInt(form.pricing?.numberOfPersons, 10) || 2);
@@ -253,15 +248,6 @@ export default function NewPackagePage() {
 
   const inputCls =
     "w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-[13.5px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition-all shadow-xs";
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f1f5f9]">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-3" />
-        <p className="text-[13px] font-bold text-slate-500">Loading package builder…</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans pb-24" suppressHydrationWarning>
@@ -579,6 +565,12 @@ export default function NewPackagePage() {
                   destinations={form.destinations}
                   accommodationOptions={form.accommodationOptions}
                   selectedCategory={form.accommodationOptions?.[selectedOptIdx]?.category || "Deluxe Plus"}
+                  currency={form.pricing?.currency || "INR"}
+                  travelDate={form.pricing?.travelDate || ""}
+                  pricingSeason={form.pricing?.pricingSeason || ""}
+                  onSeasonChange={({ travelDate, pricingSeason }) =>
+                    updateForm({ pricing: { ...form.pricing, travelDate, pricingSeason } })
+                  }
                   onSelectOptionIndex={(idx) => updateForm({ pricing: { ...form.pricing, selectedOptionIndex: idx } })}
                   onChange={(accommodationOptions) => updateForm({ accommodationOptions })}
                 />

@@ -31,7 +31,7 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
 
   const publicUrl = typeof window !== "undefined"
     ? `${window.location.origin}/quick-quote/${quickQuoteCode}`
-    : `https://mandateholidays.com/quick-quote/${quickQuoteCode}`;
+    : `https://mandeholidays.com/quick-quote/${quickQuoteCode}`;
 
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
@@ -66,7 +66,7 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
   function generateDefaultContent() {
     if (!quickQuote) return;
 
-    const sub = `${EMOJI.PLANE} Quick Proposal: ${tripDetails?.title || "Custom Holiday"} | Mandate Holidays (Ref: ${quickQuoteCode})`;
+    const sub = `${EMOJI.PLANE} Quick Proposal: ${tripDetails?.title || "Custom Holiday"} | Mande Holidays (Ref: ${quickQuoteCode})`;
     setSubject(sub);
     setRecipientEmail(client?.email || "");
 
@@ -92,7 +92,7 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
 
     const body = `Dear ${client?.name || "Valued Traveler"},
 
-Greetings from Mandate Holidays!
+Greetings from Mande Holidays!
 
 Thank you for connecting with us regarding your upcoming holiday to ${tripDetails?.destination}. We are pleased to present your quick travel proposal:
 
@@ -129,9 +129,9 @@ ${EMOJI.POINT_RIGHT} ${publicUrl}
 Please let us know if you would like any modifications. We look forward to hosting you!
 
 Warm regards,
-Mandate Holidays Travel Operations
-${EMOJI.PHONE} +91-9876543210 | ${EMOJI.MAIL} info@mandateholidays.com
-${EMOJI.GLOBE} https://mandateholidays.com`;
+Mande Holidays Travel Operations
+${EMOJI.PHONE} +91-9876543210 | ${EMOJI.MAIL} info@mandeholidays.com
+${EMOJI.GLOBE} https://mandeholidays.com`;
 
     setEmailBody(body);
   }
