@@ -325,7 +325,7 @@ export default function NewQuickQuotationPage() {
         const optSellingPrice = optBaseCost + optMarginAmt;
 
         return {
-          label: opt.label || (opt.category ? `Option ${oIdx + 1} (${opt.category})` : `Option ${oIdx + 1}`),
+          label: opt.label || `Option ${oIdx + 1}`,
           category: opt.category || "",
           hotelStays: optStays.length > 0 ? optStays : stays,
           totalPrice: optSellingPrice,
@@ -339,10 +339,40 @@ export default function NewQuickQuotationPage() {
       const standardCost = stays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult), 0);
       const standardMarginAmt = pkgMarginType === "percentage" ? (standardCost * pkgMargin) / 100 : pkgMargin;
       allAccommodationOptions.push({
-        label: "Option 1 (Standard 3★)",
-        category: "Standard",
-        hotelStays: stays,
+        label: "Option 1",
+        hotelStays: stays.map((s) => ({ ...s, category: s.category || "Deluxe", starRating: s.starRating || 3 })),
         totalPrice: standardCost + standardMarginAmt,
+        marginType: pkgMarginType,
+        margin: pkgMargin,
+      });
+
+      // Auto-construct Option 2 and Option 3 choices for the customer
+      const deluxeStays = stays.map((s) => ({
+        ...s,
+        category: "Deluxe Plus",
+        starRating: 4,
+        pricePerNight: Math.round((Number(s.pricePerNight) || 2800) * 1.3),
+      }));
+      const deluxeCost = deluxeStays.reduce((sum, s) => sum + (s.pricePerNight * (s.nights || 1) * roomMult), 0);
+      allAccommodationOptions.push({
+        label: "Option 2",
+        hotelStays: deluxeStays,
+        totalPrice: deluxeCost + (pkgMarginType === "percentage" ? (deluxeCost * pkgMargin) / 100 : pkgMargin),
+        marginType: pkgMarginType,
+        margin: pkgMargin,
+      });
+
+      const luxuryStays = stays.map((s) => ({
+        ...s,
+        category: "Luxury",
+        starRating: 5,
+        pricePerNight: Math.round((Number(s.pricePerNight) || 2800) * 1.8),
+      }));
+      const luxuryCost = luxuryStays.reduce((sum, s) => sum + (s.pricePerNight * (s.nights || 1) * roomMult), 0);
+      allAccommodationOptions.push({
+        label: "Option 3",
+        hotelStays: luxuryStays,
+        totalPrice: luxuryCost + (pkgMarginType === "percentage" ? (luxuryCost * pkgMargin) / 100 : pkgMargin),
         marginType: pkgMarginType,
         margin: pkgMargin,
       });
@@ -1331,7 +1361,7 @@ export default function NewQuickQuotationPage() {
               daysCount={form.tripDetails.days}
               destination={form.tripDetails.destination}
               theme={form.tripDetails.theme}
-              hotelStays={form.hotelStays}
+              hotelStays={form.accommodationOptions?.[0]?.hotelStays || form.hotelStays || []}
             />
 
             {/* ── 4. Hotel Accommodation Portfolio ── */}

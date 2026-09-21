@@ -316,19 +316,6 @@ export default function QuickItinerarySection({
     onChange(updated);
   }
 
-  function handleMealToggle(index, mealType) {
-    const updated = [...itinerary];
-    const currentMeals = updated[index]?.meals || { breakfast: true, lunch: false, dinner: false };
-    updated[index] = {
-      ...updated[index],
-      meals: {
-        ...currentMeals,
-        [mealType]: !currentMeals[mealType],
-      },
-    };
-    onChange(updated);
-  }
-
   function handleAddActivityToDay(index, text) {
     const act = (text || newActivityInput).trim();
     if (!act) return;
@@ -807,80 +794,84 @@ export default function QuickItinerarySection({
                 </div>
               </div>
 
-              {/* Meal Plan Included Toggles - Connected to Hotel Selection */}
+              {/* Hotel & Meal Plan Inclusions - Automatically Filled from Selected Hotel */}
               {(() => {
                 const stay = getStayForDay(editingDayIndex, hotelStays);
                 const minfo = getMealsFromStay(stay, editingDayIndex, daysCount || itinerary.length);
 
-                if (!minfo.hasHotel) {
-                  return (
-                    <div className="p-3 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-between text-[11.5px] text-slate-500">
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <Hotel className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Meal plan automatically activates when a hotel is selected for this stay.</span>
-                      </span>
-                    </div>
-                  );
-                }
+                if (!minfo.hasHotel) return null;
+
+                const hasAnyMeal = minfo.meals.breakfast || minfo.meals.lunch || minfo.meals.dinner;
 
                 return (
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/90 space-y-2.5">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <label className="block text-[11.5px] font-bold text-slate-800">
-                          Included Meals for Day {editingDay.day || editingDayIndex + 1}
-                        </label>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <Hotel className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-[12px] font-extrabold text-slate-900">
+                            {minfo.hotelName}
+                          </span>
+                          {minfo.roomType && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              ({minfo.roomType})
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-slate-500 font-medium">
                           {minfo.planDesc?.clientExplanation || minfo.mealPlanMeaning}
                         </p>
                       </div>
-                      <span className="text-[11px] font-bold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                        <Hotel className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="font-extrabold">{minfo.hotelName}</span>
-                        <span>•</span>
-                        <span className="text-emerald-700">{minfo.planDesc?.badge || `${minfo.mealPlan} (${minfo.mealPlanMeaning})`}</span>
+
+                      <span className="text-[11px] font-bold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 shadow-2xs">
+                        {minfo.planDesc?.badge || `${minfo.mealPlan} • ${minfo.planDesc?.shortMeaning}`}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => handleMealToggle(editingDayIndex, "breakfast")}
-                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                          editingDay.meals?.breakfast
-                            ? "bg-amber-500 text-white border-amber-600 shadow-2xs"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                        }`}
-                        title="Toggle Breakfast inclusion"
-                      >
-                        <span>🌅</span> <span>Breakfast</span>
-                      </button>
+                    {/* Auto-filled Meal Inclusion Status Badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {minfo.meals.breakfast ? (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-bold bg-amber-50 text-amber-950 border border-amber-200 shadow-2xs flex items-center gap-1.5">
+                          <span>🌅</span>
+                          <span>Breakfast Included</span>
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-medium bg-white text-slate-400 border border-slate-200/80 flex items-center gap-1.5 opacity-70">
+                          <span className="grayscale">🌅</span>
+                          <span>No Breakfast</span>
+                        </span>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleMealToggle(editingDayIndex, "lunch")}
-                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                          editingDay.meals?.lunch
-                            ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                        }`}
-                        title="Toggle Lunch inclusion"
-                      >
-                        <span>☀️</span> <span>Lunch</span>
-                      </button>
+                      {minfo.meals.lunch ? (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-bold bg-orange-50 text-orange-950 border border-orange-200 shadow-2xs flex items-center gap-1.5">
+                          <span>☀️</span>
+                          <span>Lunch Included</span>
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-medium bg-white text-slate-400 border border-slate-200/80 flex items-center gap-1.5 opacity-70">
+                          <span className="grayscale">☀️</span>
+                          <span>No Lunch</span>
+                        </span>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleMealToggle(editingDayIndex, "dinner")}
-                        className={`flex-1 py-1.5 rounded-xl text-[11.5px] font-black transition-all flex items-center justify-center gap-1 border ${
-                          editingDay.meals?.dinner
-                            ? "bg-purple-600 text-white border-purple-700 shadow-2xs"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
-                        }`}
-                        title="Toggle Dinner inclusion"
-                      >
-                        <span>🌙</span> <span>Dinner</span>
-                      </button>
+                      {minfo.meals.dinner ? (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-bold bg-purple-50 text-purple-950 border border-purple-200 shadow-2xs flex items-center gap-1.5">
+                          <span>🌙</span>
+                          <span>Dinner Included</span>
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-xl text-[11.5px] font-medium bg-white text-slate-400 border border-slate-200/80 flex items-center gap-1.5 opacity-70">
+                          <span className="grayscale">🌙</span>
+                          <span>No Dinner</span>
+                        </span>
+                      )}
+
+                      {!hasAnyMeal && minfo.mealPlan === "EP" && (
+                        <span className="px-3 py-1 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs flex items-center gap-1">
+                          <span>🍽️</span>
+                          <span>Room Only (No Meals)</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

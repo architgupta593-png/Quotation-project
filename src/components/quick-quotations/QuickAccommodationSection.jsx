@@ -13,13 +13,13 @@ import {
 } from "@/components/packages/AccommodationPanel";
 import HotelRateFinderDialog, { MEAL_PLANS } from "./HotelRateFinderDialog";
 
-function createDefaultStay(cityName = "", nights = 1, category = "Deluxe") {
+function createDefaultStay(cityName = "", nights = 1, category = "None") {
   return {
     cityName: cityName || "",
     nights: Math.max(1, parseInt(nights, 10) || 1),
     hotelId: null,
     hotelName: "",
-    category: category || "Deluxe",
+    category: category || "None",
     roomId: null,
     starRating: 3,
     roomType: "Deluxe AC Room",
@@ -30,11 +30,10 @@ function createDefaultStay(cityName = "", nights = 1, category = "Deluxe") {
   };
 }
 
-function createDefaultOption(label = "Standard Option", category = "Deluxe", defaultStays = []) {
+function createDefaultOption(label = "", defaultStays = []) {
   return {
-    label,
-    category,
-    hotelStays: defaultStays.length > 0 ? defaultStays.map((s) => ({ ...s })) : [createDefaultStay("", 1, category)],
+    label: label || "",
+    hotelStays: defaultStays.length > 0 ? defaultStays.map((s) => ({ ...s })) : [createDefaultStay("", 1, "None")],
     totalPrice: 0,
     marginType: "absolute",
     margin: 0,
@@ -59,7 +58,7 @@ export default function QuickAccommodationSection({
     isOpen: false,
     stayIndex: 0,
     cityName: "",
-    category: "Deluxe",
+    category: "None",
     stayNights: 1,
     currentMealPlan: "CP",
   });
@@ -70,16 +69,16 @@ export default function QuickAccommodationSection({
       return propOptions;
     }
     if (Array.isArray(propStays) && propStays.length > 0) {
-      return [createDefaultOption("Standard Option", "Deluxe", propStays)];
+      return [createDefaultOption("", propStays)];
     }
-    return [createDefaultOption("Standard Option", "Deluxe", [createDefaultStay(primaryDestination, totalNights, "Deluxe")])];
+    return [createDefaultOption("", [createDefaultStay(primaryDestination, totalNights, "None")])];
   }, [propOptions, propStays, primaryDestination, totalNights]);
 
   const safeOptIdx = Math.min(Math.max(0, activeOptIdx), Math.max(0, options.length - 1));
   const activeOption = options[safeOptIdx] || options[0];
   const currentStays = activeOption.hotelStays && activeOption.hotelStays.length > 0
     ? activeOption.hotelStays
-    : [createDefaultStay(primaryDestination, totalNights, activeOption.category || "Deluxe")];
+    : [createDefaultStay(primaryDestination, totalNights, "None")];
 
   const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
 
@@ -137,7 +136,7 @@ export default function QuickAccommodationSection({
       isOpen: true,
       stayIndex: idx,
       cityName: stay.cityName || primaryDestination,
-      category: stay.category || activeOption.category || "Deluxe",
+      category: stay.category || "None",
       stayNights: stay.nights || 1,
       currentMealPlan: stay.mealPlan || "CP",
     });
@@ -152,7 +151,7 @@ export default function QuickAccommodationSection({
           hotelId: selectedData.hotelId,
           hotelName: selectedData.hotelName,
           cityName: selectedData.cityName || s.cityName,
-          category: selectedData.category || s.category,
+          category: selectedData.category || s.category || "None",
           starRating: selectedData.starRating || s.starRating,
           roomId: selectedData.roomId,
           roomType: selectedData.roomType || s.roomType,
@@ -218,7 +217,8 @@ export default function QuickAccommodationSection({
   function handleAddStay() {
     const remainingNights = Math.max(1, totalNights - allocatedNights);
     const lastCity = currentStays[currentStays.length - 1]?.cityName || primaryDestination;
-    const newStay = createDefaultStay(lastCity, remainingNights, activeOption.category || "Deluxe");
+    const lastCat = currentStays[currentStays.length - 1]?.category || "None";
+    const newStay = createDefaultStay(lastCity, remainingNights, lastCat);
     updateOptionStays([...currentStays, newStay]);
   }
 
@@ -230,10 +230,7 @@ export default function QuickAccommodationSection({
 
   function handleAddOption() {
     const newIdx = options.length;
-    const defaultLabels = ["Standard Tier", "Premium Tier", "Luxury Tier", "Budget Tier"];
-    const label = defaultLabels[newIdx % defaultLabels.length] || `Option ${newIdx + 1}`;
-    const cat = newIdx === 1 ? "Premium" : newIdx === 2 ? "Luxury" : "Deluxe";
-    const newOption = createDefaultOption(label, cat, currentStays);
+    const newOption = createDefaultOption("", currentStays);
     const newOptions = [...options, newOption];
 
     if (typeof onOptionsChange === "function") onOptionsChange(newOptions);
@@ -246,7 +243,7 @@ export default function QuickAccommodationSection({
     const duplicatedStays = (source.hotelStays || currentStays).map((s) => ({ ...s }));
     const newOption = {
       ...source,
-      label: `${source.label || `Option ${idx + 1}`} (Copy)`,
+      label: source.label ? `${source.label} (Copy)` : "",
       hotelStays: duplicatedStays,
     };
     const newOptions = [...options, newOption];
@@ -269,30 +266,35 @@ export default function QuickAccommodationSection({
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-5">
-      {/* ── 1. Minimalist Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold">
-            <Building2 className="w-4 h-4" />
+    <div className="bg-white rounded-3xl border-2 border-slate-200/90 hover:border-amber-400/60 p-5 sm:p-7 shadow-xs transition-all space-y-6 overflow-hidden min-w-0">
+      {/* ── 1. Luxury Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20 flex-shrink-0">
+            <Building2 className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
-              Accommodation &amp; Hotels
-            </h3>
-            <p className="text-[12px] text-slate-400 font-medium">
-              Multi-tier hotel packages with real-time rate comparison
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-[17px] font-black text-slate-900 truncate">
+                Accommodation &amp; Hotels
+              </h3>
+              <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
+                {allocatedNights} / {totalNights} Nights • {options.length} Option Tier{options.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <p className="text-[12px] text-slate-400 font-medium truncate">
+              Multi-tier hotel packages with real-time rate comparison &amp; meal plans
             </p>
           </div>
         </div>
 
         {/* Night Allocation Pill & Add Stay Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           <div
-            className={`px-2.5 py-1 rounded-xl text-[11.5px] font-bold flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-[11.5px] font-black flex items-center gap-1.5 border shadow-2xs ${
               allocatedNights === totalNights
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200/80"
-                : "bg-amber-50 text-amber-700 border-amber-200/80"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-amber-50 text-amber-900 border-amber-200"
             }`}
           >
             {allocatedNights === totalNights ? (
@@ -306,27 +308,29 @@ export default function QuickAccommodationSection({
           <button
             type="button"
             onClick={handleAddStay}
-            className="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11.5px] transition-colors flex items-center gap-1"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white font-black text-[12px] shadow-sm transition-all hover:scale-105 active:scale-95 border border-indigo-900/50"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 text-amber-400" />
             <span>Add Stay</span>
           </button>
         </div>
       </div>
 
       {/* Hairline Night Allocation Progress Bar */}
-      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60 shadow-inner">
         <div
           className={`h-full transition-all duration-300 rounded-full ${
-            allocatedNights === totalNights ? "bg-emerald-500" : "bg-amber-500"
+            allocatedNights === totalNights
+              ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+              : "bg-gradient-to-r from-amber-500 to-orange-500"
           }`}
           style={{ width: `${nightsProgressPct}%` }}
         />
       </div>
 
-      {/* ── 2. Minimalist Option Tiers Segmented Tabs ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-1.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+      {/* ── 2. Option Tiers Segmented Tabs (Custom User Labels e.g. "Masti Option", "Ocean Option") ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border border-slate-200/90 shadow-2xs">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
           {options.map((opt, idx) => {
             const isAct = idx === safeOptIdx;
             return (
@@ -344,25 +348,25 @@ export default function QuickAccommodationSection({
                     onPriceAdjustment(cost, idx);
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] cursor-pointer transition-all ${
                   isAct
-                    ? "bg-white text-slate-900 font-bold shadow-2xs border border-slate-200"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-white/50 font-medium"
+                    ? "bg-white text-slate-950 font-black shadow-xs border-2 border-amber-400 ring-2 ring-amber-500/20 scale-[1.02]"
+                    : "bg-white/60 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200 font-bold"
                 }`}
               >
-                <span className={`w-4 h-4 rounded-md text-[10px] flex items-center justify-center font-bold ${
-                  isAct ? "bg-slate-900 text-amber-400" : "bg-slate-200 text-slate-600"
+                <span className={`w-5 h-5 rounded-md text-[10.5px] flex items-center justify-center font-mono font-black flex-shrink-0 ${
+                  isAct ? "bg-slate-900 text-amber-400" : "bg-slate-200 text-slate-700"
                 }`}>
                   {idx + 1}
                 </span>
 
                 <input
                   type="text"
-                  value={opt.label || `Option ${idx + 1}`}
+                  value={opt.label || ""}
                   onChange={(e) => handleRenameOption(idx, e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  placeholder="Tier Name"
-                  className="bg-transparent focus:outline-none text-[12px] font-bold w-28 truncate"
+                  placeholder={`Option ${idx + 1}`}
+                  className="bg-transparent focus:bg-amber-50/80 focus:px-1.5 focus:rounded-md focus:outline-none focus:ring-1 focus:ring-amber-400 text-[12.5px] font-black min-w-[80px] max-w-[160px] text-slate-900 placeholder:text-slate-400 transition-all"
                 />
 
                 <button
@@ -371,10 +375,10 @@ export default function QuickAccommodationSection({
                     e.stopPropagation();
                     handleDuplicateOption(idx);
                   }}
-                  className="p-0.5 text-slate-300 hover:text-slate-600"
-                  title="Duplicate"
+                  className="p-1 text-slate-400 hover:text-amber-600 transition-colors"
+                  title="Duplicate Option"
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                 </button>
 
                 {options.length > 1 && (
@@ -384,10 +388,10 @@ export default function QuickAccommodationSection({
                       e.stopPropagation();
                       handleRemoveOption(idx);
                     }}
-                    className="p-0.5 text-slate-300 hover:text-rose-600"
-                    title="Delete"
+                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                    title="Delete Option"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -398,27 +402,27 @@ export default function QuickAccommodationSection({
         <button
           type="button"
           onClick={handleAddOption}
-          className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-colors flex items-center gap-1 self-end sm:self-auto"
+          className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-950 border border-slate-200 hover:border-amber-400 font-bold text-[11.5px] transition-all flex items-center gap-1.5 shadow-2xs self-end sm:self-auto active:scale-95"
         >
-          <Plus className="w-3 h-3" />
-          <span>New Option</span>
+          <Plus className="w-3.5 h-3.5 text-amber-600" />
+          <span>New Option Tier</span>
         </button>
       </div>
 
       {/* ── 3. Quick Bulk Meal Plan Bar ── */}
-      <div className="flex items-center justify-between text-[11px] bg-slate-50/70 px-3.5 py-2 rounded-xl border border-slate-100 flex-wrap gap-2">
-        <span className="text-slate-500 font-medium flex items-center gap-1">
-          <Utensils className="w-3 h-3 text-amber-600" />
-          <span>Apply to all stays in this tier:</span>
+      <div className="flex items-center justify-between text-[11.5px] bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 px-4 py-2.5 rounded-2xl border border-amber-200/80 flex-wrap gap-2">
+        <span className="text-amber-950 font-bold flex items-center gap-1.5">
+          <Utensils className="w-3.5 h-3.5 text-amber-600" />
+          <span>Quick Apply Meal Plan to all stays in this tier:</span>
         </span>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {MEAL_PLANS.map((mp) => (
             <button
               key={mp.id}
               type="button"
               onClick={() => handleApplyMealPlanToAll(mp.id)}
-              className="px-2 py-0.5 rounded-md bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold transition-colors"
+              className="px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-950 border border-slate-200 hover:border-amber-400 font-black text-[11px] shadow-2xs transition-all active:scale-95"
             >
               {mp.id} ({mp.title})
             </button>
@@ -426,8 +430,8 @@ export default function QuickAccommodationSection({
         </div>
       </div>
 
-      {/* ── 4. Minimalist Stay Cards ── */}
-      <div className="space-y-3">
+      {/* ── 4. Stay Cards with Independent Category Selection ── */}
+      <div className="space-y-4">
         {currentStays.map((stay, idx) => {
           const stayNights = Math.max(1, parseInt(stay.nights, 10) || 1);
           const stayPrice = Number(stay.pricePerNight) || 0;
@@ -437,53 +441,57 @@ export default function QuickAccommodationSection({
           return (
             <div
               key={idx}
-              className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition-all space-y-3"
+              className="group relative bg-gradient-to-br from-slate-50 via-white to-amber-50/20 p-5 rounded-2xl border border-slate-200/90 hover:border-amber-300 transition-all shadow-2xs space-y-3.5"
             >
               {/* Top Row: Stay Pill, City, Nights Stepper, Category, Stars, Stay Total */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono font-bold text-[10.5px]">
-                    Leg {idx + 1}
+                  <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-mono font-black text-[11px] flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    Stay Leg {idx + 1}
                   </span>
 
                   {/* City Input */}
-                  <div className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
-                    <MapPin className="w-3 h-3 text-slate-400" />
+                  <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
                     <input
                       type="text"
                       value={stay.cityName || ""}
                       onChange={(e) => handleStayChange(idx, "cityName", e.target.value)}
                       placeholder="Destination City"
-                      className="bg-transparent text-[12px] font-bold text-slate-800 focus:outline-none w-28"
+                      className="bg-transparent text-[12.5px] font-black text-slate-900 focus:outline-none w-28"
                     />
                   </div>
 
                   {/* Nights Stepper */}
-                  <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 text-[11.5px] font-bold overflow-hidden">
+                  <div className="flex items-center border border-slate-200 rounded-xl bg-white text-[12px] font-black overflow-hidden shadow-2xs">
                     <button
                       type="button"
                       onClick={() => handleStayChange(idx, "nights", Math.max(1, stayNights - 1))}
-                      className="px-1.5 py-0.5 hover:bg-slate-200 text-slate-600"
+                      className="px-2 py-1 hover:bg-amber-50 text-slate-700 transition-colors"
                     >
                       -
                     </button>
-                    <span className="px-2 py-0.5 text-slate-800">
-                      {stayNights}N
+                    <span className="px-2.5 py-1 text-slate-900 font-mono">
+                      {stayNights} Night{stayNights === 1 ? "" : "s"}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleStayChange(idx, "nights", stayNights + 1)}
-                      className="px-1.5 py-0.5 hover:bg-slate-200 text-slate-600"
+                      className="px-2 py-1 hover:bg-amber-50 text-slate-700 transition-colors"
                     >
                       +
                     </button>
                   </div>
 
-                  {/* Category Dropdown */}
+                  {/* Hotel Category Dropdown for this Specific Stay */}
                   <select
-                    value={stay.category || activeOption.category || "Deluxe"}
+                    value={stay.category || "None"}
                     onChange={(e) => handleStayChange(idx, "category", e.target.value)}
-                    className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md border focus:outline-none ${getCategoryBadgeClass(stay.category || "Deluxe")}`}
+                    className={`text-[11px] font-black px-2.5 py-1 rounded-xl border focus:outline-none shadow-2xs cursor-pointer ${getCategoryBadgeClass(stay.category || "None")}`}
                   >
                     {HOTEL_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
@@ -493,7 +501,7 @@ export default function QuickAccommodationSection({
                   </select>
 
                   {/* Stars */}
-                  <div className="flex items-center text-amber-400 text-[11px]">
+                  <div className="flex items-center text-amber-400 text-[13px] bg-white px-2 py-0.5 rounded-xl border border-slate-200 shadow-2xs">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <button
                         key={s}
@@ -508,9 +516,9 @@ export default function QuickAccommodationSection({
                 </div>
 
                 {/* Stay Subtotal & Delete */}
-                <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                <div className="flex items-center gap-3 self-end sm:self-auto">
                   <div className="text-right">
-                    <span className="text-[13px] font-black text-slate-900 font-mono">
+                    <span className="text-[14px] font-black text-slate-900 font-mono bg-amber-50/80 px-2.5 py-1 rounded-xl border border-amber-200">
                       ₹{staySubtotal.toLocaleString("en-IN")}
                     </span>
                   </div>
@@ -519,40 +527,43 @@ export default function QuickAccommodationSection({
                     <button
                       type="button"
                       onClick={() => handleRemoveStay(idx)}
-                      className="p-1 rounded text-slate-300 hover:text-rose-600 transition-colors"
-                      title="Delete"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Delete Stay Leg"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
               </div>
 
               {/* Middle Row: Selected Hotel Card & Smart Rate Finder Trigger Button */}
-              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5 min-w-0">
-                  <h4 className="text-[13.5px] font-bold text-slate-900 truncate">
-                    {stay.hotelName || "No hotel selected (Click find rates)"}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <h4 className="text-[14.5px] font-black text-slate-900 truncate">
+                      {stay.hotelName || "No hotel selected (Click Find Rates)"}
+                    </h4>
+                  </div>
+                  <p className="text-[11.5px] text-slate-500 flex items-center gap-2 flex-wrap font-medium">
                     <span>{stay.roomType || "Standard Room"}</span>
                     <span>•</span>
-                    <span className="text-amber-700 font-semibold">{activePlan} Plan</span>
+                    <span className="text-amber-800 font-bold">{activePlan} Plan ({MEAL_PLANS.find(p => p.id === activePlan)?.title || activePlan})</span>
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleOpenFinderDialog(idx)}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11.5px] font-bold flex items-center gap-1.5 transition-all shadow-2xs flex-shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white text-[12px] font-black flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-sm border border-indigo-900/50 flex-shrink-0"
                 >
-                  <Search className="w-3 h-3 text-amber-400" />
+                  <Search className="w-3.5 h-3.5 text-amber-400" />
                   <span>Find Lowest Rates</span>
                 </button>
               </div>
 
               {/* Meal Plan In-Line Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {MEAL_PLANS.map((plan) => {
                   const isSel = activePlan === plan.id;
                   return (
@@ -560,30 +571,35 @@ export default function QuickAccommodationSection({
                       key={plan.id}
                       type="button"
                       onClick={() => handleMealPlanChange(idx, plan.id)}
-                      className={`px-2.5 py-1.5 rounded-lg border text-left text-[11px] transition-all flex items-center justify-between ${
+                      className={`p-2 rounded-xl border text-left text-[11.5px] transition-all flex items-center justify-between ${
                         isSel
-                          ? "bg-slate-900 border-slate-900 text-white font-bold shadow-2xs"
-                          : "bg-white border-slate-200/80 text-slate-600 hover:bg-slate-50"
+                          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black shadow-xs border-amber-500 ring-2 ring-amber-500/20"
+                          : "bg-white hover:bg-amber-50/50 border-slate-200 text-slate-700 font-bold hover:border-amber-300"
                       }`}
                     >
-                      <span>{plan.id} • {plan.title}</span>
-                      {isSel && <Check className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+                      <div className="truncate">
+                        <span className="block font-black">{plan.id}</span>
+                        <span className={`block text-[10px] ${isSel ? "text-slate-900 font-bold" : "text-slate-400"}`}>
+                          {plan.title}
+                        </span>
+                      </div>
+                      {isSel && <Check className="w-3.5 h-3.5 text-slate-950 flex-shrink-0" />}
                     </button>
                   );
                 })}
               </div>
 
               {/* Bottom Row: Rate per Night & Stay Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div className="relative">
-                  <span className="text-slate-400 font-bold text-[11px] absolute left-3 top-1/2 -translate-y-1/2">₹</span>
+                  <span className="text-amber-600 font-black text-[12px] absolute left-3 top-1/2 -translate-y-1/2">₹</span>
                   <input
                     type="number"
                     min={0}
                     value={stay.pricePerNight === 0 ? "" : stay.pricePerNight}
                     onChange={(e) => handleStayChange(idx, "pricePerNight", Math.max(0, parseFloat(e.target.value) || 0))}
-                    placeholder="Rate per night"
-                    className="w-full pl-7 pr-3 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400 font-mono"
+                    placeholder="Rate per night (₹)"
+                    className="w-full pl-8 pr-3 py-2 text-[13px] font-black rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 font-mono shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
 
@@ -592,8 +608,8 @@ export default function QuickAccommodationSection({
                     type="text"
                     value={stay.notes || ""}
                     onChange={(e) => handleStayChange(idx, "notes", e.target.value)}
-                    placeholder="Room preferences / notes..."
-                    className="w-full px-3 py-1.5 text-[11.5px] font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400"
+                    placeholder="Room preferences / extra bed / notes..."
+                    className="w-full px-3.5 py-2 text-[12px] font-semibold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs text-slate-800"
                   />
                 </div>
               </div>

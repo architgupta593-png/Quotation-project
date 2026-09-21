@@ -5,7 +5,7 @@ import {
   X, Search, Building2, Star, Check, Sparkles, MapPin,
   Utensils, BedDouble, ArrowRight, IndianRupee, AlertCircle,
   Tag, Info, ExternalLink, SlidersHorizontal, Plus, RefreshCw,
-  Sliders, ChevronRight, CheckCircle2
+  Sliders, ChevronRight, CheckCircle2, ArrowUpDown, Layers, ListFilter
 } from "lucide-react";
 import {
   HOTEL_CATEGORIES,
@@ -98,12 +98,13 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMin
 
 /**
  * Minimalist Smart Hotel Rate Finder Dialog
+ * Supports both "Top 5 Lowest Price" mode and "All Category Hotels" mode
  */
 export default function HotelRateFinderDialog({
   isOpen,
   onClose,
   cityName = "",
-  category = "Deluxe",
+  category = "None",
   stayNights = 1,
   startDate = "",
   totalRooms = 1,
@@ -111,8 +112,11 @@ export default function HotelRateFinderDialog({
   onSelectHotel,
 }) {
   const [activeTab, setActiveTab] = useState("catalog"); // "catalog" | "manual"
+  const [viewMode, setViewMode] = useState("top5"); // "top5" | "all"
+  const [sortBy, setSortBy] = useState("price_asc"); // "price_asc" | "price_desc" | "stars_desc" | "name_asc"
+  const [nameSearch, setNameSearch] = useState("");
   const [searchCity, setSearchCity] = useState(cityName || "");
-  const [selectedCategory, setSelectedCategory] = useState(category || "Deluxe");
+  const [selectedCategory, setSelectedCategory] = useState(category || "None");
   const [selectedMealPlan, setSelectedMealPlan] = useState(currentMealPlan || "CP");
   const [selectedStarFilter, setSelectedStarFilter] = useState("all");
   const [loading, setLoading] = useState(false);
@@ -129,9 +133,12 @@ export default function HotelRateFinderDialog({
   useEffect(() => {
     if (isOpen) {
       setSearchCity(cityName || "");
-      setSelectedCategory(category || "Deluxe");
+      setSelectedCategory(category || "None");
       setSelectedMealPlan(currentMealPlan || "CP");
       setSelectedStarFilter("all");
+      setViewMode("top5");
+      setSortBy("price_asc");
+      setNameSearch("");
       setActiveTab("catalog");
     }
   }, [isOpen, cityName, category, currentMealPlan]);
@@ -172,19 +179,29 @@ export default function HotelRateFinderDialog({
   const nights = Math.max(1, parseInt(stayNights, 10) || 1);
   const roomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
 
-  // Filter & rank top 5 lowest price hotels
-  const rankedHotels = useMemo(() => {
+  // Filter & rank hotels
+  const displayedHotels = useMemo(() => {
     if (!hotels || hotels.length === 0) return [];
 
     const catNormalized = (selectedCategory || "None").toLowerCase().trim();
 
     let matchingHotels = hotels.filter((h) => {
-      if (catNormalized === "none") return true;
-      const hCat = (h.category || "None").toLowerCase().trim();
-      return hCat === catNormalized;
+      // Category match (if None or All, match all)
+      if (catNormalized !== "none") {
+        const hCat = (h.category || "None").toLowerCase().trim();
+        if (hCat !== catNormalized) return false;
+      }
+      // Name search match if typed
+      if (nameSearch.trim()) {
+        const q = nameSearch.toLowerCase().trim();
+        const matchesName = (h.name || "").toLowerCase().includes(q);
+        const matchesLoc = (h.location || "").toLowerCase().includes(q);
+        if (!matchesName && !matchesLoc) return false;
+      }
+      return true;
     });
 
-    if (matchingHotels.length === 0) {
+    if (matchingHotels.length === 0 && !nameSearch.trim()) {
       matchingHotels = [...hotels];
     }
 
@@ -218,11 +235,25 @@ export default function HotelRateFinderDialog({
       };
     });
 
-    processed.sort((a, b) => a.nightlyRate - b.nightlyRate);
-    return processed.slice(0, 5);
-  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, startDate, nights, roomsCount, selectedRoomIndexMap]);
+    // Sorting
+    if (sortBy === "price_asc") {
+      processed.sort((a, b) => a.nightlyRate - b.nightlyRate);
+    } else if (sortBy === "price_desc") {
+      processed.sort((a, b) => b.nightlyRate - a.nightlyRate);
+    } else if (sortBy === "stars_desc") {
+      processed.sort((a, b) => (parseInt(b.hotel.starRating, 10) || 3) - (parseInt(a.hotel.starRating, 10) || 3));
+    } else if (sortBy === "name_asc") {
+      processed.sort((a, b) => (a.hotel.name || "").localeCompare(b.hotel.name || ""));
+    }
 
-  const lowestRate = rankedHotels[0]?.nightlyRate || 0;
+    // Top 5 slice vs All view
+    if (viewMode === "top5") {
+      return processed.slice(0, 5);
+    }
+    return processed;
+  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, nameSearch, sortBy, viewMode, startDate, nights, roomsCount, selectedRoomIndexMap]);
+
+  const lowestRate = displayedHotels[0]?.nightlyRate || 0;
 
   function handleApplyHotel(item) {
     if (typeof onSelectHotel === "function") {
@@ -263,41 +294,65 @@ export default function HotelRateFinderDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95">
         
-        {/* ── 1. Minimalist Clean Header ── */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-              <Building2 className="w-4 h-4" />
+        {/* ── 1. Luxury Header ── */}
+        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 p-5 sm:p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0 border-b border-white/10 relative overflow-hidden">
+          <div className="flex items-center gap-3.5 relative z-10">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
-                Rate Finder &amp; Hotel Selector
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                  Rate Finder
+                </span>
+                <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  Live Rates
+                </span>
+              </div>
+              <h3 className="text-[17px] font-black text-white leading-snug mt-0.5">
+                Hotel Rate Finder &amp; Catalog
               </h3>
-              <p className="text-[11.5px] text-slate-400 font-medium">
+              <p className="text-[11.5px] text-slate-300 font-medium">
                 {nights}N in {searchCity || cityName || "Destination"} • {roomsCount} {roomsCount === 1 ? "Room" : "Rooms"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex bg-slate-100 p-0.5 rounded-xl text-[11px] font-bold text-slate-600">
+          <div className="flex items-center gap-2.5 relative z-10">
+            {/* View Mode Switcher: Top 5 vs All Hotels */}
+            <div className="bg-white/10 p-1 rounded-2xl flex items-center gap-1 border border-white/15 text-[11.5px] font-bold">
               <button
                 type="button"
-                onClick={() => setActiveTab("catalog")}
-                className={`px-3 py-1 rounded-lg transition-all ${
-                  activeTab === "catalog" ? "bg-white text-slate-900 shadow-2xs" : "hover:text-slate-900"
+                onClick={() => {
+                  setActiveTab("catalog");
+                  setViewMode("top5");
+                }}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                  activeTab === "catalog" && viewMode === "top5" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
                 }`}
               >
-                Top 5 Catalog
+                <span>🏆 Top 5 Lowest</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("catalog");
+                  setViewMode("all");
+                }}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                  activeTab === "catalog" && viewMode === "all" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
+                }`}
+              >
+                <span>📋 All Category</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("manual")}
-                className={`px-3 py-1 rounded-lg transition-all ${
-                  activeTab === "manual" ? "bg-white text-slate-900 shadow-2xs" : "hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  activeTab === "manual" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
                 }`}
               >
                 + Custom
@@ -307,19 +362,19 @@ export default function HotelRateFinderDialog({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* ── 2. Compact Search & Filter Toolbar ── */}
-        <div className="px-6 py-3.5 bg-slate-50/70 border-b border-slate-100 space-y-3 flex-shrink-0">
-          {/* City Input & Stars Filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="relative flex-1">
-              <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* ── 2. Search & Filter Toolbar ── */}
+        <div className="px-6 py-3.5 bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border-b border-slate-200/80 space-y-3 flex-shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            {/* City Search */}
+            <div className="sm:col-span-4 relative">
+              <MapPin className="w-3.5 h-3.5 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchCity}
@@ -327,8 +382,8 @@ export default function HotelRateFinderDialog({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") fetchHotelsForCity(searchCity);
                 }}
-                placeholder="Search city (e.g. Munnar, Kochi)..."
-                className="w-full pl-8 pr-7 py-1.5 text-[12px] font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400 shadow-2xs"
+                placeholder="City (e.g. Munnar)..."
+                className="w-full pl-8 pr-7 py-1.5 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
               />
               <button
                 type="button"
@@ -340,28 +395,56 @@ export default function HotelRateFinderDialog({
               </button>
             </div>
 
-            {/* Clean Stars Filter */}
-            <div className="flex items-center gap-1">
-              {["all", "3", "4", "5"].map((sf) => (
-                <button
-                  key={sf}
-                  type="button"
-                  onClick={() => setSelectedStarFilter(sf)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                    selectedStarFilter === sf
-                      ? "bg-slate-900 text-white font-bold"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-                  }`}
+            {/* In-Line Hotel Name Filter */}
+            <div className="sm:col-span-4 relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={nameSearch}
+                onChange={(e) => setNameSearch(e.target.value)}
+                placeholder="Filter hotel by name..."
+                className="w-full pl-8 pr-3 py-1.5 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
+              />
+            </div>
+
+            {/* Sort Dropdown */}
+            <div className="sm:col-span-4 flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-1.5 text-[11.5px] font-black rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-amber-500 shadow-2xs cursor-pointer"
                 >
-                  {sf === "all" ? "All Stars" : `${sf}★+`}
-                </button>
-              ))}
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="stars_desc">Star Rating: 5★ to 1★</option>
+                  <option value="name_asc">Alphabetical (A - Z)</option>
+                </select>
+              </div>
+
+              {/* Star Filters */}
+              <div className="flex items-center gap-0.5">
+                {["all", "3", "4", "5"].map((sf) => (
+                  <button
+                    key={sf}
+                    type="button"
+                    onClick={() => setSelectedStarFilter(sf)}
+                    className={`px-2 py-1 rounded-xl text-[10.5px] font-bold transition-all ${
+                      selectedStarFilter === sf
+                        ? "bg-slate-900 text-amber-400 font-black shadow-2xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                    }`}
+                  >
+                    {sf === "all" ? "All" : `${sf}★+`}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Category Horizontal Scroll Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-            <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mr-1 flex-shrink-0">
+            <span className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider mr-1 flex-shrink-0">
               Category:
             </span>
             {HOTEL_CATEGORIES.map((cat) => {
@@ -371,10 +454,10 @@ export default function HotelRateFinderDialog({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap border ${
+                  className={`px-3 py-1 rounded-xl text-[11.5px] font-bold transition-all whitespace-nowrap border ${
                     isSel
-                      ? "bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-2xs"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
+                      ? "bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs scale-[1.02]"
+                      : "bg-white text-slate-700 hover:bg-amber-50/60 border-slate-200"
                   }`}
                 >
                   {cat}
@@ -383,8 +466,8 @@ export default function HotelRateFinderDialog({
             })}
           </div>
 
-          {/* Minimalist Meal Plan Segmented Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-200/60">
+          {/* Meal Plan Segmented Tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-200/80">
             {MEAL_PLANS.map((plan) => {
               const isSel = selectedMealPlan === plan.id;
               return (
@@ -392,10 +475,10 @@ export default function HotelRateFinderDialog({
                   key={plan.id}
                   type="button"
                   onClick={() => setSelectedMealPlan(plan.id)}
-                  className={`px-3 py-2 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  className={`px-3 py-1.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                     isSel
-                      ? "bg-slate-900 border-slate-900 text-white shadow-2xs"
-                      : "bg-white border-slate-200/90 text-slate-700 hover:bg-slate-50"
+                      ? "bg-gradient-to-r from-slate-950 to-indigo-950 border-slate-900 text-white shadow-xs"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-amber-50/50"
                   }`}
                 >
                   <div>
@@ -419,81 +502,99 @@ export default function HotelRateFinderDialog({
         <div className="p-5 overflow-y-auto flex-1 space-y-3">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-              <div className="w-6 h-6 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
-              <p className="text-[11.5px] font-medium">Scanning lowest available room rates...</p>
+              <div className="w-7 h-7 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+              <p className="text-[12px] font-bold">Scanning catalog hotels and live room rates...</p>
             </div>
           ) : activeTab === "catalog" ? (
-            rankedHotels.length === 0 ? (
-              <div className="py-10 text-center rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-                <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
-                <h4 className="text-[13px] font-bold text-slate-700">No matching catalog hotels</h4>
-                <p className="text-[11.5px] text-slate-400 max-w-sm mx-auto">
+            displayedHotels.length === 0 ? (
+              <div className="py-10 text-center rounded-3xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <AlertCircle className="w-7 h-7 text-slate-400 mx-auto" />
+                <h4 className="text-[14px] font-black text-slate-800">No matching hotels found</h4>
+                <p className="text-[12px] text-slate-500 max-w-sm mx-auto font-medium">
                   No properties found in {searchCity || cityName} for {selectedCategory} category.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => setSelectedCategory("None")}
-                    className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[11.5px] font-semibold hover:bg-slate-50"
+                    onClick={() => {
+                      setSelectedCategory("None");
+                      setNameSearch("");
+                    }}
+                    className="px-4 py-2 bg-white border border-slate-300 text-slate-800 rounded-xl text-[12px] font-bold hover:bg-slate-50 shadow-2xs"
                   >
                     View All Categories
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab("manual")}
-                    className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[11.5px] font-semibold"
+                    className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[12px] font-bold shadow-2xs"
                   >
                     + Enter Manual Hotel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {rankedHotels.map((item, idx) => {
-                  const isLowest = idx === 0;
-                  const diff = item.nightlyRate - lowestRate;
+              <div className="space-y-3">
+                {/* Result header info */}
+                <div className="flex items-center justify-between text-[11.5px] text-slate-500 px-1">
+                  <span>
+                    Showing <strong className="text-slate-900 font-black">{displayedHotels.length}</strong> {viewMode === "top5" ? "top lowest-price hotels" : "hotels"} in {searchCity || cityName}
+                  </span>
+                  {viewMode === "top5" && (
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("all")}
+                      className="text-amber-700 font-black hover:underline"
+                    >
+                      View all {hotels.length} hotels &rarr;
+                    </button>
+                  )}
+                </div>
+
+                {displayedHotels.map((item, idx) => {
+                  const isLowest = idx === 0 && sortBy === "price_asc";
 
                   return (
                     <div
                       key={item.hotel._id}
-                      className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                         isLowest
-                          ? "bg-amber-50/30 border-amber-300/80 hover:border-amber-400"
-                          : "bg-white border-slate-200/80 hover:border-slate-300"
+                          ? "bg-gradient-to-br from-amber-50 via-white to-amber-50/40 border-amber-400/90 shadow-xs ring-2 ring-amber-500/20"
+                          : "bg-gradient-to-br from-slate-50 via-white to-amber-50/10 border-slate-200/90 hover:border-amber-300 shadow-2xs"
                       }`}
                     >
                       {/* Left info */}
-                      <div className="space-y-1 flex-1 min-w-0">
+                      <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           {isLowest && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[9.5px] uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-2xs">
                               Lowest Price
                             </span>
                           )}
 
-                          <span className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded ${getCategoryBadgeClass(item.hotel.category || "None")}`}>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border shadow-2xs ${getCategoryBadgeClass(item.hotel.category || "None")}`}>
                             {item.hotel.category || "None"}
                           </span>
 
-                          <div className="flex text-amber-400 text-[10px]">
+                          <div className="flex text-amber-400 text-[12px] bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
                             {[...Array(item.hotel.starRating || 3)].map((_, i) => (
                               <span key={i}>★</span>
                             ))}
                           </div>
 
                           {item.isSeasonal && (
-                            <span className="text-[9.5px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                              Seasonal
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              Seasonal Rate
                             </span>
                           )}
                         </div>
 
-                        <h4 className="text-[14px] font-bold text-slate-900 truncate">
+                        <h4 className="text-[15px] font-black text-slate-900 truncate">
                           {item.hotel.name}
                         </h4>
 
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
-                          <span className="font-medium text-slate-700">
+                        <div className="flex items-center gap-2 text-[11.5px] text-slate-600 flex-wrap font-medium">
+                          <span className="font-bold text-slate-800">
                             {item.selectedRoom?.roomType || "Standard Room"}
                           </span>
 
@@ -506,7 +607,7 @@ export default function HotelRateFinderDialog({
                                   [item.hotel._id]: parseInt(e.target.value, 10) || 0,
                                 }))
                               }
-                              className="text-[10px] font-medium bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 focus:outline-none"
+                              className="text-[11px] font-bold bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none shadow-2xs"
                             >
                               {item.rooms.map((r, rIdx) => (
                                 <option key={r._id || rIdx} value={rIdx}>
@@ -517,7 +618,7 @@ export default function HotelRateFinderDialog({
                           )}
 
                           <span className="text-slate-300">•</span>
-                          <span>{selectedMealPlan} Plan</span>
+                          <span className="text-amber-800 font-bold">{selectedMealPlan} Plan</span>
                         </div>
                       </div>
 
@@ -525,13 +626,13 @@ export default function HotelRateFinderDialog({
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                         <div className="text-left sm:text-right">
                           <div className="flex items-baseline gap-1 justify-end">
-                            <span className="text-[15px] font-black text-slate-900 font-mono">
+                            <span className="text-[16px] font-black text-slate-900 font-mono">
                               ₹{item.nightlyRate.toLocaleString("en-IN")}
                             </span>
-                            <span className="text-[10px] text-slate-400">/ night</span>
+                            <span className="text-[11px] text-slate-400 font-bold">/ night</span>
                           </div>
 
-                          <span className="text-[10px] text-slate-400 block">
+                          <span className="text-[11px] text-slate-500 font-bold block">
                             Total: ₹{item.totalCost.toLocaleString("en-IN")}
                           </span>
                         </div>
@@ -539,13 +640,13 @@ export default function HotelRateFinderDialog({
                         <button
                           type="button"
                           onClick={() => handleApplyHotel(item)}
-                          className={`px-3 py-1.5 rounded-xl font-bold text-[11.5px] transition-all flex items-center gap-1.5 ${
+                          className={`px-4 py-2 rounded-xl font-black text-[12px] transition-all flex items-center gap-1.5 shadow-2xs hover:scale-105 active:scale-95 ${
                             isLowest
-                              ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-black shadow-2xs"
-                              : "bg-slate-900 hover:bg-slate-800 text-white"
+                              ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black shadow-amber-500/25 shadow-md"
+                              : "bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white"
                           }`}
                         >
-                          <Check className="w-3 h-3" />
+                          <Check className="w-3.5 h-3.5" />
                           <span>Apply</span>
                         </button>
                       </div>
@@ -556,38 +657,41 @@ export default function HotelRateFinderDialog({
             )
           ) : (
             /* ── Manual Hotel Entry Tab ── */
-            <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3">
-              <h4 className="text-[12.5px] font-bold text-slate-800">Enter Custom Property Details</h4>
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-amber-50/20 border border-slate-200/90 shadow-2xs space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <Building2 className="w-4 h-4 text-amber-600" />
+                <h4 className="text-[14px] font-black text-slate-900">Enter Custom Property Details</h4>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-500 uppercase mb-1">Property Name</label>
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Property Name</label>
                   <input
                     type="text"
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
                     placeholder="e.g. Hilltop Cottage Munnar"
-                    className="w-full px-3 py-1.5 text-[12px] font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-500 uppercase mb-1">Room Type</label>
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Room Type</label>
                   <input
                     type="text"
                     value={manualRoom}
                     onChange={(e) => setManualRoom(e.target.value)}
                     placeholder="e.g. Deluxe Mountain View"
-                    className="w-full px-3 py-1.5 text-[12px] font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-500 uppercase mb-1">Stars</label>
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Stars</label>
                   <select
                     value={manualStars}
                     onChange={(e) => setManualStars(parseInt(e.target.value, 10) || 3)}
-                    className="w-full px-3 py-1.5 text-[12px] font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400"
+                    className="w-full px-3.5 py-2 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs cursor-pointer"
                   >
                     {[1, 2, 3, 4, 5].map((s) => (
                       <option key={s} value={s}>
@@ -598,25 +702,28 @@ export default function HotelRateFinderDialog({
                 </div>
 
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-500 uppercase mb-1">Rate (₹ / Night)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={manualRate}
-                    onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
-                    placeholder="3000"
-                    className="w-full px-3 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-400 font-mono"
-                  />
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">Rate (₹ / Night)</label>
+                  <div className="relative">
+                    <span className="text-amber-600 font-black text-[12px] absolute left-3 top-1/2 -translate-y-1/2">₹</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={manualRate}
+                      onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
+                      placeholder="3000"
+                      className="w-full pl-8 pr-3 py-2 text-[12.5px] font-black rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 font-mono shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-1 flex justify-end">
+              <div className="pt-2 flex justify-end">
                 <button
                   type="button"
                   onClick={handleApplyManual}
-                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[12px] rounded-xl shadow-2xs"
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-[12.5px] rounded-xl shadow-md shadow-amber-500/25 transition-all hover:scale-105 active:scale-95"
                 >
-                  Apply Property
+                  Apply Property to Stay
                 </button>
               </div>
             </div>

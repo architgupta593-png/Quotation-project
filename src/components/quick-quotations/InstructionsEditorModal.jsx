@@ -512,7 +512,7 @@ export default function InstructionsEditorModal({
                                 className="p-1 text-slate-400 hover:text-rose-600"
                                 title="Delete Section"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>

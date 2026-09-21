@@ -7,7 +7,7 @@ import {
   IndianRupee, MessageSquare, Mail, Printer, Sparkles, Heart,
   Mountain, Palmtree, Castle, Trees, Flame, Compass, ChevronRight,
   ShieldCheck, Clock, CheckCircle2, Phone, X, Award, ExternalLink,
-  ChevronDown, Star, Layers, Loader2,
+  ChevronDown, Star, Layers, Loader2, Share2, Copy, CheckCheck,
 } from "lucide-react";
 import { getActivityIcon, getStayForDay, getMealsFromStay, MEAL_PLAN_DESCRIPTIONS, getMealPlanLabel } from "@/components/quick-quotations/QuickItinerarySection";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
@@ -91,6 +91,7 @@ export default function QuickQuotationPublicPage({ params }) {
   const [acceptedSuccess, setAcceptedSuccess] = useState(false);
   const [clientNotes, setClientNotes] = useState("");
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch(`/api/quick-quotations/code/${code}`)
@@ -119,6 +120,14 @@ export default function QuickQuotationPublicPage({ params }) {
     const opt = availableOptions[selectedOptionIdx] || availableOptions[0];
     return opt?.hotelStays && opt.hotelStays.length > 0 ? opt.hotelStays : (quickQuote?.hotelStays || []);
   }, [availableOptions, selectedOptionIdx, quickQuote?.hotelStays]);
+
+  function handleCopyLink() {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
 
   if (loading) {
     return (
@@ -221,10 +230,17 @@ export default function QuickQuotationPublicPage({ params }) {
   async function handleAcceptQuote() {
     setAccepting(true);
     try {
+      const chosenOpt = availableOptions[selectedOptionIdx] || availableOptions[0];
       const res = await fetch(`/api/quick-quotations/code/${code}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept", notes: clientNotes }),
+        body: JSON.stringify({
+          action: "accept",
+          notes: clientNotes,
+          selectedOptionIndex: selectedOptionIdx,
+          selectedOptionLabel: chosenOpt?.label || `Option ${selectedOptionIdx + 1}`,
+          acceptedPrice: finalPrice,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to accept proposal");
@@ -263,6 +279,21 @@ export default function QuickQuotationPublicPage({ params }) {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Share / Copy Proposal Link */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-[12px] font-bold transition-all shadow-2xs ${
+              copied
+                ? "bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/30"
+                : "border-slate-300 hover:bg-slate-100 text-slate-700"
+            }`}
+            title="Copy proposal link to share"
+          >
+            {copied ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{copied ? "Link Copied!" : "Share Link"}</span>
+          </button>
+
           {/* Print / Save PDF Button */}
           <button
             type="button"
@@ -361,7 +392,7 @@ export default function QuickQuotationPublicPage({ params }) {
                 </div>
                 <p className="text-[14px] font-black text-white">
                   {numPax} Adults
-                  {passengers?.childrenCount > 0 ? `, ${passengers.childrenCount} Child (${passengers.childrenAges?.join(", ")} yrs)` : ""}
+                  {passengers?.childrenCount > 0 ? `, ${passengers.childrenCount} Child${passengers.childrenCount > 1 ? "ren" : ""}${passengers.childrenAges?.filter(Boolean).length > 0 ? ` (${passengers.childrenAges.filter(Boolean).join(", ")} yrs)` : ""}` : ""}
                 </p>
                 <p className="text-[10px] text-slate-400 font-semibold">{passengers?.totalRooms || 1} Private Room(s)</p>
               </div>
@@ -407,7 +438,7 @@ export default function QuickQuotationPublicPage({ params }) {
                 {/* Luxury Journey Stream Layout */}
                 <div className="space-y-4">
                   {quickQuote.itinerary.map((dayItem, idx) => {
-                    const matchingStay = getStayForDay(idx, hotelStays);
+                    const matchingStay = getStayForDay(idx, activeStays);
                     const mealInfo = getMealsFromStay(matchingStay, idx, quickQuote.itinerary.length);
                     const cityLeg = dayItem.city || matchingStay?.cityName || quickQuote.tripDetails?.destination;
                     const meals = dayItem.meals || mealInfo.meals || { breakfast: false, lunch: false, dinner: false };
@@ -552,7 +583,7 @@ export default function QuickQuotationPublicPage({ params }) {
                   </span>
                 </div>
 
-                {/* Multi-Tier Interactive Selector Tabs (Custom Option Names) */}
+                {/* Multi-Tier Interactive Selector Tabs (Custom Option Names & Live Deltas) */}
                 {availableOptions.length > 1 && (
                   <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
                     <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
@@ -561,18 +592,33 @@ export default function QuickQuotationPublicPage({ params }) {
                     </div>
                     {availableOptions.map((opt, oIdx) => {
                       const isSelected = selectedOptionIdx === oIdx;
+                      const thisOptCost = getOptionWithMargin(opt);
+                      const thisDelta = (baseOptCost > 0 && thisOptCost > 0) ? (thisOptCost - baseOptCost) : 0;
+                      const thisDeltaWithTax = includeGst ? Math.round(thisDelta * (1 + gstRate / 100)) : thisDelta;
+
                       return (
                         <button
                           key={oIdx}
                           type="button"
                           onClick={() => setSelectedOptionIdx(oIdx)}
-                          className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                          className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${
                             isSelected
                               ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
                               : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
                           }`}
                         >
                           <span>{opt.label || `Option ${oIdx + 1}`}</span>
+                          <span className={`text-[10.5px] font-bold px-1.5 py-0.2 rounded-md ${
+                            isSelected ? "bg-amber-400/20 text-amber-300" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {oIdx === 0
+                              ? "Base"
+                              : thisDeltaWithTax > 0
+                              ? `+₹${thisDeltaWithTax.toLocaleString("en-IN")}`
+                              : thisDeltaWithTax < 0
+                              ? `-₹${Math.abs(thisDeltaWithTax).toLocaleString("en-IN")}`
+                              : "Same"}
+                          </span>
                           {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
                         </button>
                       );
@@ -890,7 +936,7 @@ export default function QuickQuotationPublicPage({ params }) {
 
                 {/* WhatsApp Connect */}
                 <a
-                  href={`https://api.whatsapp.com/send?phone=919876543210&text=Hi%20Mande%20Holidays,%20I%20am%20reviewing%20my%20Quick%20Proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Holiday")}.%20Please%20connect%20with%20me.`}
+                  href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(quickQuote.agencyPhone || "919876543210")}&text=Hi%20Mande%20Holidays,%20I%20am%20reviewing%20my%20Quick%20Proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Holiday")}.%20Please%20connect%20with%20me.`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-bold text-[13px] transition-all flex items-center justify-center gap-2"
@@ -998,11 +1044,20 @@ export default function QuickQuotationPublicPage({ params }) {
           body {
             background: white !important;
             color: black !important;
+            font-size: 11pt !important;
           }
           header,
           .print\\:hidden,
           .fixed {
             display: none !important;
+          }
+          section,
+          article,
+          .group,
+          .rounded-3xl,
+          .rounded-2xl {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
           .shadow-xs,
           .shadow-sm,
@@ -1013,7 +1068,7 @@ export default function QuickQuotationPublicPage({ params }) {
             box-shadow: none !important;
           }
           .border {
-            border-color: #e2e8f0 !important;
+            border-color: #cbd5e1 !important;
           }
           .max-w-5xl,
           .max-w-6xl {
@@ -1021,12 +1076,8 @@ export default function QuickQuotationPublicPage({ params }) {
             padding: 0 !important;
             margin: 0 !important;
           }
-          .rounded-3xl,
-          .rounded-2xl {
-            border-radius: 8px !important;
-          }
           @page {
-            margin: 1.2cm;
+            margin: 1cm;
             size: A4;
           }
         }

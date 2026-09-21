@@ -58,8 +58,12 @@ export async function POST(req, { params }) {
 
     if (action === "accept") {
       quickQuotation.status = "accepted";
-      if (notes) {
-        quickQuotation.client.notes = notes;
+      const optNote = body.selectedOptionLabel ? `[Accepted Tier: ${body.selectedOptionLabel}]` : "";
+      if (notes || optNote) {
+        quickQuotation.client.notes = [quickQuotation.client?.notes, optNote, notes].filter(Boolean).join(" | ");
+      }
+      if (body.acceptedPrice && Number(body.acceptedPrice) > 0) {
+        quickQuotation.pricing.finalPrice = Number(body.acceptedPrice);
       }
       await quickQuotation.save();
 
