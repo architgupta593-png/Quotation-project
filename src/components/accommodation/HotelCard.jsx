@@ -16,6 +16,7 @@ const TYPE_BADGE = {
 };
 
 const CATEGORY_STYLE = {
+  none:          { bg: "bg-slate-600",   label: "None" },
   budget:        { bg: "bg-emerald-600", label: "Budget" },
   deluxe:        { bg: "bg-sky-600",     label: "Deluxe" },
   "deluxe plus": { bg: "bg-blue-600",    label: "Deluxe Plus" },

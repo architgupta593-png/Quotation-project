@@ -116,7 +116,7 @@ export function sanitizePackagePayload(body) {
             cityName: (n.cityName || "").trim(),
             hotelId: n.hotelId ? n.hotelId : null,
             hotelName: (n.hotelName || "").trim(),
-            category: VALID_CATEGORIES.includes(n.category) ? n.category : "Deluxe",
+            category: VALID_CATEGORIES.includes(n.category) ? n.category : "None",
             roomId: n.roomId ? n.roomId : null,
             roomType: (n.roomType || "").trim(),
             mealPlan: ["EP", "CP", "MAP", "AP"].includes(n.mealPlan) ? n.mealPlan : "CP",
@@ -129,7 +129,7 @@ export function sanitizePackagePayload(body) {
         : [];
       return {
         label: (opt.label || `Option ${idx + 1}`).trim(),
-        category: VALID_CATEGORIES.includes(opt.category) ? opt.category : "Deluxe",
+        category: VALID_CATEGORIES.includes(opt.category) ? opt.category : "None",
         nights,
         totalPrice: 0, // Not saved in database
         marginType: ["absolute", "percentage"].includes(opt.marginType) ? opt.marginType : "absolute",
@@ -161,6 +161,7 @@ export function sanitizePackagePayload(body) {
     perPersonPrice: Math.max(0, parseFloat(pricing.perPersonPrice) || 0),
     perCouplePrice: Math.max(0, parseFloat(pricing.perCouplePrice) || 0),
     numberOfPersons: Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2),
+    numberOfRooms: Math.max(1, parseInt(pricing.numberOfRooms, 10) || Math.ceil((parseInt(pricing.numberOfPersons, 10) || 2) / 2)),
     maxPersonsPerRoom: Math.max(1, Math.min(6, parseInt(pricing.maxPersonsPerRoom, 10) || 2)),
     currency: (pricing.currency || "INR").trim(),
     includes: Array.isArray(pricing.includes) ? pricing.includes.filter(Boolean) : [],

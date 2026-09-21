@@ -24,7 +24,7 @@ const HotelStaySchema = new mongoose.Schema(
     cityName: { type: String, trim: true, default: "" },
     hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
     hotelName: { type: String, trim: true, default: "" },
-    category: { type: String, trim: true, default: "Deluxe" },
+    category: { type: String, trim: true, default: "None" },
     starRating: {
       type: Number,
       min: 1,

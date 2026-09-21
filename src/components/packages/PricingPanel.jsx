@@ -144,7 +144,11 @@ export default function PricingPanel({
     marginAmount = subtotal * (activeMargin / 100);
   }
 
-  const preDiscountTotal = subtotal + marginAmount;
+  const preTaxTotal = subtotal + marginAmount;
+  const gstAmount = pricing.includeGst
+    ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100))
+    : 0;
+  const preDiscountTotal = preTaxTotal + gstAmount;
   const discountAmount = pricing.discountAmount || 0;
   const rawFinalPrice = Math.max(0, preDiscountTotal - discountAmount);
   const finalPrice = Math.round(rawFinalPrice / 100) * 100;
@@ -501,6 +505,14 @@ export default function PricingPanel({
             </span>
             <span className="font-extrabold text-amber-700 text-[14.5px]">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
           </div>
+          {pricing.includeGst && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60 border-l-4 border-blue-500">
+              <span className="text-blue-900 font-bold flex items-center gap-1.5">
+                🏛️ Goods &amp; Services Tax (GST {pricing.gstPercentage || 5}%)
+              </span>
+              <span className="font-black text-blue-700 text-[14.5px]">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
+            </div>
+          )}
           {discountAmount > 0 && (
             <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/70 border-l-4 border-rose-500">
               <span className="text-rose-900 font-bold flex items-center gap-1.5">
@@ -537,7 +549,7 @@ export default function PricingPanel({
         </div>
 
         {/* Pricing Configuration Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
           {/* Card 1: Currency & Guest Capacity */}
           <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
             <div>
@@ -750,6 +762,70 @@ export default function PricingPanel({
                     </button>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Tax (GST) & Promotional Discount */}
+          <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>GST Tax Configuration</span>
+                <span className="text-[10.5px] font-bold text-blue-600">
+                  {pricing.includeGst ? `Enabled (${pricing.gstPercentage || 5}%)` : "Not Applied"}
+                </span>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => update({ includeGst: !pricing.includeGst })}
+                  className={`flex-1 py-2.5 px-3 rounded-xl border text-[12px] font-black transition-all flex items-center justify-center gap-2 ${
+                    pricing.includeGst
+                      ? "bg-blue-600 border-blue-600 text-white shadow-xs"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span>🏛️</span>
+                  <span>{pricing.includeGst ? "GST Included (Active)" : "Include 5% GST"}</span>
+                </button>
+                {pricing.includeGst && (
+                  <div className="w-20 relative">
+                    <input
+                      type="number"
+                      min={0}
+                      max={28}
+                      value={pricing.gstPercentage || 5}
+                      onChange={(e) => update({ gstPercentage: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className={`${inputCls} text-center font-bold px-2`}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">%</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Promotional Discount (₹)</span>
+                {discountAmount > 0 && (
+                  <span className="text-[10.5px] font-bold text-rose-600">-₹{discountAmount.toLocaleString("en-IN")}</span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={pricing.discountAmount === 0 ? "" : pricing.discountAmount}
+                  onWheel={(e) => e.target.blur()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = parseFloat(val);
+                    update({ discountAmount: isNaN(parsed) ? 0 : Math.max(0, parsed) });
+                  }}
+                  placeholder="0 (Optional Discount)"
+                  className={`${inputCls} pl-8 font-bold`}
+                />
               </div>
             </div>
           </div>

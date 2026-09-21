@@ -14,6 +14,15 @@ export async function GET(req) {
 
     await connectDB();
 
+    // Auto-transition overdue quotes to "expired"
+    await QuickQuotation.updateMany(
+      {
+        status: { $in: ["draft", "sent", "viewed"] },
+        expiresAt: { $lt: new Date() },
+      },
+      { $set: { status: "expired" } }
+    );
+
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");

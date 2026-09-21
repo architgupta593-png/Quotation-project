@@ -523,6 +523,24 @@ export default function NewQuickQuotationPage() {
       .catch((err) => console.error("Failed to auto-fetch package from URL", err));
   }, [packageIdParam, handleSelectPackage]);
 
+  function handleDestinationChange(newDest) {
+    setForm((prev) => {
+      const isStay1Empty = !prev.hotelStays?.[0]?.cityName || prev.hotelStays?.[0]?.cityName === prev.tripDetails?.destination;
+      const updatedStays = isStay1Empty
+        ? (prev.hotelStays || []).map((s, i) => (i === 0 ? { ...s, cityName: newDest } : s))
+        : (prev.hotelStays || []);
+
+      return {
+        ...prev,
+        tripDetails: {
+          ...prev.tripDetails,
+          destination: newDest,
+        },
+        hotelStays: updatedStays.length > 0 ? updatedStays : [{ cityName: newDest, nights: prev.tripDetails.nights || 4, category: "Deluxe", mealPlan: "CP", pricePerNight: 0 }],
+      };
+    });
+  }
+
   // When user changes Departure Date (startDate), automatically shift Return Date (endDate) while preserving existing nights duration
   function handleStartDateChange(newStartDate) {
     if (!newStartDate) return;
@@ -550,16 +568,24 @@ export default function NewQuickQuotationPage() {
     let diffDays = Math.round((e - s) / (1000 * 60 * 60 * 24));
     if (isNaN(diffDays) || diffDays < 1) diffDays = 1;
 
-    setForm((prev) => ({
-      ...prev,
-      tripDetails: {
-        ...prev.tripDetails,
-        startDate: startDate,
-        endDate: newEndDate,
-        nights: diffDays,
-        days: diffDays + 1,
-      },
-    }));
+    setForm((prev) => {
+      const stays = prev.hotelStays || [];
+      const updatedStays = stays.length === 1
+        ? [{ ...stays[0], nights: diffDays }]
+        : stays;
+
+      return {
+        ...prev,
+        tripDetails: {
+          ...prev.tripDetails,
+          startDate: startDate,
+          endDate: newEndDate,
+          nights: diffDays,
+          days: diffDays + 1,
+        },
+        hotelStays: updatedStays,
+      };
+    });
   }
 
   function applyDurationPreset(nights) {
@@ -568,16 +594,24 @@ export default function NewQuickQuotationPage() {
     d.setDate(d.getDate() + nights);
     const end = d.toISOString().split("T")[0];
 
-    setForm((prev) => ({
-      ...prev,
-      tripDetails: {
-        ...prev.tripDetails,
-        startDate: s,
-        endDate: end,
-        nights: nights,
-        days: nights + 1,
-      },
-    }));
+    setForm((prev) => {
+      const stays = prev.hotelStays || [];
+      const updatedStays = stays.length === 1
+        ? [{ ...stays[0], nights }]
+        : stays;
+
+      return {
+        ...prev,
+        tripDetails: {
+          ...prev.tripDetails,
+          startDate: s,
+          endDate: end,
+          nights: nights,
+          days: nights + 1,
+        },
+        hotelStays: updatedStays,
+      };
+    });
   }
 
   // Children count and individual ages handler
@@ -589,12 +623,16 @@ export default function NewQuickQuotationPage() {
       for (let i = 0; i < validCount; i++) {
         updatedAges.push(currentAges[i] !== undefined ? currentAges[i] : 6);
       }
+      const currentWithBed = Math.min(validCount, prev.passengers.childrenWithBed || 0);
+      const currentWithoutBed = Math.max(0, validCount - currentWithBed);
       return {
         ...prev,
         passengers: {
           ...prev.passengers,
           childrenCount: validCount,
           childrenAges: updatedAges,
+          childrenWithBed: currentWithBed,
+          childrenWithoutBed: currentWithoutBed,
         },
       };
     });
@@ -1341,7 +1379,7 @@ export default function NewQuickQuotationPage() {
               }}
             />
 
-            {/* 4. Dedicated Transport & Vehicle */}
+            {/* ── 5. Dedicated Transport & Vehicle ── */}
             <div className="bg-white rounded-3xl border-2 border-slate-200/90 hover:border-amber-400/60 p-5 sm:p-7 shadow-xs transition-all space-y-6 overflow-hidden min-w-0">
               <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 min-w-0">
                 <div className="flex items-center gap-3 min-w-0">

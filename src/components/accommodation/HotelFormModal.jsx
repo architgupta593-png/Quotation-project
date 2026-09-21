@@ -36,7 +36,7 @@ const SEASON_COLORS = [
   { label: "Monsoon", strip: "#14b8a6", light: "#ccfbf1", text: "#134e4a" },
 ];
 
-const DEFAULT_HOTEL  = { name:"", type:"hotel", category:"Deluxe", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
+const DEFAULT_HOTEL  = { name:"", type:"hotel", category:"None", starRating:null, email:"", contactNo:"", address:"", features:[], activities:[], images:[] };
 const DEFAULT_ROOM   = { roomType:"", maxOccupancy:2, features:[], mealPrices:{}, images:[] };
 const DEFAULT_SEASON = { label:"", dateRanges:[{ startDate:"", endDate:"" }] };
 const TODAY_STR      = new Date().toISOString().split("T")[0];
@@ -543,7 +543,7 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
   useEffect(() => {
     if (hotel) {
       setForm({
-        name:hotel.name||"", type:hotel.type||"hotel", category:hotel.category||"Deluxe", starRating:hotel.starRating??null,
+        name:hotel.name||"", type:hotel.type||"hotel", category:hotel.category||"None", starRating:hotel.starRating??null,
         email:hotel.email||"", contactNo:hotel.contactNo||"", address:hotel.address||"",
         features:hotel.features||[], activities:hotel.activities||[], images:hotel.images||[],
       });
@@ -756,12 +756,12 @@ export default function HotelFormModal({ cityId, hotel, rooms: initialRooms=[], 
                 <div className="flex items-center justify-between mb-1.5">
                   <label className={lc}>Hotel Category</label>
                   <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                    Category: {form.category || "Deluxe"}
+                    Category: {form.category || "None"}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                   {HOTEL_CATEGORIES.map((cat) => {
-                    const isSelected = (form.category || "Deluxe").toLowerCase() === cat.value.toLowerCase();
+                    const isSelected = (form.category || "None").toLowerCase() === cat.value.toLowerCase();
                     return (
                       <button
                         key={cat.value}

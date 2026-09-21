@@ -15,6 +15,8 @@ export default function PackagesListPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // "" | "draft" | "published"
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, pages: 1 });
 
   const fetchPackages = useCallback(async () => {
     setLoading(true);
@@ -23,16 +25,23 @@ export default function PackagesListPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
       if (search) params.set("destination", search);
+      params.set("page", String(page));
+      params.set("limit", "20");
 
       const res = await fetch(`/api/packages?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setPackages(data.packages || []);
+      if (data.pagination) setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }, [statusFilter, search, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [statusFilter, search]);
 
   useEffect(() => {
@@ -161,16 +170,62 @@ export default function PackagesListPage() {
 
         {/* Package Grid */}
         {!loading && packages.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {packages.map((pkg) => (
-              <PackageCard
-                key={pkg._id}
-                pkg={pkg}
-                isAdmin={isAdmin}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {packages.map((pkg) => (
+                <PackageCard
+                  key={pkg._id}
+                  pkg={pkg}
+                  isAdmin={isAdmin}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {pagination.pages > 1 && (
+              <div className="flex items-center justify-between pt-8 mt-6 border-t border-gray-200/80 flex-wrap gap-4">
+                <span className="text-[13px] text-gray-500 font-medium">
+                  Showing page <span className="font-bold text-gray-900">{pagination.page}</span> of{" "}
+                  <span className="font-bold text-gray-900">{pagination.pages}</span> ({pagination.total} total packages)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-3.5 py-1.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-[12.5px] font-bold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: pagination.pages }, (_, idx) => idx + 1).map((pNum) => (
+                      <button
+                        key={pNum}
+                        type="button"
+                        onClick={() => setPage(pNum)}
+                        className={`w-8 h-8 rounded-xl text-[12px] font-bold transition-all ${
+                          page === pNum
+                            ? "bg-indigo-600 text-white shadow-2xs"
+                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pNum}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+                    disabled={page >= pagination.pages}
+                    className="px-3.5 py-1.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-[12.5px] font-bold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

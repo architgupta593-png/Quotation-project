@@ -65,9 +65,9 @@ const HotelSchema = new mongoose.Schema(
         "luxury",
         "",
       ],
-      default: "Deluxe",
+      default: "None",
       set: (v) => {
-        if (!v) return "Deluxe";
+        if (!v) return "None";
         const map = {
           none: "None",
           budget: "Budget",

@@ -109,7 +109,7 @@ export default function QuickQuotationPublicPage({ params }) {
     }
     return [
       {
-        label: "Option 1 (Standard 3★)",
+        label: "Standard Hotel Package",
         hotelStays: quickQuote?.hotelStays || [],
       },
     ];
@@ -119,43 +119,6 @@ export default function QuickQuotationPublicPage({ params }) {
     const opt = availableOptions[selectedOptionIdx] || availableOptions[0];
     return opt?.hotelStays && opt.hotelStays.length > 0 ? opt.hotelStays : (quickQuote?.hotelStays || []);
   }, [availableOptions, selectedOptionIdx, quickQuote?.hotelStays]);
-
-  // Normalized Destination / City wise stays
-  const displayStayLegs = useMemo(() => {
-    if (!activeStays || activeStays.length === 0) return [];
-
-    const hasExplicitNights = activeStays.some((s) => s.nights !== undefined && s.nights > 1);
-    if (hasExplicitNights) {
-      return activeStays.map((s, i) => ({
-        cityName: s.cityName || quickQuote?.tripDetails?.destination || `Destination ${i + 1}`,
-        nights: Math.max(1, parseInt(s.nights, 10) || 1),
-        hotelName: s.hotelName || "Quality Certified Hotel",
-        starRating: Math.max(1, Math.min(5, parseInt(s.starRating, 10) || 3)),
-        roomType: s.roomType || "Deluxe AC Room",
-        mealPlan: s.mealPlan || "CP",
-      }));
-    }
-
-    const grouped = [];
-    activeStays.forEach((s) => {
-      const city = s.cityName || quickQuote?.tripDetails?.destination || "Destination";
-      const last = grouped[grouped.length - 1];
-      if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === s.hotelName || !last.hotelName || !s.hotelName)) {
-        last.nights += (s.nights || 1);
-        if (!last.hotelName && s.hotelName) last.hotelName = s.hotelName;
-      } else {
-        grouped.push({
-          cityName: city,
-          nights: Math.max(1, parseInt(s.nights, 10) || 1),
-          hotelName: s.hotelName || "Quality Certified Hotel",
-          starRating: Math.max(1, Math.min(5, parseInt(s.starRating, 10) || 3)),
-          roomType: s.roomType || "Deluxe AC Room",
-          mealPlan: s.mealPlan || "CP",
-        });
-      }
-    });
-    return grouped;
-  }, [activeStays, quickQuote?.tripDetails?.destination]);
 
   if (loading) {
     return (
@@ -229,7 +192,7 @@ export default function QuickQuotationPublicPage({ params }) {
   const deltaWithTax = includeGst ? Math.round(tierCostDelta * (1 + gstRate / 100)) : tierCostDelta;
 
   const finalPrice = Math.max(0, baseFinalPrice + deltaWithTax);
-  const discountAmount = pricing?.discountAmount || 0;
+  const discountAmount = Number(pricing?.discountAmount) || 0;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
   const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
   const perPerson = Math.round(finalPrice / numPax);
@@ -238,12 +201,10 @@ export default function QuickQuotationPublicPage({ params }) {
 
   // Advance Payment calculations (Absolute / Percentage)
   const advanceType = pricing?.advanceType || "absolute";
-  const advanceAmount = pricing?.advanceAmount !== undefined ? pricing?.advanceAmount : (pricing?.advancePayment || 0);
-  const advancePercentage = pricing?.advancePercentage || 25;
+  const advanceAmount = Number(pricing?.advanceAmount) > 0 ? Number(pricing.advanceAmount) : (Number(pricing?.advancePayment) || 0);
+  const advancePercentage = Number(pricing?.advancePercentage) || 25;
   let advancePayment = 0;
-  if (pricing?.advancePayment !== undefined && pricing?.advancePayment > 0 && tierCostDelta === 0) {
-    advancePayment = pricing.advancePayment;
-  } else if (advanceType === "percentage") {
+  if (advanceType === "percentage") {
     advancePayment = Math.round((finalPrice * advancePercentage) / 100);
   } else if (advanceAmount > 0) {
     advancePayment = Math.min(finalPrice, advanceAmount);
@@ -570,100 +531,122 @@ export default function QuickQuotationPublicPage({ params }) {
               </section>
             )}
 
-            {/* Hotel Accommodation Showcase */}
-            <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
-                    <Hotel className="w-5 h-5" />
+            {/* ── Hotel Accommodation Portfolio Showcase ── */}
+            {activeStays && activeStays.length > 0 && (
+              <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
+                      <Hotel className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
+                      <p className="text-[12px] text-slate-500 font-semibold">
+                        Curated stays reserved for your selected itinerary &amp; dates
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
-                    <p className="text-[12px] text-slate-500 font-semibold">Destination / City wise hotel accommodations reserved for your dates</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                    {displayStayLegs.length} Destination {displayStayLegs.length === 1 ? "Stay" : "Stays"}
+
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+                    {activeStays.length} Destination {activeStays.length === 1 ? "Stay" : "Stays"}
                   </span>
                 </div>
-              </div>
 
-              {/* Multi-Tier Interactive Selector Tabs (If multiple options provided) */}
-              {availableOptions.length > 1 && (
-                <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
-                  <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
-                    <Layers className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Select Tier:</span>
+                {/* Multi-Tier Interactive Selector Tabs (Custom Option Names) */}
+                {availableOptions.length > 1 && (
+                  <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                    <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
+                      <Layers className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Select Tier:</span>
+                    </div>
+                    {availableOptions.map((opt, oIdx) => {
+                      const isSelected = selectedOptionIdx === oIdx;
+                      return (
+                        <button
+                          key={oIdx}
+                          type="button"
+                          onClick={() => setSelectedOptionIdx(oIdx)}
+                          className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                            isSelected
+                              ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
+                              : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                          }`}
+                        >
+                          <span>{opt.label || `Option ${oIdx + 1}`}</span>
+                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {availableOptions.map((opt, oIdx) => {
-                    const isSelected = selectedOptionIdx === oIdx;
+                )}
+
+                {/* Stays List */}
+                <div className="space-y-3.5">
+                  {activeStays.map((stay, idx) => {
+                    const planDesc = MEAL_PLAN_DESCRIPTIONS[stay.mealPlan] || {
+                      meaning: `${stay.mealPlan} Meal Plan`,
+                      badge: stay.mealPlan,
+                      description: "Meals included as per plan",
+                    };
+
                     return (
-                      <button
-                        key={oIdx}
-                        type="button"
-                        onClick={() => setSelectedOptionIdx(oIdx)}
-                        className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                          isSelected
-                            ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
-                            : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                        }`}
+                      <div
+                        key={idx}
+                        className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
                       >
-                        <span>{opt.label || `Option ${oIdx + 1}`}</span>
-                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                        <div className="flex items-start gap-3.5">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
+                            <span className="text-[14px] leading-none font-mono">{stay.nights || 1}N</span>
+                            <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
+                          </div>
 
-              <div className="space-y-3.5">
-                {displayStayLegs.map((stay, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
-                  >
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
-                        <span className="text-[14px] leading-none font-mono">{stay.nights}N</span>
-                        <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
-                      </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-amber-700" />
+                                <span>{stay.cityName || tripDetails?.destination || "Destination"} • {stay.nights || 1} {(stay.nights || 1) > 1 ? "Nights" : "Night"}</span>
+                              </span>
 
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-amber-700" />
-                            <span>{stay.cityName} • {stay.nights} {stay.nights > 1 ? "Nights" : "Night"}</span>
-                          </span>
-                          <div className="flex text-amber-400">
-                            {[...Array(stay.starRating || 3)].map((_, i) => (
-                              <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                            ))}
+                              {stay.category && stay.category !== "None" && (
+                                <span className="text-[10.5px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                  {stay.category}
+                                </span>
+                              )}
+
+                              <div className="flex text-amber-400">
+                                {[...Array(stay.starRating || 3)].map((_, i) => (
+                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                ))}
+                              </div>
+                            </div>
+
+                            <h3 className="text-[16px] font-black text-slate-900 group-hover:text-amber-600 transition-colors">
+                              {stay.hotelName || "Quality Certified Hotel"}
+                            </h3>
+
+                            <p className="text-[12px] text-slate-500 font-semibold">
+                              Room: <span className="text-slate-800 font-bold">{stay.roomType || "Deluxe AC Room"}</span>
+                            </p>
                           </div>
                         </div>
 
-                        <h3 className="text-[16px] font-black text-slate-900 group-hover:text-amber-600 transition-colors">
-                          {stay.hotelName || "Quality Certified Hotel"}
-                        </h3>
-
-                        <p className="text-[12px] text-slate-500 font-semibold">
-                          Room: <span className="text-slate-800 font-bold">{stay.roomType || "Deluxe AC Room"}</span>
-                        </p>
+                        {stay.mealPlan && (
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 flex-shrink-0">
+                            <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-950 border border-emerald-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
+                              <span>🍽️</span>
+                              <span>{planDesc.badge || `${stay.mealPlan} • ${planDesc.meaning}`}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 hidden sm:inline">
+                              {planDesc.description}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-
-                    {stay.mealPlan && (
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-                        <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-950 border border-indigo-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
-                          <span>🍽️</span>
-                          <span>{MEAL_PLANS[stay.mealPlan] || `${stay.mealPlan} Meal Plan`}</span>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Dedicated Transport & Vehicle Section */}
             <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
@@ -1009,6 +992,45 @@ export default function QuickQuotationPublicPage({ params }) {
           </div>
         </div>
       )}
+      {/* ── Print Stylesheet for High-Quality PDF Output ── */}
+      <style jsx global>{`
+        @media print {
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          header,
+          .print\\:hidden,
+          .fixed {
+            display: none !important;
+          }
+          .shadow-xs,
+          .shadow-sm,
+          .shadow-md,
+          .shadow-lg,
+          .shadow-xl,
+          .shadow-2xl {
+            box-shadow: none !important;
+          }
+          .border {
+            border-color: #e2e8f0 !important;
+          }
+          .max-w-5xl,
+          .max-w-6xl {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .rounded-3xl,
+          .rounded-2xl {
+            border-radius: 8px !important;
+          }
+          @page {
+            margin: 1.2cm;
+            size: A4;
+          }
+        }
+      `}</style>
     </div>
   );
 }

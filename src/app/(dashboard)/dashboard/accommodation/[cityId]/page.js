@@ -228,7 +228,7 @@ export default function AccommodationHotelsPage() {
         {!loading && (() => {
           const filteredHotels = hotels.filter((h) => {
             if (selectedCategory === "ALL") return true;
-            const hCat = String(h.category || "Deluxe").toLowerCase().trim();
+            const hCat = String(h.category || "None").toLowerCase().trim();
             return hCat === selectedCategory.toLowerCase().trim();
           });
 

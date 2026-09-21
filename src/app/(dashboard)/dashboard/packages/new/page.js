@@ -198,7 +198,11 @@ export default function NewPackagePage() {
   const liveMarginAmount = activeMarginType === "percentage"
     ? liveSubtotal * (activeMargin / 100)
     : activeMargin;
-  const livePreDiscountTotal = liveSubtotal + liveMarginAmount;
+  const livePreTaxTotal = liveSubtotal + liveMarginAmount;
+  const liveGstAmount = form.pricing?.includeGst
+    ? Math.round(livePreTaxTotal * ((form.pricing?.gstPercentage || 5) / 100))
+    : 0;
+  const livePreDiscountTotal = livePreTaxTotal + liveGstAmount;
   const liveDiscount = form.pricing?.discountAmount || 0;
   const rawLiveGrandTotal = Math.max(0, livePreDiscountTotal - liveDiscount);
   const liveGrandTotal = Math.round(rawLiveGrandTotal / 100) * 100;
