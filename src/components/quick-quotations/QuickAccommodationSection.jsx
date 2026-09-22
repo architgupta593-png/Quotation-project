@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Building2, Plus, Trash2, MapPin, Search,
   CheckCircle2, AlertCircle, Copy, IndianRupee,
