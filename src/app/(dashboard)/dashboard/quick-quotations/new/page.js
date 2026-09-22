@@ -104,6 +104,7 @@ export default function NewQuickQuotationPage() {
         nightNumber: 1,
         cityName: "",
         hotelName: "",
+        category: "None",
         starRating: 3,
         roomType: "",
         mealPlan: "CP",
@@ -113,12 +114,14 @@ export default function NewQuickQuotationPage() {
     ],
     accommodationOptions: [
       {
-        label: "Option 1 (Standard)",
+        label: "Option 1",
+        category: "None",
         hotelStays: [
           {
             nightNumber: 1,
             cityName: "",
             hotelName: "",
+            category: "None",
             starRating: 3,
             roomType: "",
             mealPlan: "CP",
@@ -230,6 +233,8 @@ export default function NewQuickQuotationPage() {
         if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === hotel || !last.hotelName || !hotel)) {
           last.nights += 1;
           if (!last.hotelName && hotel) last.hotelName = hotel;
+          if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
+          if ((!last.category || last.category === "None") && st.category) last.category = st.category;
         } else {
           stays.push({
             cityName: city,
@@ -237,6 +242,7 @@ export default function NewQuickQuotationPage() {
             hotelId: st.hotelId || null,
             hotelName: hotel,
             roomId: st.roomId || null,
+            category: st.category || "None",
             starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
             roomType: st.roomType || "Deluxe AC Room",
             mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
@@ -255,6 +261,7 @@ export default function NewQuickQuotationPage() {
           hotelId: null,
           hotelName: "",
           roomId: null,
+          category: "None",
           starRating: 3,
           roomType: "Deluxe AC Room",
           mealPlan: "CP",
@@ -271,6 +278,7 @@ export default function NewQuickQuotationPage() {
         hotelId: null,
         hotelName: "",
         roomId: null,
+        category: "None",
         starRating: 3,
         roomType: "Deluxe AC Room",
         mealPlan: "CP",
@@ -300,6 +308,9 @@ export default function NewQuickQuotationPage() {
               last.nights += 1;
               if (!last.hotelName && hotel) last.hotelName = hotel;
               if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
+              if ((!last.category || last.category === "None") && (st.category || opt.category)) {
+                last.category = st.category || opt.category;
+              }
             } else {
               optStays.push({
                 cityName: city,
@@ -307,6 +318,7 @@ export default function NewQuickQuotationPage() {
                 hotelId: st.hotelId || null,
                 hotelName: hotel,
                 roomId: st.roomId || null,
+                category: st.category || opt.category || "None",
                 starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
                 roomType: st.roomType || "Deluxe AC Room",
                 mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
@@ -326,7 +338,7 @@ export default function NewQuickQuotationPage() {
 
         return {
           label: opt.label || `Option ${oIdx + 1}`,
-          category: opt.category || "",
+          category: opt.category || "None",
           hotelStays: optStays.length > 0 ? optStays : stays,
           totalPrice: optSellingPrice,
           marginType: optMarginType,
@@ -340,39 +352,9 @@ export default function NewQuickQuotationPage() {
       const standardMarginAmt = pkgMarginType === "percentage" ? (standardCost * pkgMargin) / 100 : pkgMargin;
       allAccommodationOptions.push({
         label: "Option 1",
-        hotelStays: stays.map((s) => ({ ...s, category: s.category || "Deluxe", starRating: s.starRating || 3 })),
+        category: "None",
+        hotelStays: stays.map((s) => ({ ...s, category: s.category || "None", starRating: s.starRating || 3 })),
         totalPrice: standardCost + standardMarginAmt,
-        marginType: pkgMarginType,
-        margin: pkgMargin,
-      });
-
-      // Auto-construct Option 2 and Option 3 choices for the customer
-      const deluxeStays = stays.map((s) => ({
-        ...s,
-        category: "Deluxe Plus",
-        starRating: 4,
-        pricePerNight: Math.round((Number(s.pricePerNight) || 2800) * 1.3),
-      }));
-      const deluxeCost = deluxeStays.reduce((sum, s) => sum + (s.pricePerNight * (s.nights || 1) * roomMult), 0);
-      allAccommodationOptions.push({
-        label: "Option 2",
-        hotelStays: deluxeStays,
-        totalPrice: deluxeCost + (pkgMarginType === "percentage" ? (deluxeCost * pkgMargin) / 100 : pkgMargin),
-        marginType: pkgMarginType,
-        margin: pkgMargin,
-      });
-
-      const luxuryStays = stays.map((s) => ({
-        ...s,
-        category: "Luxury",
-        starRating: 5,
-        pricePerNight: Math.round((Number(s.pricePerNight) || 2800) * 1.8),
-      }));
-      const luxuryCost = luxuryStays.reduce((sum, s) => sum + (s.pricePerNight * (s.nights || 1) * roomMult), 0);
-      allAccommodationOptions.push({
-        label: "Option 3",
-        hotelStays: luxuryStays,
-        totalPrice: luxuryCost + (pkgMarginType === "percentage" ? (luxuryCost * pkgMargin) / 100 : pkgMargin),
         marginType: pkgMarginType,
         margin: pkgMargin,
       });
