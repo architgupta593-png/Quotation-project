@@ -217,43 +217,14 @@ export default function NewQuickQuotationPage() {
       (pkg.destinations && pkg.destinations.map((d) => d.cityName).filter(Boolean).join(", ")) ||
       "Destination";
 
-    // Extract hotel stays from package grouped by destination / city
+    // Extract destination stays structure (without pre-filled hotels so user can build custom hotel tiers)
     let stays = [];
     const sourceStays =
       (pkg.accommodationOptions && pkg.accommodationOptions[0]?.nights) ||
       (pkg.accommodation && pkg.accommodation[0]?.nights) ||
       [];
 
-    if (sourceStays.length > 0) {
-      // Group continuous nights in the same city & hotel
-      sourceStays.forEach((st) => {
-        const city = st.cityName || primaryDest;
-        const hotel = st.hotelName || "";
-        const last = stays[stays.length - 1];
-        if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === hotel || !last.hotelName || !hotel)) {
-          last.nights += 1;
-          if (!last.hotelName && hotel) last.hotelName = hotel;
-          if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
-          if ((!last.category || last.category === "None") && st.category) last.category = st.category;
-        } else {
-          stays.push({
-            cityName: city,
-            nights: 1,
-            hotelId: st.hotelId || null,
-            hotelName: hotel,
-            roomId: st.roomId || null,
-            category: st.category || "None",
-            starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
-            roomType: st.roomType || "Deluxe AC Room",
-            mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
-            availableMealPlans: st.availableMealPlans || (st.mealPlan === "EP" ? ["EP", "CP", "MAP", "AP"] : ["CP", "MAP", "AP"]),
-            pricePerNight: st.pricePerNight || 0,
-            mealPrices: st.mealPrices || null,
-            notes: st.notes || "",
-          });
-        }
-      });
-    } else if (pkg.destinations && pkg.destinations.length > 0) {
+    if (pkg.destinations && pkg.destinations.length > 0) {
       pkg.destinations.forEach((dest) => {
         stays.push({
           cityName: dest.cityName || primaryDest,
@@ -265,9 +236,36 @@ export default function NewQuickQuotationPage() {
           starRating: 3,
           roomType: "Deluxe AC Room",
           mealPlan: "CP",
+          availableMealPlans: ["EP", "CP", "MAP", "AP"],
           pricePerNight: 0,
+          mealPrices: null,
           notes: "",
         });
+      });
+    } else if (sourceStays.length > 0) {
+      // Group continuous nights in the same city
+      sourceStays.forEach((st) => {
+        const city = st.cityName || primaryDest;
+        const last = stays[stays.length - 1];
+        if (last && last.cityName.toLowerCase() === city.toLowerCase()) {
+          last.nights += 1;
+        } else {
+          stays.push({
+            cityName: city,
+            nights: 1,
+            hotelId: null,
+            hotelName: "",
+            roomId: null,
+            category: "None",
+            starRating: 3,
+            roomType: "Deluxe AC Room",
+            mealPlan: "CP",
+            availableMealPlans: ["EP", "CP", "MAP", "AP"],
+            pricePerNight: 0,
+            mealPrices: null,
+            notes: "",
+          });
+        }
       });
     }
 
@@ -282,7 +280,9 @@ export default function NewQuickQuotationPage() {
         starRating: 3,
         roomType: "Deluxe AC Room",
         mealPlan: "CP",
+        availableMealPlans: ["EP", "CP", "MAP", "AP"],
         pricePerNight: 0,
+        mealPrices: null,
         notes: "",
       });
     }
@@ -290,75 +290,20 @@ export default function NewQuickQuotationPage() {
     // Calculate pure Net Base Cost: Hotels Base Cost (with room multiplier) + Cab Fleet Cost + Activities
     const roomMult = Math.max(1, parseInt(pkg.pricing?.numberOfRooms, 10) || Math.ceil((parseInt(pkg.pricing?.numberOfPersons || form.passengers?.adults, 10) || 2) / 2) || 1);
     
-    // Extract multi-tier accommodation options from package if available
-    let allAccommodationOptions = [];
+    // In Quick Quote: Initialize a clean single tier "Option 1" with blank hotels ready for user customization
     const pkgMarginType = pkg.pricing?.marginType || "absolute";
     const pkgMargin = Number(pkg.pricing?.margin) || 0;
 
-    if (pkg.accommodationOptions && Array.isArray(pkg.accommodationOptions) && pkg.accommodationOptions.length > 0) {
-      allAccommodationOptions = pkg.accommodationOptions.map((opt, oIdx) => {
-        let optStays = [];
-        const sourceNights = opt.nights || [];
-        if (sourceNights.length > 0) {
-          sourceNights.forEach((st) => {
-            const city = st.cityName || primaryDest;
-            const hotel = st.hotelName || "";
-            const last = optStays[optStays.length - 1];
-            if (last && last.cityName.toLowerCase() === city.toLowerCase() && (last.hotelName === hotel || !last.hotelName || !hotel)) {
-              last.nights += 1;
-              if (!last.hotelName && hotel) last.hotelName = hotel;
-              if (!last.hotelId && st.hotelId) last.hotelId = st.hotelId;
-              if ((!last.category || last.category === "None") && (st.category || opt.category)) {
-                last.category = st.category || opt.category;
-              }
-            } else {
-              optStays.push({
-                cityName: city,
-                nights: 1,
-                hotelId: st.hotelId || null,
-                hotelName: hotel,
-                roomId: st.roomId || null,
-                category: st.category || opt.category || "None",
-                starRating: Math.max(1, Math.min(5, parseInt(st.starRating, 10) || 3)),
-                roomType: st.roomType || "Deluxe AC Room",
-                mealPlan: (st.mealPlan && ["EP", "CP", "MAP", "AP"].includes(String(st.mealPlan).toUpperCase())) ? String(st.mealPlan).toUpperCase() : "CP",
-                availableMealPlans: st.availableMealPlans || (st.mealPlan === "EP" ? ["EP", "CP", "MAP", "AP"] : ["CP", "MAP", "AP"]),
-                pricePerNight: st.pricePerNight || 0,
-                mealPrices: st.mealPrices || null,
-                notes: st.notes || "",
-              });
-            }
-          });
-        }
-        const optBaseCost = optStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult), 0);
-        const optMarginVal = Number(opt.margin) > 0 ? Number(opt.margin) : pkgMargin;
-        const optMarginType = (Number(opt.margin) > 0 && opt.marginType) ? opt.marginType : pkgMarginType;
-        const optMarginAmt = optMarginType === "percentage" ? (optBaseCost * optMarginVal) / 100 : optMarginVal;
-        const optSellingPrice = optBaseCost + optMarginAmt;
-
-        return {
-          label: opt.label || `Option ${oIdx + 1}`,
-          category: opt.category || "None",
-          hotelStays: optStays.length > 0 ? optStays : stays,
-          totalPrice: optSellingPrice,
-          marginType: optMarginType,
-          margin: optMarginVal,
-        };
-      });
-    }
-
-    if (allAccommodationOptions.length === 0) {
-      const standardCost = stays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult), 0);
-      const standardMarginAmt = pkgMarginType === "percentage" ? (standardCost * pkgMargin) / 100 : pkgMargin;
-      allAccommodationOptions.push({
+    const allAccommodationOptions = [
+      {
         label: "Option 1",
         category: "None",
-        hotelStays: stays.map((s) => ({ ...s, category: s.category || "None", starRating: s.starRating || 3 })),
-        totalPrice: standardCost + standardMarginAmt,
+        hotelStays: stays.map((s) => ({ ...s })),
+        totalPrice: 0,
         marginType: pkgMarginType,
         margin: pkgMargin,
-      });
-    }
+      },
+    ];
 
     // Extract day-by-day itinerary from package
     let itineraryDays = [];
