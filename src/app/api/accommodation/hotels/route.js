@@ -39,8 +39,6 @@ export async function GET(request) {
       .sort({ name: 1 })
       .lean();
 
-    console.log(`[API /api/accommodation/hotels] Query: search="${search || ""}", cityId="${cityId || ""}" -> Found ${hotels.length} hotels`);
-
     return NextResponse.json({ hotels });
   } catch (err) {
     console.error("[GET /api/accommodation/hotels]", err);

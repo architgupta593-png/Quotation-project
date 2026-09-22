@@ -89,15 +89,6 @@ export default function QuickAccommodationSection({
 
   const nightsProgressPct = Math.min(100, Math.round((allocatedNights / Math.max(1, totalNights)) * 100));
 
-  // Testing Logger
-  useEffect(() => {
-    console.log(
-      `%c[QuickQuote Accommodation] 📑 Current Active Option: "${activeOption.label || `Option ${safeOptIdx + 1}`}" with ${currentStays.length} stay(s):`,
-      "color: #0d9488; font-weight: bold;",
-      currentStays
-    );
-  }, [activeOption, safeOptIdx, currentStays]);
-
   // Centralized State Update & Emitter
   const updateOptionStays = useCallback((updatedStays, targetOptIdx = safeOptIdx) => {
     const newOptions = options.map((opt, i) => {
@@ -141,16 +132,10 @@ export default function QuickAccommodationSection({
 
   function handleOpenFinderDialog(idx) {
     const stay = currentStays[idx];
-    const targetCity = stay.cityName || primaryDestination;
-    console.log(
-      `%c[QuickQuote Accommodation] 🛎️ Opening Hotel Finder for Stay #${idx + 1} (City: "${targetCity}", Category: "${stay.category || 'None'}", Nights: ${stay.nights || 1})`,
-      "color: #8b5cf6; font-weight: bold; font-size: 12px;",
-      stay
-    );
     setDialogState({
       isOpen: true,
       stayIndex: idx,
-      cityName: targetCity,
+      cityName: stay.cityName || primaryDestination,
       category: stay.category || "None",
       stayNights: stay.nights || 1,
       currentMealPlan: stay.mealPlan || "CP",
@@ -159,11 +144,6 @@ export default function QuickAccommodationSection({
 
   function handleHotelSelected(selectedData) {
     const idx = dialogState.stayIndex;
-    console.log(
-      `%c[QuickQuote Accommodation] 🏨 Hotel Selected for Stay #${idx + 1}:`,
-      "color: #10b981; font-weight: bold; font-size: 13px;",
-      selectedData
-    );
     const updated = currentStays.map((s, i) => {
       if (i === idx) {
         return {

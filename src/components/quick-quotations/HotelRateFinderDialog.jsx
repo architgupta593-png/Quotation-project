@@ -146,19 +146,10 @@ export default function HotelRateFinderDialog({
   const fetchHotelsForCity = useCallback((targetCity) => {
     if (!targetCity) return;
     setLoading(true);
-    console.log(
-      `%c[QuickQuote Accommodation] 🔍 Fetching hotels for city: "${targetCity}"...`,
-      "color: #f59e0b; font-weight: bold; font-size: 13px;"
-    );
     fetch(`/api/accommodation/hotels?search=${encodeURIComponent(targetCity.trim())}`)
       .then((r) => r.json())
       .then(async (data) => {
         const cityHotels = data.hotels || [];
-        console.log(
-          `%c[QuickQuote Accommodation] ✅ Successfully fetched ${cityHotels.length} hotels for "${targetCity}":`,
-          "color: #10b981; font-weight: bold; font-size: 13px;",
-          cityHotels
-        );
         setHotels(cityHotels);
 
         const roomsMap = {};
@@ -173,16 +164,9 @@ export default function HotelRateFinderDialog({
             }
           })
         );
-        console.log(
-          `%c[QuickQuote Accommodation] 🛏️ Loaded room configurations for ${Object.keys(roomsMap).length} hotels`,
-          "color: #6366f1; font-weight: bold;",
-          roomsMap
-        );
         setHotelRoomsMap(roomsMap);
       })
-      .catch((err) => {
-        console.error("%c[QuickQuote Accommodation] ❌ Failed to load hotels:", "color: #ef4444; font-weight: bold;", err);
-      })
+      .catch((err) => console.error("Failed to load hotels:", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -197,10 +181,7 @@ export default function HotelRateFinderDialog({
 
   // Filter & rank hotels
   const displayedHotels = useMemo(() => {
-    if (!hotels || hotels.length === 0) {
-      console.log(`%c[QuickQuote Accommodation] ℹ️ No hotels available to display for city "${searchCity}"`, "color: #94a3b8;");
-      return [];
-    }
+    if (!hotels || hotels.length === 0) return [];
 
     const catNormalized = (selectedCategory || "None").toLowerCase().trim();
 
@@ -229,12 +210,6 @@ export default function HotelRateFinderDialog({
       const starFiltered = matchingHotels.filter((h) => (parseInt(h.starRating, 10) || 3) >= targetStar);
       if (starFiltered.length > 0) matchingHotels = starFiltered;
     }
-
-    console.log(
-      `%c[QuickQuote Accommodation] 📋 Displaying ${matchingHotels.length} / ${hotels.length} hotels (Category: "${selectedCategory}", Stars: "${selectedStarFilter}", Search: "${nameSearch || 'none'}"):`,
-      "color: #0284c7; font-weight: bold;",
-      matchingHotels.map((h) => ({ id: h._id, name: h.name, category: h.category, starRating: h.starRating, city: h.city?.name || h.city }))
-    );
 
     const processed = matchingHotels.map((h) => {
       const rooms = hotelRoomsMap[h._id] || [];
