@@ -22,9 +22,15 @@ export async function GET(request) {
     const filter = {};
     if (cityId) filter.city = cityId;
     if (search) {
+      const matchingCities = await City.find({
+        name: { $regex: search, $options: "i" },
+      }).select("_id");
+      const matchingCityIds = matchingCities.map((c) => c._id);
+
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { address: { $regex: search, $options: "i" } },
+        ...(matchingCityIds.length > 0 ? [{ city: { $in: matchingCityIds } }] : []),
       ];
     }
 
@@ -32,6 +38,8 @@ export async function GET(request) {
       .populate("city", "name state")
       .sort({ name: 1 })
       .lean();
+
+    console.log(`[API /api/accommodation/hotels] Query: search="${search || ""}", cityId="${cityId || ""}" -> Found ${hotels.length} hotels`);
 
     return NextResponse.json({ hotels });
   } catch (err) {
