@@ -228,9 +228,18 @@ export default function QuickAccommodationSection({
     updateOptionStays(updated);
   }
 
-  function handleAddOption() {
+  function handleAddOption(customLabel = "") {
     const newIdx = options.length;
-    const newOption = createDefaultOption("", currentStays);
+    const defaultLabels = [
+      "Standard Package",
+      "Gold Package",
+      "Platinum Package",
+      "Diamond Package",
+      "Luxury Package",
+      "Executive Package",
+    ];
+    const autoLabel = customLabel || defaultLabels[newIdx] || `Option ${newIdx + 1} Package`;
+    const newOption = createDefaultOption(autoLabel, currentStays);
     const newOptions = [...options, newOption];
 
     if (typeof onOptionsChange === "function") onOptionsChange(newOptions);
@@ -241,9 +250,19 @@ export default function QuickAccommodationSection({
     const source = options[idx] || options[0];
     const newIdx = options.length;
     const duplicatedStays = (source.hotelStays || currentStays).map((s) => ({ ...s }));
+    const defaultLabels = [
+      "Standard Package",
+      "Gold Package",
+      "Platinum Package",
+      "Diamond Package",
+      "Luxury Package",
+      "Executive Package",
+    ];
+    const fallbackLabel = defaultLabels[newIdx] || `Option ${newIdx + 1} Package`;
+    const newLabel = source.label ? `${source.label} (Tier ${newIdx + 1})` : fallbackLabel;
     const newOption = {
       ...source,
-      label: source.label ? `${source.label} (Copy)` : "",
+      label: newLabel,
       hotelStays: duplicatedStays,
     };
     const newOptions = [...options, newOption];
@@ -276,14 +295,14 @@ export default function QuickAccommodationSection({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-[17px] font-black text-slate-900 truncate">
-                Accommodation &amp; Hotels
+                Accommodation &amp; Hotel Packages
               </h3>
               <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
-                {allocatedNights} / {totalNights} Nights • {options.length} Option Tier{options.length === 1 ? "" : "s"}
+                {allocatedNights} / {totalNights} Nights • {options.length} Package Tier{options.length === 1 ? "" : "s"}
               </span>
             </div>
             <p className="text-[12px] text-slate-400 font-medium truncate">
-              Multi-tier hotel packages with real-time rate comparison &amp; meal plans
+              Build multi-tier hotel packages (e.g. Gold, Platinum) with rate comparison &amp; meal plans
             </p>
           </div>
         </div>
@@ -328,85 +347,133 @@ export default function QuickAccommodationSection({
         />
       </div>
 
-      {/* ── 2. Option Tiers Segmented Tabs (Custom User Labels e.g. "Masti Option", "Ocean Option") ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border border-slate-200/90 shadow-2xs">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-          {options.map((opt, idx) => {
-            const isAct = idx === safeOptIdx;
-            return (
-              <div
-                key={idx}
-                onClick={() => {
-                  setActiveOptIdx(idx);
-                  const targetStays = options[idx]?.hotelStays || currentStays;
-                  if (typeof onChange === "function") onChange(targetStays);
-                  if (typeof onPriceAdjustment === "function") {
-                    const cost = targetStays.reduce(
-                      (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
-                      0
-                    );
-                    onPriceAdjustment(cost, idx);
-                  }
-                }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12.5px] cursor-pointer transition-all ${
-                  isAct
-                    ? "bg-white text-slate-950 font-black shadow-xs border-2 border-amber-400 ring-2 ring-amber-500/20 scale-[1.02]"
-                    : "bg-white/60 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200 font-bold"
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-md text-[10.5px] flex items-center justify-center font-mono font-black flex-shrink-0 ${
-                  isAct ? "bg-slate-900 text-amber-400" : "bg-slate-200 text-slate-700"
-                }`}>
-                  {idx + 1}
-                </span>
+      {/* ── 2. Hotel Package Tiers Segmented Tabs (Gold, Platinum, Custom Package Tiers) ── */}
+      <div className="space-y-2 p-3 rounded-2xl bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border border-slate-200/90 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+            {options.map((opt, idx) => {
+              const isAct = idx === safeOptIdx;
+              const optStays = opt.hotelStays || [];
+              const optCost = optStays.reduce(
+                (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
+                0
+              );
 
-                <input
-                  type="text"
-                  value={opt.label || ""}
-                  onChange={(e) => handleRenameOption(idx, e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={`Option ${idx + 1}`}
-                  className="bg-transparent focus:bg-amber-50/80 focus:px-1.5 focus:rounded-md focus:outline-none focus:ring-1 focus:ring-amber-400 text-[12.5px] font-black min-w-[80px] max-w-[160px] text-slate-900 placeholder:text-slate-400 transition-all"
-                />
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDuplicateOption(idx);
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setActiveOptIdx(idx);
+                    const targetStays = options[idx]?.hotelStays || currentStays;
+                    if (typeof onChange === "function") onChange(targetStays);
+                    if (typeof onPriceAdjustment === "function") {
+                      const cost = targetStays.reduce(
+                        (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
+                        0
+                      );
+                      onPriceAdjustment(cost, idx);
+                    }
                   }}
-                  className="p-1 text-slate-400 hover:text-amber-600 transition-colors"
-                  title="Duplicate Option"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12.5px] cursor-pointer transition-all ${
+                    isAct
+                      ? "bg-white text-slate-950 font-black shadow-xs border-2 border-amber-400 ring-2 ring-amber-500/20 scale-[1.02]"
+                      : "bg-white/60 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200 font-bold"
+                  }`}
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
+                  <span className={`w-5 h-5 rounded-md text-[10.5px] flex items-center justify-center font-mono font-black flex-shrink-0 ${
+                    isAct ? "bg-slate-900 text-amber-400" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {idx + 1}
+                  </span>
 
-                {options.length > 1 && (
+                  <input
+                    type="text"
+                    value={opt.label || ""}
+                    onChange={(e) => handleRenameOption(idx, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={`Package ${idx + 1} (e.g. Gold)`}
+                    className="bg-transparent focus:bg-amber-50/80 focus:px-1.5 focus:rounded-md focus:outline-none focus:ring-1 focus:ring-amber-400 text-[12.5px] font-black min-w-[90px] max-w-[170px] text-slate-900 placeholder:text-slate-400 transition-all"
+                  />
+
+                  {optCost > 0 && (
+                    <span className="font-mono text-[10px] text-amber-700 font-black bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200/60 hidden sm:inline-block">
+                      ₹{optCost.toLocaleString("en-IN")}
+                    </span>
+                  )}
+
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleRemoveOption(idx);
+                      handleDuplicateOption(idx);
                     }}
-                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                    title="Delete Option"
+                    className="p-1 text-slate-400 hover:text-amber-600 transition-colors"
+                    title="Duplicate Package Tier"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Copy className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </div>
-            );
-          })}
+
+                  {options.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveOption(idx);
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                      title="Delete Package Tier"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleAddOption()}
+            className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-950 border border-slate-200 hover:border-amber-400 font-bold text-[11.5px] transition-all flex items-center gap-1.5 shadow-2xs self-end sm:self-auto active:scale-95 flex-shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-600" />
+            <span>New Package Tier</span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={handleAddOption}
-          className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-slate-800 hover:text-amber-950 border border-slate-200 hover:border-amber-400 font-bold text-[11.5px] transition-all flex items-center gap-1.5 shadow-2xs self-end sm:self-auto active:scale-95"
-        >
-          <Plus className="w-3.5 h-3.5 text-amber-600" />
-          <span>New Option Tier</span>
-        </button>
+        {/* Quick Package Tier Preset Chips */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-slate-500 flex items-center gap-1 flex-shrink-0">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              <span>Tier Presets:</span>
+            </span>
+            {["Standard Package", "Silver Package", "Gold Package", "Platinum Package", "Diamond Package", "Luxury Package"].map((preset) => {
+              const isSelected = (activeOption.label || "").trim().toLowerCase() === preset.toLowerCase();
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handleRenameOption(safeOptIdx, preset)}
+                  className={`px-2 py-0.5 rounded-lg font-black transition-all border ${
+                    isSelected
+                      ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                      : "bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-950 border-slate-200"
+                  }`}
+                >
+                  {preset.replace(" Package", "")}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1 self-end sm:self-auto">
+            <span>Active Tier Stay Cost:</span>
+            <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+              ₹{currentStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier), 0).toLocaleString("en-IN")}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── 3. Quick Bulk Meal Plan Bar ── */}

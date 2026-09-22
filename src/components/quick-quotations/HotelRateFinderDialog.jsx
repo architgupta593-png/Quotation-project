@@ -179,14 +179,14 @@ export default function HotelRateFinderDialog({
   const nights = Math.max(1, parseInt(stayNights, 10) || 1);
   const roomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
 
-  // Filter & rank hotels
-  const displayedHotels = useMemo(() => {
+  // 1. Process and rank all matching hotels for the selected criteria
+  const allMatchingHotels = useMemo(() => {
     if (!hotels || hotels.length === 0) return [];
 
     const catNormalized = (selectedCategory || "None").toLowerCase().trim();
 
     let matchingHotels = hotels.filter((h) => {
-      // Category match (if None or All, match all)
+      // Category match (if None, match all)
       if (catNormalized !== "none") {
         const hCat = (h.category || "None").toLowerCase().trim();
         if (hCat !== catNormalized) return false;
@@ -201,7 +201,9 @@ export default function HotelRateFinderDialog({
       return true;
     });
 
-    if (matchingHotels.length === 0 && !nameSearch.trim()) {
+    if (matchingHotels.length === 0 && !nameSearch.trim() && catNormalized !== "none") {
+      matchingHotels = [];
+    } else if (matchingHotels.length === 0 && !nameSearch.trim()) {
       matchingHotels = [...hotels];
     }
 
@@ -246,13 +248,18 @@ export default function HotelRateFinderDialog({
       processed.sort((a, b) => (a.hotel.name || "").localeCompare(b.hotel.name || ""));
     }
 
-    // Top 5 slice vs All view
-    if (viewMode === "top5") {
-      return processed.slice(0, 5);
-    }
     return processed;
-  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, nameSearch, sortBy, viewMode, startDate, nights, roomsCount, selectedRoomIndexMap]);
+  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, nameSearch, sortBy, startDate, nights, roomsCount, selectedRoomIndexMap]);
 
+  // 2. Display slice depending on viewMode (top5 vs all)
+  const displayedHotels = useMemo(() => {
+    if (viewMode === "top5") {
+      return allMatchingHotels.slice(0, 5);
+    }
+    return allMatchingHotels;
+  }, [allMatchingHotels, viewMode]);
+
+  const totalMatchingCount = allMatchingHotels.length;
   const lowestRate = displayedHotels[0]?.nightlyRate || 0;
 
   function handleApplyHotel(item) {
@@ -330,11 +337,16 @@ export default function HotelRateFinderDialog({
                   setActiveTab("catalog");
                   setViewMode("top5");
                 }}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   activeTab === "catalog" && viewMode === "top5" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
                 }`}
               >
                 <span>🏆 Top 5 Lowest</span>
+                {totalMatchingCount > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${activeTab === "catalog" && viewMode === "top5" ? "bg-slate-900 text-amber-300" : "bg-white/20 text-white"}`}>
+                    {Math.min(5, totalMatchingCount)}
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -342,11 +354,16 @@ export default function HotelRateFinderDialog({
                   setActiveTab("catalog");
                   setViewMode("all");
                 }}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   activeTab === "catalog" && viewMode === "all" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
                 }`}
               >
-                <span>📋 All Category</span>
+                <span>📋 All {selectedCategory !== "None" ? selectedCategory : "Hotels"}</span>
+                {totalMatchingCount > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${activeTab === "catalog" && viewMode === "all" ? "bg-slate-900 text-amber-300" : "bg-white/20 text-white"}`}>
+                    {totalMatchingCount}
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -453,7 +470,10 @@ export default function HotelRateFinderDialog({
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setViewMode("top5");
+                  }}
                   className={`px-3 py-1 rounded-xl text-[11.5px] font-bold transition-all whitespace-nowrap border ${
                     isSel
                       ? "bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs scale-[1.02]"
@@ -474,7 +494,9 @@ export default function HotelRateFinderDialog({
                 <button
                   key={plan.id}
                   type="button"
-                  onClick={() => setSelectedMealPlan(plan.id)}
+                  onClick={() => {
+                    setSelectedMealPlan(plan.id);
+                  }}
                   className={`px-3 py-1.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                     isSel
                       ? "bg-gradient-to-r from-slate-950 to-indigo-950 border-slate-900 text-white shadow-xs"
@@ -519,6 +541,7 @@ export default function HotelRateFinderDialog({
                     onClick={() => {
                       setSelectedCategory("None");
                       setNameSearch("");
+                      setViewMode("top5");
                     }}
                     className="px-4 py-2 bg-white border border-slate-300 text-slate-800 rounded-xl text-[12px] font-bold hover:bg-slate-50 shadow-2xs"
                   >
@@ -537,22 +560,36 @@ export default function HotelRateFinderDialog({
               <div className="space-y-3">
                 {/* Result header info */}
                 <div className="flex items-center justify-between text-[11.5px] text-slate-500 px-1">
-                  <span>
-                    Showing <strong className="text-slate-900 font-black">{displayedHotels.length}</strong> {viewMode === "top5" ? "top lowest-price hotels" : "hotels"} in {searchCity || cityName}
-                  </span>
-                  {viewMode === "top5" && (
+                  <div className="flex items-center gap-1.5">
+                    <span>
+                      Showing <strong className="text-slate-900 font-black">{displayedHotels.length}</strong> {viewMode === "top5" ? "top lowest-price hotels" : "hotels"} in {searchCity || cityName}
+                    </span>
+                    <span className="text-[10.5px] font-black text-amber-800 bg-amber-50 px-2 py-0.2 rounded-md border border-amber-200">
+                      {selectedCategory} • {selectedMealPlan} Plan
+                    </span>
+                  </div>
+                  {viewMode === "top5" && totalMatchingCount > 5 ? (
                     <button
                       type="button"
                       onClick={() => setViewMode("all")}
-                      className="text-amber-700 font-black hover:underline"
+                      className="text-amber-700 font-black hover:underline flex items-center gap-1"
                     >
-                      View all {hotels.length} hotels &rarr;
+                      <span>View all {totalMatchingCount} hotels &rarr;</span>
                     </button>
-                  )}
+                  ) : viewMode === "all" && totalMatchingCount > 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("top5")}
+                      className="text-slate-600 font-bold hover:text-slate-900 hover:underline"
+                    >
+                      Show Top 5 Only
+                    </button>
+                  ) : null}
                 </div>
 
                 {displayedHotels.map((item, idx) => {
                   const isLowest = idx === 0 && sortBy === "price_asc";
+                  const rankNumber = idx + 1;
 
                   return (
                     <div
@@ -566,9 +603,13 @@ export default function HotelRateFinderDialog({
                       {/* Left info */}
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {isLowest && (
+                          {isLowest ? (
                             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-2xs">
-                              Lowest Price
+                              🏆 #1 Lowest Price
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-slate-900 text-amber-300 font-mono font-black text-[10px] shadow-2xs">
+                              #{rankNumber}
                             </span>
                           )}
 
@@ -607,7 +648,7 @@ export default function HotelRateFinderDialog({
                                   [item.hotel._id]: parseInt(e.target.value, 10) || 0,
                                 }))
                               }
-                              className="text-[11px] font-bold bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none shadow-2xs"
+                              className="text-[11px] font-bold bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none shadow-2xs cursor-pointer"
                             >
                               {item.rooms.map((r, rIdx) => (
                                 <option key={r._id || rIdx} value={rIdx}>
@@ -653,6 +694,45 @@ export default function HotelRateFinderDialog({
                     </div>
                   );
                 })}
+
+                {/* Prominent "View All Hotels" Expansion Banner */}
+                {viewMode === "top5" && totalMatchingCount > 5 && (
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <h4 className="text-[14px] font-black text-white">
+                          Looking for more hotel options?
+                        </h4>
+                      </div>
+                      <p className="text-[12px] text-slate-300 font-medium">
+                        There are <strong className="text-amber-400">{totalMatchingCount - 5} more</strong> {selectedCategory !== "None" ? selectedCategory : ""} hotels available in {searchCity || cityName} with <strong className="text-amber-400">{selectedMealPlan} Plan</strong>.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("all")}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:to-orange-600 text-slate-950 font-black text-[12.5px] shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                    >
+                      <span>View All {totalMatchingCount} Hotels</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* If in "All" mode, option to collapse back */}
+                {viewMode === "all" && totalMatchingCount > 5 && (
+                  <div className="text-center py-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("top5")}
+                      className="text-[12px] font-black text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-xl border border-amber-200 transition-all shadow-2xs"
+                    >
+                      ▲ Show Top 5 Lowest Price Only
+                    </button>
+                  </div>
+                )}
               </div>
             )
           ) : (
