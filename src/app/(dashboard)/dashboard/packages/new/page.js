@@ -41,9 +41,20 @@ const DEFAULT_FORM = {
     selectedOptionIndex: 0,
     accommodationTotal: 0,
     vehicleTotal: 0,
+    activitiesTotal: 0,
     subtotal: 0,
     marginType: "absolute",
     margin: 0,
+    includeGst: false,
+    gstPercentage: 5,
+    rateBasis: "per_couple",
+    discountType: "fixed",
+    discountValue: 0,
+    discountAmount: 0,
+    discountReason: "",
+    couponCode: "",
+    hasTimerDiscount: false,
+    discountValidUntil: "",
     finalPrice: 0,
     perPersonPrice: 0,
     numberOfPersons: 2,
@@ -203,7 +214,9 @@ export default function NewPackagePage() {
     ? Math.round(livePreTaxTotal * ((form.pricing?.gstPercentage || 5) / 100))
     : 0;
   const livePreDiscountTotal = livePreTaxTotal + liveGstAmount;
-  const liveDiscount = form.pricing?.discountAmount || 0;
+  const liveDiscount = form.pricing?.discountType === "percentage"
+    ? Math.round(livePreDiscountTotal * ((Number(form.pricing?.discountValue) || 0) / 100))
+    : (Number(form.pricing?.discountAmount) || Number(form.pricing?.discountValue) || 0);
   const rawLiveGrandTotal = Math.max(0, livePreDiscountTotal - liveDiscount);
   const liveGrandTotal = Math.round(rawLiveGrandTotal / 100) * 100;
   const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form.pricing?.finalPrice || 0);

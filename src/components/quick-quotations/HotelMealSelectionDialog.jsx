@@ -183,7 +183,7 @@ export default function HotelMealSelectionDialog({
   onClose,
   cityName = "Destination",
   stayNights = 1,
-  category: initialCategory = "Deluxe",
+  category: initialCategory = "None",
   roomType: initialRoomType = "Deluxe AC Room",
   mealPlan: initialMealPlan = "CP",
   catalogHotels = [],
@@ -195,7 +195,7 @@ export default function HotelMealSelectionDialog({
   initialRoomId = null,
   onSelectHotel,
 }) {
-  const [activeCategory, setActiveCategory] = useState(initialCategory || "Deluxe");
+  const [activeCategory, setActiveCategory] = useState(initialCategory || "None");
   const [activeMealPlan, setActiveMealPlan] = useState(initialMealPlan || "CP");
   const [showAllHotels, setShowAllHotels] = useState(false); // Default: Top 5 Lowest Price
   const [searchQuery, setSearchQuery] = useState("");

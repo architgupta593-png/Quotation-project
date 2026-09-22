@@ -4,7 +4,43 @@ import { useState, useEffect } from "react";
 import {
   IndianRupee, Percent, Calculator, Layers, Users, Car,
   Sparkles, CheckCircle2, AlertCircle, XCircle, Trash2, Plus, Check,
+  Tag, Ticket, Timer, Clock, Flame, Zap, Copy, Calendar, AlertTriangle,
 } from "lucide-react";
+
+function getFutureDateTimeLocal(hours) {
+  const d = new Date(Date.now() + hours * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function useTimerCountdown(targetDate) {
+  const [timeLeft, setTimeLeft] = useState({ expired: false, days: 0, hours: 0, minutes: 0, seconds: 0, text: "" });
+
+  useEffect(() => {
+    if (!targetDate) {
+      setTimeLeft({ expired: false, days: 0, hours: 0, minutes: 0, seconds: 0, text: "" });
+      return;
+    }
+    const calculate = () => {
+      const diff = +new Date(targetDate) - +new Date();
+      if (diff <= 0) {
+        setTimeLeft({ expired: true, days: 0, hours: 0, minutes: 0, seconds: 0, text: "Offer Expired" });
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / 1000 / 60) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+      const text = `${days > 0 ? `${days}d ` : ""}${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+      setTimeLeft({ expired: false, days, hours, minutes, seconds, text });
+    };
+    calculate();
+    const interval = setInterval(calculate, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  return timeLeft;
+}
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED"];
 
@@ -26,7 +62,6 @@ const EXCLUSION_PRESETS = [
   "Personal expenses (laundry, room service, telephone)",
   "Lunch & Dinner (unless explicitly specified)",
   "Optional adventure activities & water sports",
-  "GST 5% (unless explicitly specified in pricing)",
   "Early check-in and late check-out charges",
   "Camera / Video fees at sightseeing points",
   "Guide / Tour escort services",
@@ -107,14 +142,21 @@ export default function PricingPanel({
     selectedVehicleIndex: safeVehIdx,
     accommodationTotal: 0,
     vehicleTotal: vTotal,
+    activitiesTotal: actTotal,
+    activityTotal: actTotal,
     subtotal: 0,
     marginType: activeMarginType,
     margin: activeMargin,
-    includeGst: false,
-    gstPercentage: 5,
+    includeGst: Boolean(inputPricing.includeGst),
+    gstPercentage: Number(inputPricing.gstPercentage) || 5,
     rateBasis: "per_couple",
+    discountType: inputPricing.discountType || "fixed",
+    discountValue: Number(inputPricing.discountValue !== undefined ? inputPricing.discountValue : (inputPricing.discountAmount || 0)),
     discountAmount: 0,
-    discountReason: "",
+    discountReason: inputPricing.discountReason || "",
+    couponCode: (inputPricing.couponCode || "").toUpperCase(),
+    hasTimerDiscount: Boolean(inputPricing.hasTimerDiscount),
+    discountValidUntil: inputPricing.discountValidUntil || "",
     finalPrice: 0,
     perPersonPrice: 0,
     perCouplePrice: 0,
@@ -126,6 +168,8 @@ export default function PricingPanel({
     marginType: activeMarginType,
     margin: activeMargin,
   };
+
+  const timerStatus = useTimerCountdown(pricing.hasTimerDiscount ? pricing.discountValidUntil : null);
 
   const numPersons = Math.max(1, parseInt(pricing.numberOfPersons, 10) || 2);
   const autoRooms = Math.max(1, Math.ceil(numPersons / 2));
@@ -145,11 +189,20 @@ export default function PricingPanel({
   }
 
   const preTaxTotal = subtotal + marginAmount;
-  const gstAmount = pricing.includeGst
-    ? Math.round(preTaxTotal * ((pricing.gstPercentage || 5) / 100))
-    : 0;
-  const preDiscountTotal = preTaxTotal + gstAmount;
-  const discountAmount = pricing.discountAmount || 0;
+  const includeGst = Boolean(pricing.includeGst);
+  const gstPercentage = Number(pricing.gstPercentage) || 5;
+  const liveGstAmount = includeGst ? Math.round((preTaxTotal * gstPercentage) / 100) : 0;
+  const preDiscountTotal = preTaxTotal + liveGstAmount;
+
+  const discountType = pricing.discountType || "fixed";
+  const discountVal = Number(pricing.discountValue !== undefined ? pricing.discountValue : (pricing.discountAmount || 0));
+  let calculatedDiscount = 0;
+  if (discountType === "percentage") {
+    calculatedDiscount = Math.round((preDiscountTotal * discountVal) / 100);
+  } else {
+    calculatedDiscount = discountVal;
+  }
+  const discountAmount = Math.min(preDiscountTotal, Math.max(0, calculatedDiscount));
   const rawFinalPrice = Math.max(0, preDiscountTotal - discountAmount);
   const finalPrice = Math.round(rawFinalPrice / 100) * 100;
 
@@ -163,6 +216,7 @@ export default function PricingPanel({
       pricing.activitiesTotal !== actTotal ||
       pricing.subtotal !== subtotal ||
       pricing.finalPrice !== finalPrice ||
+      pricing.discountAmount !== discountAmount ||
       pricing.selectedOptionIndex !== selectedIdx ||
       pricing.marginType !== activeMarginType ||
       pricing.margin !== activeMargin ||
@@ -181,6 +235,7 @@ export default function PricingPanel({
         subtotal,
         marginType: activeMarginType,
         margin: activeMargin,
+        discountAmount,
         finalPrice,
         perPersonPrice: perPersonPriceCalc,
         perCouplePrice: perCouplePriceCalc,
@@ -195,7 +250,15 @@ export default function PricingPanel({
     activeMargin,
     activeMarginType,
     pricing.numberOfPersons,
-    pricing.discountAmount,
+    pricing.discountType,
+    pricing.discountValue,
+    discountAmount,
+    pricing.discountReason,
+    pricing.couponCode,
+    pricing.hasTimerDiscount,
+    pricing.discountValidUntil,
+    pricing.includeGst,
+    pricing.gstPercentage,
     numRooms,
     selectedIdx,
     safeVehIdx,
@@ -505,20 +568,34 @@ export default function PricingPanel({
             </span>
             <span className="font-extrabold text-amber-700 text-[14.5px]">+ ₹{Math.round(marginAmount).toLocaleString("en-IN")}</span>
           </div>
-          {pricing.includeGst && (
-            <div className="flex items-center justify-between px-5 py-3.5 bg-blue-50/60 border-l-4 border-blue-500">
-              <span className="text-blue-900 font-bold flex items-center gap-1.5">
-                🏛️ Goods &amp; Services Tax (GST {pricing.gstPercentage || 5}%)
+          {includeGst && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-indigo-50/50">
+              <span className="text-indigo-900 font-bold flex items-center gap-1.5">
+                🏛️ Goods &amp; Services Tax (GST {gstPercentage}%)
               </span>
-              <span className="font-black text-blue-700 text-[14.5px]">+ ₹{gstAmount.toLocaleString("en-IN")}</span>
+              <span className="font-extrabold text-indigo-700 text-[14.5px]">+ ₹{liveGstAmount.toLocaleString("en-IN")}</span>
             </div>
           )}
           {discountAmount > 0 && (
             <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/70 border-l-4 border-rose-500">
-              <span className="text-rose-900 font-bold flex items-center gap-1.5">
-                <Percent className="w-4 h-4 text-rose-600" />
-                Promotional Discount {pricing.discountReason ? `(${pricing.discountReason})` : ""}
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-rose-900 font-bold flex items-center gap-1.5">
+                  <Percent className="w-4 h-4 text-rose-600" />
+                  Special Discount {pricing.discountReason ? `(${pricing.discountReason})` : ""}
+                </span>
+                {pricing.couponCode && (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-200 text-rose-950 font-black text-[10.5px] font-mono flex items-center gap-1 border border-rose-300">
+                    <Ticket className="w-3 h-3 text-rose-700" />
+                    {pricing.couponCode}
+                  </span>
+                )}
+                {pricing.hasTimerDiscount && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-black text-[10.5px] flex items-center gap-1 border border-amber-300 animate-pulse">
+                    <Flame className="w-3 h-3 text-amber-700" />
+                    Flash Deal
+                  </span>
+                )}
+              </div>
               <span className="font-black text-rose-700 text-[14.5px]">- ₹{discountAmount.toLocaleString("en-IN")}</span>
             </div>
           )}
@@ -766,66 +843,294 @@ export default function PricingPanel({
             </div>
           </div>
 
-          {/* Card 3: Tax (GST) & Promotional Discount */}
-          <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-3.5">
-            <div>
-              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                <span>GST Tax Configuration</span>
-                <span className="text-[10.5px] font-bold text-blue-600">
-                  {pricing.includeGst ? `Enabled (${pricing.gstPercentage || 5}%)` : "Not Applied"}
-                </span>
+          {/* Card 3: 🏷️ Discounts, Coupons & Flash Timer */}
+          <div className="p-4 rounded-2xl border-2 border-rose-200/90 bg-gradient-to-br from-rose-50/60 via-white to-amber-50/30 shadow-2xs space-y-3.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="text-[12px] font-black text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Tag className="w-4 h-4 text-rose-600" />
+                <span>Discounts &amp; Offers</span>
               </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => update({ includeGst: !pricing.includeGst })}
-                  className={`flex-1 py-2.5 px-3 rounded-xl border text-[12px] font-black transition-all flex items-center justify-center gap-2 ${
-                    pricing.includeGst
-                      ? "bg-blue-600 border-blue-600 text-white shadow-xs"
-                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <span>🏛️</span>
-                  <span>{pricing.includeGst ? "GST Included (Active)" : "Include 5% GST"}</span>
-                </button>
-                {pricing.includeGst && (
-                  <div className="w-20 relative">
-                    <input
-                      type="number"
-                      min={0}
-                      max={28}
-                      value={pricing.gstPercentage || 5}
-                      onChange={(e) => update({ gstPercentage: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                      className={`${inputCls} text-center font-bold px-2`}
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">%</span>
-                  </div>
-                )}
-              </div>
+              {discountAmount > 0 && (
+                <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-mono">
+                  -₹{discountAmount.toLocaleString("en-IN")} Off
+                </span>
+              )}
             </div>
 
-            <div>
-              <label className="block text-[11.5px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                <span>Promotional Discount (₹)</span>
-                {discountAmount > 0 && (
-                  <span className="text-[10.5px] font-bold text-rose-600">-₹{discountAmount.toLocaleString("en-IN")}</span>
-                )}
-              </label>
+            {/* Mode Switcher: Fixed ₹ vs Percentage % */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => update({ discountType: "fixed" })}
+                className={`py-2 px-3 rounded-xl border text-[12px] font-black transition-all flex items-center justify-center gap-1.5 ${
+                  (pricing.discountType || "fixed") === "fixed"
+                    ? "bg-rose-600 border-rose-600 text-white shadow-xs"
+                    : "bg-white border-rose-200 text-rose-900 hover:bg-rose-50"
+                }`}
+              >
+                <IndianRupee className="w-3.5 h-3.5" />
+                Flat Discount (₹)
+              </button>
+              <button
+                type="button"
+                onClick={() => update({ discountType: "percentage" })}
+                className={`py-2 px-3 rounded-xl border text-[12px] font-black transition-all flex items-center justify-center gap-1.5 ${
+                  pricing.discountType === "percentage"
+                    ? "bg-rose-600 border-rose-600 text-white shadow-xs"
+                    : "bg-white border-rose-200 text-rose-900 hover:bg-rose-50"
+                }`}
+              >
+                <Percent className="w-3.5 h-3.5" />
+                Percentage (%)
+              </button>
+            </div>
+
+            {/* Discount Value Input */}
+            <div className="space-y-1.5">
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-bold text-slate-400">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-rose-600">
+                  {pricing.discountType === "percentage" ? "%" : "₹"}
+                </span>
                 <input
                   type="number"
                   min={0}
-                  value={pricing.discountAmount === 0 ? "" : pricing.discountAmount}
+                  max={pricing.discountType === "percentage" ? 100 : undefined}
+                  value={discountVal === 0 ? "" : discountVal}
                   onWheel={(e) => e.target.blur()}
                   onChange={(e) => {
                     const val = e.target.value;
                     const parsed = parseFloat(val);
-                    update({ discountAmount: isNaN(parsed) ? 0 : Math.max(0, parsed) });
+                    const safeNum = isNaN(parsed) ? 0 : Math.max(0, parsed);
+                    update({ discountValue: safeNum, discountAmount: safeNum });
                   }}
-                  placeholder="0 (Optional Discount)"
-                  className={`${inputCls} pl-8 font-bold`}
+                  placeholder={pricing.discountType === "percentage" ? "Enter % Off (e.g. 10)" : "0 (Enter Discount Amount in ₹)"}
+                  className={`${inputCls} pl-8 font-black text-rose-950 font-mono border-rose-200 focus:border-rose-500 focus:ring-rose-500/20`}
                 />
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                {pricing.discountType === "percentage" ? (
+                  [5, 10, 15, 20, 25].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => update({ discountValue: pct, discountAmount: pct })}
+                      className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
+                        discountVal === pct
+                          ? "bg-rose-600 text-white border-rose-700 font-black shadow-2xs"
+                          : "bg-white hover:bg-rose-50 text-rose-900 border-rose-200"
+                      }`}
+                    >
+                      -{pct}%
+                    </button>
+                  ))
+                ) : (
+                  [1000, 2000, 3000, 5000, 10000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => update({ discountValue: amt, discountAmount: amt })}
+                      className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold border transition-all ${
+                        discountVal === amt
+                          ? "bg-rose-600 text-white border-rose-700 font-black shadow-2xs"
+                          : "bg-white hover:bg-rose-50 text-rose-900 border-rose-200"
+                      }`}
+                    >
+                      -₹{amt >= 1000 ? `${amt / 1000}k` : amt}
+                    </button>
+                  ))
+                )}
+                {discountVal > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => update({ discountValue: 0, discountAmount: 0 })}
+                    className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-800 border border-slate-200"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 🎟️ Coupon Code Field */}
+            <div className="pt-2 border-t border-rose-100 space-y-1.5">
+              <label className="block text-[11px] font-black text-rose-950 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Ticket className="w-3.5 h-3.5 text-rose-600" />
+                  Promo / Coupon Code (Optional)
+                </span>
+                {pricing.couponCode && (
+                  <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Active: {pricing.couponCode}
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={pricing.couponCode || ""}
+                  onChange={(e) => update({ couponCode: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SUMMER20, EARLYBIRD, HOLIDAY10"
+                  className="w-full px-3 py-2 rounded-xl border border-rose-200 bg-white text-[12px] font-mono font-black text-slate-900 uppercase tracking-wider placeholder:normal-case placeholder:font-normal placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                />
+                {pricing.couponCode && (
+                  <button
+                    type="button"
+                    onClick={() => update({ couponCode: "" })}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 text-[11px] font-bold"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Coupon Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                <span className="text-[10px] font-bold text-slate-400">Presets:</span>
+                {[
+                  { code: "EARLYBIRD", reason: "Early Bird Booking Offer", type: "percentage", val: 10 },
+                  { code: "SUMMER20", reason: "Summer Vacation Deal", type: "percentage", val: 20 },
+                  { code: "FESTIVE5K", reason: "Special Festive Discount", type: "fixed", val: 5000 },
+                  { code: "WEEKENDDEAL", reason: "Weekend Getaway Deal", type: "fixed", val: 2000 },
+                ].map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() =>
+                      update({
+                        couponCode: c.code,
+                        discountReason: c.reason,
+                        discountType: c.type,
+                        discountValue: c.val,
+                        discountAmount: c.val,
+                      })
+                    }
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono border transition-all ${
+                      pricing.couponCode === c.code
+                        ? "bg-rose-600 text-white border-rose-700 font-black shadow-2xs"
+                        : "bg-white hover:bg-rose-50 text-rose-900 border-rose-200"
+                    }`}
+                  >
+                    {c.code}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ⏱️ Limited Time / Countdown Timer Discount */}
+            <div className="pt-2 border-t border-rose-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black text-rose-950 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Countdown Timer Discount</span>
+                </label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(pricing.hasTimerDiscount)}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      update({
+                        hasTimerDiscount: enabled,
+                        discountValidUntil: enabled && !pricing.discountValidUntil ? getFutureDateTimeLocal(72) : pricing.discountValidUntil,
+                      });
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                </label>
+              </div>
+
+              {pricing.hasTimerDiscount && (
+                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2.5">
+                  <div>
+                    <label className="block text-[10.5px] font-extrabold text-amber-950 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-amber-700" />
+                        Offer Valid Until (Date &amp; Time)
+                      </span>
+                      <span className="text-[10px] text-amber-700 font-bold">Auto-expires after time</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={pricing.discountValidUntil || ""}
+                      onChange={(e) => update({ discountValidUntil: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[12px] font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Expiry Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[9.5px] font-bold text-amber-800">Presets:</span>
+                    {[
+                      { label: "+24 Hours", hours: 24 },
+                      { label: "+3 Days", hours: 72 },
+                      { label: "+7 Days", hours: 168 },
+                      { label: "+14 Days", hours: 336 },
+                    ].map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => update({ discountValidUntil: getFutureDateTimeLocal(p.hours) })}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-amber-900 border border-amber-300 hover:bg-amber-100 transition-all"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Live Timer Preview Badge */}
+                  {pricing.discountValidUntil && (
+                    <div className="pt-1.5 border-t border-amber-200/80 flex items-center justify-between">
+                      <span className="text-[10.5px] font-extrabold text-amber-950 flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+                        Live Timer Preview:
+                      </span>
+                      <span
+                        className={`text-[11px] font-black px-2.5 py-0.5 rounded-full font-mono border ${
+                          timerStatus.expired
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
+                            : "bg-amber-100 text-amber-900 border-amber-300"
+                        }`}
+                      >
+                        {timerStatus.expired ? "⚠️ Offer Expired" : `⏳ ${timerStatus.text}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Discount Reason */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                Discount Reason / Offer Tag (Optional)
+              </label>
+              <input
+                type="text"
+                value={pricing.discountReason || ""}
+                onChange={(e) => update({ discountReason: e.target.value })}
+                placeholder="e.g. Early Bird Offer, Seasonal Deal, Group Discount"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-[12px] font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+              />
+
+              {/* Quick Offer Tags */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
+                {["Early Bird Offer", "Festival Deal", "Special Group Discount", "Corporate Deal", "Limited Flash Sale"].map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => update({ discountReason: reason })}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
+                      pricing.discountReason === reason
+                        ? "bg-rose-100 text-rose-900 border-rose-300 font-black"
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

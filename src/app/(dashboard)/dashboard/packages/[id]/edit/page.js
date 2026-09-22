@@ -70,8 +70,13 @@ export default function EditPackagePage() {
               includeGst: p.pricing?.includeGst || false,
               gstPercentage: p.pricing?.gstPercentage || 5,
               rateBasis: p.pricing?.rateBasis || "per_couple",
+              discountType: p.pricing?.discountType || "fixed",
+              discountValue: p.pricing?.discountValue ?? (p.pricing?.discountAmount || 0),
               discountAmount: p.pricing?.discountAmount || 0,
               discountReason: p.pricing?.discountReason || "",
+              couponCode: p.pricing?.couponCode || "",
+              hasTimerDiscount: Boolean(p.pricing?.hasTimerDiscount),
+              discountValidUntil: p.pricing?.discountValidUntil || "",
               finalPrice: p.pricing?.finalPrice || 0,
               perPersonPrice: p.pricing?.perPersonPrice || 0,
               numberOfPersons: p.pricing?.numberOfPersons || 2,
@@ -234,7 +239,9 @@ export default function EditPackagePage() {
     ? Math.round(livePreTaxTotal * ((form?.pricing?.gstPercentage || 5) / 100))
     : 0;
   const livePreDiscountTotal = livePreTaxTotal + liveGstAmount;
-  const liveDiscount = form?.pricing?.discountAmount || 0;
+  const liveDiscount = form?.pricing?.discountType === "percentage"
+    ? Math.round(livePreDiscountTotal * ((Number(form?.pricing?.discountValue) || 0) / 100))
+    : (Number(form?.pricing?.discountAmount) || Number(form?.pricing?.discountValue) || 0);
   const rawLiveGrandTotal = Math.max(0, livePreDiscountTotal - liveDiscount);
   const liveGrandTotal = Math.round(rawLiveGrandTotal / 100) * 100;
   const displayFinalPrice = liveGrandTotal > 0 ? liveGrandTotal : (form?.pricing?.finalPrice || 0);

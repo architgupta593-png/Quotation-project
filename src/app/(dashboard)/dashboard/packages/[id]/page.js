@@ -149,17 +149,13 @@ export default function PackageViewPage() {
     : (pkg.pricing?.marginType || "absolute");
 
   const marginAmount = tierMarginType === "percentage" ? (liveSubtotal * tierMargin) / 100 : tierMargin;
-  const preDiscount = liveSubtotal + marginAmount;
-  const discountAmount = Number(pkg.pricing?.discountAmount) || 0;
-  const preTax = Math.max(0, preDiscount - discountAmount);
-
-  // GST Calculation (Fixed: Accurately computed when includeGst is true)
+  const livePreTaxTotal = liveSubtotal + marginAmount;
   const includeGst = Boolean(pkg.pricing?.includeGst);
   const gstPercentage = Number(pkg.pricing?.gstPercentage) || 5;
-  const gstAmount = includeGst ? (preTax * gstPercentage) / 100 : 0;
-
-  // Final Price Breakdown
-  const rawFinal = preTax + gstAmount;
+  const liveGstAmount = includeGst ? Math.round((livePreTaxTotal * gstPercentage) / 100) : 0;
+  const preDiscount = livePreTaxTotal + liveGstAmount;
+  const discountAmount = Number(pkg.pricing?.discountAmount) || 0;
+  const rawFinal = Math.max(0, preDiscount - discountAmount);
   const liveFinalPrice = Math.round(rawFinal / 100) * 100;
   const livePerPerson = pax > 0 ? Math.round(liveFinalPrice / pax) : liveFinalPrice;
   const livePerCouple = Math.round((liveFinalPrice / Math.max(1, pax)) * 2);
@@ -188,7 +184,7 @@ export default function PackageViewPage() {
       `⏳ *Duration:* ${pkg.days} Days / ${pkg.nights} Nights\n` +
       `🏨 *Accommodation:* ${selectedAccomOption?.label || "Standard"}\n` +
       `🚗 *Vehicle:* ${safeVehIdx === "all" ? "All Fleet Included" : (chosenVeh?.vehicleType || "Private Cab")}\n` +
-      `💰 *Package Rate:* ₹${liveFinalPrice.toLocaleString("en-IN")} ${includeGst ? `(Incl. ${gstPercentage}% GST)` : ""}\n` +
+      `💰 *Package Rate:* ₹${liveFinalPrice.toLocaleString("en-IN")}\n` +
       `👥 *Per Couple:* ₹${livePerCouple.toLocaleString("en-IN")} | *Per Person:* ₹${livePerPerson.toLocaleString("en-IN")}\n` +
       (pkg.highlights?.length ? `\n✨ *Key Highlights:*\n• ` + pkg.highlights.slice(0, 4).join("\n• ") : "") +
       `\n\n_Generated via Travel CRM_`;
@@ -902,17 +898,19 @@ export default function PackageViewPage() {
 
               {discountAmount > 0 && (
                 <div className="flex items-center justify-between px-5 py-3.5 bg-rose-50/60 border-t border-slate-100">
-                  <span className="font-semibold text-slate-700">🏷️ Special Discount</span>
+                  <span className="font-semibold text-slate-700">
+                    🏷️ Special Discount {pkg.pricing?.discountReason ? `(${pkg.pricing.discountReason})` : ""}
+                  </span>
                   <span className="font-extrabold text-rose-600">- ₹{discountAmount.toLocaleString("en-IN")}</span>
                 </div>
               )}
 
-              {includeGst && (
+              {includeGst && liveGstAmount > 0 && (
                 <div className="flex items-center justify-between px-5 py-3.5 bg-emerald-50/60 border-t border-slate-100">
                   <span className="font-semibold text-slate-700">
-                    🏛️ GST ({gstPercentage}%)
+                    🏛️ Goods & Services Tax (GST {gstPercentage}%)
                   </span>
-                  <span className="font-extrabold text-emerald-700">+ ₹{Math.round(gstAmount).toLocaleString("en-IN")}</span>
+                  <span className="font-extrabold text-emerald-700">+ ₹{liveGstAmount.toLocaleString("en-IN")}</span>
                 </div>
               )}
 

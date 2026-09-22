@@ -573,14 +573,23 @@ export default function EditQuickQuotationPage({ params }) {
   const markupAmount = markupType === "percentage"
     ? Math.round((basePrice * markupPercentage) / 100)
     : Math.max(0, Number(form.pricing?.markupAmount) || 0);
-  const discountAmount = Math.max(0, Number(form.pricing?.discountAmount) || 0);
-  const preTaxPrice = Math.max(0, basePrice + markupAmount - discountAmount);
+  const preTaxPrice = Math.max(0, basePrice + markupAmount);
 
   const includeGst = Boolean(form.pricing?.includeGst);
   const gstPercentage = Number(form.pricing?.gstPercentage) || 5;
   const gstAmount = includeGst ? Math.round((preTaxPrice * gstPercentage) / 100) : 0;
 
-  const finalPrice = preTaxPrice + gstAmount;
+  const discountType = form.pricing?.discountType || "fixed";
+  const discountValue = Math.max(0, Number(form.pricing?.discountValue) || 0);
+  let discountAmount = 0;
+  if (discountType === "percentage") {
+    discountAmount = Math.round(((preTaxPrice + gstAmount) * Math.min(100, discountValue)) / 100);
+  } else {
+    discountAmount = discountValue > 0 ? discountValue : Math.max(0, Number(form.pricing?.discountAmount) || 0);
+  }
+  const discountReason = form.pricing?.discountReason || "";
+
+  const finalPrice = Math.max(0, preTaxPrice + gstAmount - discountAmount);
   const numPax = Math.max(1, form.passengers?.adults || 2);
   const perPersonPrice = Math.round(finalPrice / numPax);
   const perCouplePrice = Math.round(perPersonPrice * 2);
@@ -678,8 +687,12 @@ export default function EditQuickQuotationPage({ params }) {
           markupType,
           markupPercentage,
           markupAmount,
+          discountType,
+          discountValue,
           discountAmount,
-          discountReason: form.pricing?.discountReason || "",
+          discountReason,
+          hasTimerDiscount: Boolean(form.pricing?.hasTimerDiscount),
+          discountValidUntil: form.pricing?.discountValidUntil || "",
           includeGst,
           gstPercentage,
           gstAmount,
@@ -1765,42 +1778,7 @@ export default function EditQuickQuotationPage({ params }) {
                 )}
               </div>
 
-              {/* 3. 🏷️ Promotional Discount (-₹) (Optional) */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-rose-500" />
-                    <span className="text-[12px] font-bold text-slate-700">Special Discount (-₹)</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-mono">
-                      -₹{discountAmount.toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  <div className="relative col-span-3">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rose-500 font-bold text-[12px]">-₹</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.pricing?.discountAmount || ""}
-                      onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountAmount: parseFloat(e.target.value) || 0 } }))}
-                      placeholder="0"
-                      className="w-full pl-7 pr-2 py-1.5 rounded-xl border border-slate-300 bg-white text-[13px] font-bold text-slate-900 text-right font-mono focus:ring-1 focus:ring-rose-500"
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    value={form.pricing?.discountReason || ""}
-                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountReason: e.target.value } }))}
-                    placeholder="Reason (e.g. Festival Deal)"
-                    className="col-span-2 px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-[11px] text-slate-700 focus:ring-1 focus:ring-rose-500 truncate"
-                  />
-                </div>
-              </div>
-
-              {/* 4. 🏛️ Taxes & GST (5%) Toggle */}
+              {/* 3. 🏛️ Taxes & GST (5%) Toggle */}
               <div className={`p-3.5 rounded-2xl border transition-all ${
                 includeGst ? "bg-indigo-50/70 border-indigo-200" : "bg-slate-50 border-slate-200"
               }`}>
@@ -1831,7 +1809,81 @@ export default function EditQuickQuotationPage({ params }) {
                 </label>
               </div>
 
-              {/* 5. Final Quoted Proposal Price Sent to Client */}
+              {/* 3b. Discount / Special Offer */}
+              <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-rose-600" />
+                    <span className="text-[12px] font-black text-rose-950">Discount / Offer</span>
+                  </div>
+                  <div className="inline-flex rounded-lg p-0.5 bg-rose-100 border border-rose-200 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountType: "fixed" } }))}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        discountType === "fixed" ? "bg-rose-600 text-white shadow-xs" : "text-rose-700 hover:bg-rose-200/60"
+                      }`}
+                    >
+                      ₹ Flat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountType: "percentage" } }))}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        discountType === "percentage" ? "bg-rose-600 text-white shadow-xs" : "text-rose-700 hover:bg-rose-200/60"
+                      }`}
+                    >
+                      % Percent
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-rose-900 block mb-1">
+                      {discountType === "percentage" ? "Discount (%)" : "Discount Amount (₹)"}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === "percentage" ? 100 : undefined}
+                      value={form.pricing?.discountValue ?? form.pricing?.discountAmount ?? 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, Number(e.target.value) || 0);
+                        setForm((p) => ({
+                          ...p,
+                          pricing: {
+                            ...p.pricing,
+                            discountValue: val,
+                            discountAmount: p.pricing?.discountType === "percentage" ? 0 : val,
+                          },
+                        }));
+                      }}
+                      className="w-full h-8 px-2.5 rounded-lg border border-rose-200 text-[12px] font-bold text-rose-900 bg-white focus:ring-1 focus:ring-rose-500"
+                      placeholder={discountType === "percentage" ? "10%" : "₹2000"}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-rose-900 block mb-1">Offer Tag / Reason</label>
+                    <input
+                      type="text"
+                      value={form.pricing?.discountReason || ""}
+                      onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, discountReason: e.target.value } }))}
+                      className="w-full h-8 px-2.5 rounded-lg border border-rose-200 text-[12px] text-slate-800 bg-white focus:ring-1 focus:ring-rose-500 placeholder:text-rose-300"
+                      placeholder="e.g. Early Bird Offer"
+                    />
+                  </div>
+                </div>
+
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-[11px] font-bold text-rose-700 bg-rose-100/70 px-2 py-1 rounded-md">
+                    <span>Applied Savings:</span>
+                    <span className="font-mono">-₹{discountAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Final Quoted Proposal Price Sent to Client */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white space-y-1.5 shadow-md border border-slate-800">
                 <div className="flex items-center justify-between">
                   <span className="text-[10.5px] font-black uppercase tracking-widest text-amber-400">
@@ -1856,16 +1908,16 @@ export default function EditQuickQuotationPage({ params }) {
                       <span>+₹{markupAmount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
-                  {discountAmount > 0 && (
-                    <div className="flex items-center justify-between text-rose-400">
-                      <span>Discount ({form.pricing?.discountReason || "Promo"}):</span>
-                      <span>-₹{discountAmount.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
                   {includeGst && (
                     <div className="flex items-center justify-between text-indigo-300">
                       <span>GST ({gstPercentage}%):</span>
                       <span>+₹{gstAmount.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-rose-300">
+                      <span>Discount {discountReason ? `(${discountReason})` : ""}:</span>
+                      <span>-₹{discountAmount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                 </div>
