@@ -49,48 +49,109 @@ export const MEAL_PLANS = [
 
 /**
  * Extracts room rate for chosen meal plan with seasonal priority
+ * Parses MongoDB Room schema (room.seasonalPricing[].meals)
  */
-function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMinPrice = 2500) {
-  if (!room) return { rate: hotelMinPrice, isSeasonal: false };
+function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMinPrice = 0) {
+  if (!room) return { rate: Number(hotelMinPrice) || 0, isSeasonal: false };
+
   let targetRate = 0;
   let isSeasonal = false;
 
-  // 1. Seasonal date range match
-  if (startDateStr && room.pricing?.seasons && room.pricing.seasons.length > 0) {
-    const travelDate = new Date(startDateStr);
-    const matchingSeason = room.pricing.seasons.find((s) => {
-      if (!s.startDate || !s.endDate) return false;
-      const sStart = new Date(s.startDate);
-      const sEnd = new Date(s.endDate);
-      return travelDate >= sStart && travelDate <= sEnd;
+  const tripDate = startDateStr ? new Date(startDateStr) : null;
+  const isValidDate = tripDate && !isNaN(tripDate.getTime());
+  const seasons = Array.isArray(room.seasonalPricing) ? room.seasonalPricing : [];
+
+  // 1. Check Date-Matched Season in room.seasonalPricing
+  if (isValidDate && seasons.length > 0) {
+    const tripTime = tripDate.getTime();
+    const tripMonth = tripDate.getMonth();
+    const tripDay = tripDate.getDate();
+    const tripMMDD = (tripMonth + 1) * 100 + tripDay;
+
+    const matchedSeason = seasons.find((season) => {
+      return (season.dateRanges || []).some((range) => {
+        if (!range.startDate || !range.endDate) return false;
+        const start = new Date(range.startDate);
+        const end = new Date(range.endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+
+        // Exact timestamp window check
+        if (tripTime >= start.getTime() && tripTime <= end.getTime()) {
+          return true;
+        }
+
+        // Annual recurring month/day matching
+        const startMMDD = (start.getMonth() + 1) * 100 + start.getDate();
+        const endMMDD = (end.getMonth() + 1) * 100 + end.getDate();
+        if (startMMDD <= endMMDD) {
+          return tripMMDD >= startMMDD && tripMMDD <= endMMDD;
+        } else {
+          return tripMMDD >= startMMDD || tripMMDD <= endMMDD;
+        }
+      });
     });
 
-    if (matchingSeason) {
-      if (matchingSeason.rates && matchingSeason.rates[mealPlan] !== undefined && Number(matchingSeason.rates[mealPlan]) > 0) {
-        targetRate = Number(matchingSeason.rates[mealPlan]);
+    if (matchedSeason && Array.isArray(matchedSeason.meals) && matchedSeason.meals.length > 0) {
+      const mealObj = matchedSeason.meals.find((m) => m.plan === mealPlan);
+      if (mealObj && Number(mealObj.price) > 0) {
+        targetRate = Number(mealObj.price);
         isSeasonal = true;
-      } else if (matchingSeason.baseRate && Number(matchingSeason.baseRate) > 0) {
-        const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-        targetRate = Math.max(0, Number(matchingSeason.baseRate) + (diffMap[mealPlan] || 0));
-        isSeasonal = true;
+      } else {
+        // Find any existing meal price in this matched season and derive
+        const anyMeal = matchedSeason.meals.find((m) => Number(m.price) > 0);
+        if (anyMeal) {
+          const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
+          const baseOffset = diffMap[anyMeal.plan] || 0;
+          const targetOffset = diffMap[mealPlan] || 0;
+          targetRate = Math.max(0, Number(anyMeal.price) - baseOffset + targetOffset);
+          isSeasonal = true;
+        }
       }
     }
   }
 
-  // 2. Base room rate
-  if (targetRate === 0 && room.pricing?.rates && room.pricing.rates[mealPlan] !== undefined && Number(room.pricing.rates[mealPlan]) > 0) {
-    targetRate = Number(room.pricing.rates[mealPlan]);
-  } else if (targetRate === 0 && room.pricing?.baseRate && Number(room.pricing.baseRate) > 0) {
-    const baseCP = Number(room.pricing.baseRate);
-    const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-    targetRate = Math.max(0, baseCP + (diffMap[mealPlan] || 0));
+  // 2. If no season matched by date (or no travel date), check all seasons for the exact meal plan
+  if (targetRate === 0 && seasons.length > 0) {
+    for (const season of seasons) {
+      if (Array.isArray(season.meals)) {
+        const mealObj = season.meals.find((m) => m.plan === mealPlan);
+        if (mealObj && Number(mealObj.price) > 0) {
+          targetRate = Number(mealObj.price);
+          break;
+        }
+      }
+    }
+
+    // If still 0, check if any meal rate exists across any season
+    if (targetRate === 0) {
+      for (const season of seasons) {
+        if (Array.isArray(season.meals)) {
+          const anyMeal = season.meals.find((m) => Number(m.price) > 0);
+          if (anyMeal) {
+            const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
+            const baseOffset = diffMap[anyMeal.plan] || 0;
+            const targetOffset = diffMap[mealPlan] || 0;
+            targetRate = Math.max(0, Number(anyMeal.price) - baseOffset + targetOffset);
+            break;
+          }
+        }
+      }
+    }
   }
 
-  // 3. Fallback to hotel minPrice
-  if (targetRate === 0) {
-    const base = Number(hotelMinPrice) || 2500;
+  // 3. Fallback to room.basePrice (if legacy field exists)
+  if (targetRate === 0 && room.basePrice && Number(room.basePrice) > 0) {
     const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-    targetRate = Math.max(0, base + (diffMap[mealPlan] || 0));
+    targetRate = Math.max(0, Number(room.basePrice) + (diffMap[mealPlan] || 0));
+  }
+
+  // 4. Fallback to hotel minPrice
+  if (targetRate === 0) {
+    const base = Number(hotelMinPrice) || 0;
+    if (base > 0) {
+      const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
+      targetRate = Math.max(0, base + (diffMap[mealPlan] || 0));
+    }
   }
 
   return { rate: targetRate, isSeasonal };
