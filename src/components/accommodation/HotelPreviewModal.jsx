@@ -174,6 +174,7 @@ export default function HotelPreviewModal({
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   {hotel.category && (() => {
                     const catMap = {
+                      none: "bg-slate-100 text-slate-700 border-slate-300",
                       budget: "bg-emerald-50 text-emerald-700 border-emerald-200",
                       deluxe: "bg-sky-50 text-sky-700 border-sky-200",
                       "deluxe plus": "bg-blue-50 text-blue-700 border-blue-200",

@@ -12,6 +12,7 @@ import HotelPreviewModal from "@/components/accommodation/HotelPreviewModal";
 
 const CATEGORY_FILTERS = [
   "ALL",
+  "None",
   "Budget",
   "Deluxe",
   "Deluxe Plus",

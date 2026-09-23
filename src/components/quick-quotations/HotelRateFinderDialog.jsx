@@ -696,27 +696,39 @@ export default function HotelRateFinderDialog({
                         </h4>
 
                         <div className="flex items-center gap-2 text-[11.5px] text-slate-600 flex-wrap font-medium">
-                          <span className="font-bold text-slate-800">
-                            {item.selectedRoom?.roomType || "Standard Room"}
-                          </span>
-
-                          {item.rooms.length > 1 && (
-                            <select
-                              value={selectedRoomIndexMap[item.hotel._id] || 0}
-                              onChange={(e) =>
-                                setSelectedRoomIndexMap((prev) => ({
-                                  ...prev,
-                                  [item.hotel._id]: parseInt(e.target.value, 10) || 0,
-                                }))
-                              }
-                              className="text-[11px] font-bold bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none shadow-2xs cursor-pointer"
-                            >
-                              {item.rooms.map((r, rIdx) => (
-                                <option key={r._id || rIdx} value={rIdx}>
-                                  {r.roomType}
-                                </option>
-                              ))}
-                            </select>
+                          {item.rooms.length > 1 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-bold text-slate-700">Room:</span>
+                              <select
+                                value={selectedRoomIndexMap[item.hotel._id] || 0}
+                                onChange={(e) =>
+                                  setSelectedRoomIndexMap((prev) => ({
+                                    ...prev,
+                                    [item.hotel._id]: parseInt(e.target.value, 10) || 0,
+                                  }))
+                                }
+                                className="text-[11.5px] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-2xs cursor-pointer"
+                              >
+                                {item.rooms.map((r, rIdx) => {
+                                  const rRate = getRoomRateForPlan(
+                                    r,
+                                    selectedMealPlan,
+                                    startDate,
+                                    item.hotel.minPrice
+                                  ).rate;
+                                  return (
+                                    <option key={r._id || rIdx} value={rIdx}>
+                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}{rRate > 0 ? `(₹${rRate.toLocaleString("en-IN")}/n)` : ""}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-slate-800">
+                              {item.selectedRoom?.roomType || "Standard Room"}
+                              {item.selectedRoom?.maxOccupancy ? ` (Max ${item.selectedRoom.maxOccupancy})` : ""}
+                            </span>
                           )}
 
                           <span className="text-slate-300">•</span>

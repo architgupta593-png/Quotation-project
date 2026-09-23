@@ -546,11 +546,14 @@ export default function HotelMealSelectionDialog({
                             }}
                             className="text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer max-w-[260px] truncate shadow-2xs"
                           >
-                            {item.roomOptions.map((ro) => (
-                              <option key={ro.id} value={ro.id}>
-                                {ro.name} {ro.maxOccupancy ? `[Max ${ro.maxOccupancy}] ` : ""}{ro.minPrice > 0 ? `(₹${ro.minPrice.toLocaleString("en-IN")})` : ""}
-                              </option>
-                            ))}
+                            {item.roomOptions.map((ro) => {
+                              const planPrice = ro.meals?.[item.effectiveMealPlan] || ro.minPrice || 0;
+                              return (
+                                <option key={ro.id} value={ro.id}>
+                                  {ro.name} {ro.maxOccupancy ? `[Max ${ro.maxOccupancy}] ` : ""}{planPrice > 0 ? `(₹${planPrice.toLocaleString("en-IN")})` : ""}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                       ) : (
