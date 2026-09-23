@@ -276,8 +276,37 @@ export default function HotelRateFinderDialog({
 
     const processed = matchingHotels.map((h) => {
       const rooms = hotelRoomsMap[h._id] || [];
-      const chosenRoomIdx = selectedRoomIndexMap[h._id] || 0;
-      const selectedRoom = rooms[chosenRoomIdx] || rooms[0] || null;
+
+      // Calculate the meal plan rate for every room
+      const roomRates = rooms.map((r, rIdx) => {
+        const { rate, isSeasonal } = getRoomRateForPlan(
+          r,
+          selectedMealPlan,
+          startDate,
+          h.minPrice || 2500
+        );
+        return { roomIndex: rIdx, rate, isSeasonal };
+      });
+
+      // Find lowest valid room (> 0)
+      let lowestRoomIdx = 0;
+      const validRates = roomRates.filter((item) => item.rate > 0);
+      if (validRates.length > 0) {
+        validRates.sort((a, b) => a.rate - b.rate);
+        lowestRoomIdx = validRates[0].roomIndex;
+      } else if (rooms.length > 0) {
+        lowestRoomIdx = 0;
+      }
+
+      // If user has explicitly selected a room index for this hotel, use it; otherwise default to lowestRoomIdx
+      const activeRoomIdx =
+        selectedRoomIndexMap[h._id] !== undefined &&
+        selectedRoomIndexMap[h._id] >= 0 &&
+        selectedRoomIndexMap[h._id] < rooms.length
+          ? selectedRoomIndexMap[h._id]
+          : lowestRoomIdx;
+
+      const selectedRoom = rooms[activeRoomIdx] || rooms[0] || null;
 
       const { rate: nightlyRate, isSeasonal } = getRoomRateForPlan(
         selectedRoom,
@@ -292,6 +321,8 @@ export default function HotelRateFinderDialog({
         hotel: h,
         rooms,
         selectedRoom,
+        activeRoomIdx,
+        lowestRoomIdx,
         nightlyRate,
         isSeasonal,
         totalCost,
@@ -533,6 +564,7 @@ export default function HotelRateFinderDialog({
                   type="button"
                   onClick={() => {
                     setSelectedCategory(cat);
+                    setSelectedRoomIndexMap({});
                     setViewMode("top5");
                   }}
                   className={`px-3 py-1 rounded-xl text-[11.5px] font-bold transition-all whitespace-nowrap border ${
@@ -557,6 +589,7 @@ export default function HotelRateFinderDialog({
                   type="button"
                   onClick={() => {
                     setSelectedMealPlan(plan.id);
+                    setSelectedRoomIndexMap({});
                   }}
                   className={`px-3 py-1.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                     isSel
@@ -700,7 +733,7 @@ export default function HotelRateFinderDialog({
                             <div className="flex items-center gap-1.5">
                               <span className="text-[11px] font-bold text-slate-700">Room:</span>
                               <select
-                                value={selectedRoomIndexMap[item.hotel._id] || 0}
+                                value={item.activeRoomIdx}
                                 onChange={(e) =>
                                   setSelectedRoomIndexMap((prev) => ({
                                     ...prev,
@@ -716,9 +749,10 @@ export default function HotelRateFinderDialog({
                                     startDate,
                                     item.hotel.minPrice
                                   ).rate;
+                                  const isLowest = rIdx === item.lowestRoomIdx && item.rooms.length > 1;
                                   return (
                                     <option key={r._id || rIdx} value={rIdx}>
-                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}{rRate > 0 ? `(₹${rRate.toLocaleString("en-IN")}/n)` : ""}
+                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}{rRate > 0 ? `(₹${rRate.toLocaleString("en-IN")}/n)` : ""}{isLowest ? " • Lowest" : ""}
                                     </option>
                                   );
                                 })}
