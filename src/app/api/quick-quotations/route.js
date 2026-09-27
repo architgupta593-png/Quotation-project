@@ -50,6 +50,7 @@ export async function GET(req) {
 
     const [quickQuotations, totalCount] = await Promise.all([
       QuickQuotation.find(query)
+        .populate("createdBy", "name email role image")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)

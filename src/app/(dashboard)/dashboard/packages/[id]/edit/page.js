@@ -14,6 +14,7 @@ import AccommodationPanel, { getCategoryBadgeClass } from "@/components/packages
 import VehiclePanel from "@/components/packages/VehiclePanel";
 import PricingPanel from "@/components/packages/PricingPanel";
 import InstructionPanel from "@/components/packages/InstructionPanel";
+import PackageCoverImageUploader from "@/components/packages/PackageCoverImageUploader";
 
 const SECTIONS = [
   { id: "basics", label: "Basics", icon: Compass, desc: "Title & Route" },
@@ -461,6 +462,13 @@ export default function EditPackagePage() {
                     required
                   />
                 </div>
+
+                {/* Package Cover & Banner Image */}
+                <PackageCoverImageUploader
+                  coverImage={form.coverImage}
+                  onChange={(coverImage) => updateForm({ coverImage })}
+                  packageId={id}
+                />
 
                 {/* Multi-Destination Builder */}
                 <div className="pt-2">
