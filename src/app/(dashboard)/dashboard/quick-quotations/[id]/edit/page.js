@@ -172,7 +172,7 @@ export default function EditQuickQuotationPage({ params }) {
 
     const allAccommodationOptions = [
       {
-        label: "Option 1",
+        label: "Standard",
         category: "None",
         hotelStays: stays.map((s) => ({ ...s })),
         totalPrice: 0,

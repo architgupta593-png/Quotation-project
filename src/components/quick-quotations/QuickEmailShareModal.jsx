@@ -85,7 +85,7 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
 
     const formattedHotelSection = options.length > 1
       ? options.map((opt, i) =>
-          `[ ${opt.label || `Option ${i + 1}`} ]\n` +
+          `[ ${opt.label || (i === 0 ? "Standard" : `Option ${i + 1}`)} ]\n` +
           (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, Room: ${s.roomType || "Deluxe AC"}, Meal Plan: ${s.mealPlan || "CP"})`).join("\n")
         ).join("\n\n")
       : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [Room: ${s.roomType || "Deluxe AC"} | Meal Plan: ${s.mealPlan || "CP"}]`).join("\n");

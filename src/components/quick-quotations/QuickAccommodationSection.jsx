@@ -30,9 +30,9 @@ function createDefaultStay(cityName = "", nights = 1, category = "None") {
   };
 }
 
-function createDefaultOption(label = "", defaultStays = []) {
+function createDefaultOption(label = "Standard", defaultStays = []) {
   return {
-    label: label || "",
+    label: label || "Standard",
     hotelStays: defaultStays.length > 0 ? defaultStays.map((s) => ({ ...s })) : [createDefaultStay("", 1, "None")],
     totalPrice: 0,
     marginType: "absolute",
@@ -69,9 +69,9 @@ export default function QuickAccommodationSection({
       return propOptions;
     }
     if (Array.isArray(propStays) && propStays.length > 0) {
-      return [createDefaultOption("", propStays)];
+      return [createDefaultOption("Standard", propStays)];
     }
-    return [createDefaultOption("", [createDefaultStay(primaryDestination, totalNights, "None")])];
+    return [createDefaultOption("Standard", [createDefaultStay(primaryDestination, totalNights, "None")])];
   }, [propOptions, propStays, primaryDestination, totalNights]);
 
   const safeOptIdx = Math.min(Math.max(0, activeOptIdx), Math.max(0, options.length - 1));
@@ -391,7 +391,7 @@ export default function QuickAccommodationSection({
                     value={opt.label || ""}
                     onChange={(e) => handleRenameOption(idx, e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    placeholder={`Package ${idx + 1} (e.g. Gold)`}
+                    placeholder={idx === 0 ? "Standard" : idx === 1 ? "Deluxe" : idx === 2 ? "Luxury" : `Option ${idx + 1}`}
                     className="bg-transparent focus:bg-amber-50/80 focus:px-1.5 focus:rounded-md focus:outline-none focus:ring-1 focus:ring-amber-400 text-[12.5px] font-black min-w-[90px] max-w-[170px] text-slate-900 placeholder:text-slate-400 transition-all"
                   />
 

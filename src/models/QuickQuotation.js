@@ -57,7 +57,7 @@ const HotelStaySchema = new mongoose.Schema(
 // ── Multi-Tier Accommodation Option (e.g. Option 1: Standard, Option 2: Deluxe, Option 3: Luxury) ──
 const AccommodationOptionSchema = new mongoose.Schema(
   {
-    label: { type: String, trim: true, default: "Option 1 (Standard)" },
+    label: { type: String, trim: true, default: "Standard" },
     category: { type: String, trim: true, default: "" },
     hotelStays: { type: [HotelStaySchema], default: [] },
     totalPrice: { type: Number, min: 0, default: 0 },

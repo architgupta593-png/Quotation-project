@@ -112,7 +112,7 @@ Feel free to reply for any customization! ${EMOJI.STAR}`;
 
     const formattedHotelSection = options.length > 1
       ? options.map((opt, i) =>
-          `*${opt.label || `Option ${i + 1}`}*\n` +
+          `*${opt.label || (i === 0 ? "Standard" : `Option ${i + 1}`)}*\n` +
           (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, ${s.roomType || "Deluxe AC"}, ${s.mealPlan || "CP"})`).join("\n")
         ).join("\n\n")
       : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [${s.roomType || "Deluxe AC"} - ${s.mealPlan || "CP"}]`).join("\n");

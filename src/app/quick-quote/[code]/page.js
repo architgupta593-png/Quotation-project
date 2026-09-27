@@ -110,7 +110,7 @@ export default function QuickQuotationPublicPage({ params }) {
     }
     return [
       {
-        label: "Standard Hotel Package",
+        label: "Standard",
         hotelStays: quickQuote?.hotelStays || [],
       },
     ];
@@ -607,7 +607,7 @@ export default function QuickQuotationPublicPage({ params }) {
                               : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
                           }`}
                         >
-                          <span>{opt.label || `Option ${oIdx + 1}`}</span>
+                          <span>{opt.label || (oIdx === 0 ? "Standard" : `Option ${oIdx + 1}`)}</span>
                           <span className={`text-[10.5px] font-bold px-1.5 py-0.2 rounded-md ${
                             isSelected ? "bg-amber-400/20 text-amber-300" : "bg-slate-100 text-slate-500"
                           }`}>

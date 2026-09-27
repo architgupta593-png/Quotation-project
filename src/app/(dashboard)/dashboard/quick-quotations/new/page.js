@@ -114,7 +114,7 @@ export default function NewQuickQuotationPage() {
     ],
     accommodationOptions: [
       {
-        label: "Option 1",
+        label: "Standard",
         category: "None",
         hotelStays: [
           {
@@ -300,7 +300,7 @@ export default function NewQuickQuotationPage() {
 
     const allAccommodationOptions = [
       {
-        label: "Option 1",
+        label: "Standard",
         category: "None",
         hotelStays: stays.map((s) => ({ ...s })),
         totalPrice: 0,

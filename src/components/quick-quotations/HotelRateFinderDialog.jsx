@@ -51,8 +51,8 @@ export const MEAL_PLANS = [
  * Extracts room rate for chosen meal plan with seasonal priority
  * Parses MongoDB Room schema (room.seasonalPricing[].meals)
  */
-function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMinPrice = 0) {
-  if (!room) return { rate: Number(hotelMinPrice) || 0, isSeasonal: false };
+function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null) {
+  if (!room) return { rate: 0, isSeasonal: false, isAvailable: false };
 
   let targetRate = 0;
   let isSeasonal = false;
@@ -96,16 +96,6 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMin
       if (mealObj && Number(mealObj.price) > 0) {
         targetRate = Number(mealObj.price);
         isSeasonal = true;
-      } else {
-        // Find any existing meal price in this matched season and derive
-        const anyMeal = matchedSeason.meals.find((m) => Number(m.price) > 0);
-        if (anyMeal) {
-          const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-          const baseOffset = diffMap[anyMeal.plan] || 0;
-          const targetOffset = diffMap[mealPlan] || 0;
-          targetRate = Math.max(0, Number(anyMeal.price) - baseOffset + targetOffset);
-          isSeasonal = true;
-        }
       }
     }
   }
@@ -121,40 +111,13 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null, hotelMin
         }
       }
     }
-
-    // If still 0, check if any meal rate exists across any season
-    if (targetRate === 0) {
-      for (const season of seasons) {
-        if (Array.isArray(season.meals)) {
-          const anyMeal = season.meals.find((m) => Number(m.price) > 0);
-          if (anyMeal) {
-            const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-            const baseOffset = diffMap[anyMeal.plan] || 0;
-            const targetOffset = diffMap[mealPlan] || 0;
-            targetRate = Math.max(0, Number(anyMeal.price) - baseOffset + targetOffset);
-            break;
-          }
-        }
-      }
-    }
   }
 
-  // 3. Fallback to room.basePrice (if legacy field exists)
-  if (targetRate === 0 && room.basePrice && Number(room.basePrice) > 0) {
-    const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-    targetRate = Math.max(0, Number(room.basePrice) + (diffMap[mealPlan] || 0));
-  }
-
-  // 4. Fallback to hotel minPrice
-  if (targetRate === 0) {
-    const base = Number(hotelMinPrice) || 0;
-    if (base > 0) {
-      const diffMap = { EP: -300, CP: 0, MAP: 700, AP: 1400 };
-      targetRate = Math.max(0, base + (diffMap[mealPlan] || 0));
-    }
-  }
-
-  return { rate: targetRate, isSeasonal };
+  return {
+    rate: targetRate,
+    isSeasonal,
+    isAvailable: targetRate > 0,
+  };
 }
 
 /**
@@ -274,60 +237,58 @@ export default function HotelRateFinderDialog({
       if (starFiltered.length > 0) matchingHotels = starFiltered;
     }
 
-    const processed = matchingHotels.map((h) => {
-      const rooms = hotelRoomsMap[h._id] || [];
+    const processed = matchingHotels
+      .map((h) => {
+        const rooms = hotelRoomsMap[h._id] || [];
 
-      // Calculate the meal plan rate for every room
-      const roomRates = rooms.map((r, rIdx) => {
-        const { rate, isSeasonal } = getRoomRateForPlan(
-          r,
-          selectedMealPlan,
-          startDate,
-          h.minPrice || 2500
-        );
-        return { roomIndex: rIdx, rate, isSeasonal };
-      });
+        // Calculate the meal plan rate for every room
+        const roomRates = rooms.map((r, rIdx) => {
+          const { rate, isSeasonal, isAvailable } = getRoomRateForPlan(
+            r,
+            selectedMealPlan,
+            startDate
+          );
+          return { roomIndex: rIdx, rate, isSeasonal, isAvailable, room: r };
+        });
 
-      // Find lowest valid room (> 0)
-      let lowestRoomIdx = 0;
-      const validRates = roomRates.filter((item) => item.rate > 0);
-      if (validRates.length > 0) {
+        // Find lowest valid room (> 0) for the selected meal plan
+        const validRates = roomRates.filter((item) => item.rate > 0);
+        if (validRates.length === 0) {
+          // This hotel does NOT offer the selected meal plan on any room
+          return null;
+        }
+
         validRates.sort((a, b) => a.rate - b.rate);
-        lowestRoomIdx = validRates[0].roomIndex;
-      } else if (rooms.length > 0) {
-        lowestRoomIdx = 0;
-      }
+        const lowestRoomIdx = validRates[0].roomIndex;
 
-      // If user has explicitly selected a room index for this hotel, use it; otherwise default to lowestRoomIdx
-      const activeRoomIdx =
-        selectedRoomIndexMap[h._id] !== undefined &&
-        selectedRoomIndexMap[h._id] >= 0 &&
-        selectedRoomIndexMap[h._id] < rooms.length
-          ? selectedRoomIndexMap[h._id]
-          : lowestRoomIdx;
+        // If user has explicitly selected a room index for this hotel AND it has a valid rate for this meal plan
+        const userSelectedIdx = selectedRoomIndexMap[h._id];
+        const isUserSelectionValid =
+          userSelectedIdx !== undefined &&
+          userSelectedIdx >= 0 &&
+          userSelectedIdx < rooms.length &&
+          (roomRates[userSelectedIdx]?.rate || 0) > 0;
 
-      const selectedRoom = rooms[activeRoomIdx] || rooms[0] || null;
+        const activeRoomIdx = isUserSelectionValid ? userSelectedIdx : lowestRoomIdx;
+        const selectedRoom = rooms[activeRoomIdx] || rooms[lowestRoomIdx] || null;
 
-      const { rate: nightlyRate, isSeasonal } = getRoomRateForPlan(
-        selectedRoom,
-        selectedMealPlan,
-        startDate,
-        h.minPrice || 2500
-      );
+        const nightlyRate = roomRates[activeRoomIdx]?.rate || validRates[0].rate;
+        const isSeasonal = roomRates[activeRoomIdx]?.isSeasonal || false;
+        const totalCost = nightlyRate * nights * roomsCount;
 
-      const totalCost = nightlyRate * nights * roomsCount;
-
-      return {
-        hotel: h,
-        rooms,
-        selectedRoom,
-        activeRoomIdx,
-        lowestRoomIdx,
-        nightlyRate,
-        isSeasonal,
-        totalCost,
-      };
-    });
+        return {
+          hotel: h,
+          rooms,
+          selectedRoom,
+          activeRoomIdx,
+          lowestRoomIdx,
+          validRoomIndices: validRates.map((v) => v.roomIndex),
+          nightlyRate,
+          isSeasonal,
+          totalCost,
+        };
+      })
+      .filter(Boolean);
 
     // Sorting
     if (sortBy === "price_asc") {
@@ -627,7 +588,7 @@ export default function HotelRateFinderDialog({
                 <AlertCircle className="w-7 h-7 text-slate-400 mx-auto" />
                 <h4 className="text-[14px] font-black text-slate-800">No matching hotels found</h4>
                 <p className="text-[12px] text-slate-500 max-w-sm mx-auto font-medium">
-                  No properties found in {searchCity || cityName} for {selectedCategory} category.
+                  No properties found in {searchCity || cityName} with {selectedMealPlan} meal plan {selectedCategory !== "None" ? `for ${selectedCategory} category` : ""}.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <button
@@ -729,7 +690,7 @@ export default function HotelRateFinderDialog({
                         </h4>
 
                         <div className="flex items-center gap-2 text-[11.5px] text-slate-600 flex-wrap font-medium">
-                          {item.rooms.length > 1 ? (
+                          {item.validRoomIndices?.length > 1 ? (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[11px] font-bold text-slate-700">Room:</span>
                               <select
@@ -746,13 +707,13 @@ export default function HotelRateFinderDialog({
                                   const rRate = getRoomRateForPlan(
                                     r,
                                     selectedMealPlan,
-                                    startDate,
-                                    item.hotel.minPrice
+                                    startDate
                                   ).rate;
-                                  const isLowest = rIdx === item.lowestRoomIdx && item.rooms.length > 1;
+                                  if (rRate <= 0) return null;
+                                  const isLowest = rIdx === item.lowestRoomIdx && item.validRoomIndices.length > 1;
                                   return (
                                     <option key={r._id || rIdx} value={rIdx}>
-                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}{rRate > 0 ? `(₹${rRate.toLocaleString("en-IN")}/n)` : ""}{isLowest ? " • Lowest" : ""}
+                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rRate.toLocaleString("en-IN")}/n){isLowest ? " • Lowest" : ""}
                                     </option>
                                   );
                                 })}
