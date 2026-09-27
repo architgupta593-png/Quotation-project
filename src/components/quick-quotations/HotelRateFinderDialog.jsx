@@ -48,16 +48,16 @@ export const MEAL_PLANS = [
 ];
 
 /**
- * Extracts room rate for chosen meal plan with seasonal priority
- * Parses MongoDB Room schema (room.seasonalPricing[].meals)
+ * Resolves the rate for a single night against room's seasonal pricing
  */
-function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null) {
-  if (!room) return { rate: 0, isSeasonal: false, isAvailable: false };
+function getSingleNightRate(room, mealPlan = "CP", targetDate = null) {
+  if (!room) return { rate: 0, isSeasonal: false, seasonLabel: "" };
 
   let targetRate = 0;
   let isSeasonal = false;
+  let seasonLabel = "";
 
-  const tripDate = startDateStr ? new Date(startDateStr) : null;
+  const tripDate = targetDate instanceof Date ? targetDate : (targetDate ? new Date(targetDate) : null);
   const isValidDate = tripDate && !isNaN(tripDate.getTime());
   const seasons = Array.isArray(room.seasonalPricing) ? room.seasonalPricing : [];
 
@@ -96,6 +96,7 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null) {
       if (mealObj && Number(mealObj.price) > 0) {
         targetRate = Number(mealObj.price);
         isSeasonal = true;
+        seasonLabel = matchedSeason.label || "Seasonal";
       }
     }
   }
@@ -107,6 +108,7 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null) {
         const mealObj = season.meals.find((m) => m.plan === mealPlan);
         if (mealObj && Number(mealObj.price) > 0) {
           targetRate = Number(mealObj.price);
+          seasonLabel = season.label || "Standard";
           break;
         }
       }
@@ -116,7 +118,93 @@ function getRoomRateForPlan(room, mealPlan = "CP", startDateStr = null) {
   return {
     rate: targetRate,
     isSeasonal,
-    isAvailable: targetRate > 0,
+    seasonLabel,
+  };
+}
+
+/**
+ * Calculates night-by-night pricing across multi-night stays spanning different seasons.
+ * e.g. 2 Nights @ ₹1,200 (Sep 29, 30) + 1 Night @ ₹2,000 (Oct 1) = ₹4,400 Total
+ */
+function calculateMultiNightRoomRates(room, mealPlan = "CP", startDateStr = null, totalNights = 1) {
+  if (!room) {
+    return {
+      totalCost: 0,
+      avgRate: 0,
+      breakdown: [],
+      isAvailable: false,
+      hasSplitSeasons: false,
+      splitSummary: "",
+    };
+  }
+
+  const nightsCount = Math.max(1, parseInt(totalNights, 10) || 1);
+  const baseDate = startDateStr ? new Date(startDateStr) : null;
+  const isValidBaseDate = baseDate && !isNaN(baseDate.getTime());
+
+  let totalCost = 0;
+  const breakdown = [];
+  const rateCounts = {};
+
+  for (let n = 0; n < nightsCount; n++) {
+    const currentNightDate = isValidBaseDate ? new Date(baseDate.getTime() + n * 86400000) : null;
+    const { rate, isSeasonal, seasonLabel } = getSingleNightRate(room, mealPlan, currentNightDate);
+
+    totalCost += rate;
+    if (rate > 0) {
+      rateCounts[rate] = (rateCounts[rate] || 0) + 1;
+    }
+
+    breakdown.push({
+      nightNumber: n + 1,
+      date: currentNightDate ? currentNightDate.toISOString().slice(0, 10) : "",
+      dateLabel: currentNightDate
+        ? currentNightDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+        : `Night ${n + 1}`,
+      rate,
+      isSeasonal,
+      seasonLabel: seasonLabel || "Standard",
+    });
+  }
+
+  const isAvailable = breakdown.length > 0 && breakdown.every((b) => b.rate > 0);
+  const avgRate = nightsCount > 0 && isAvailable ? totalCost / nightsCount : 0;
+  const uniqueRates = Object.keys(rateCounts).map(Number);
+  const hasSplitSeasons = uniqueRates.length > 1;
+
+  // Group consecutive nights with the same rate and season
+  const rateGroups = [];
+  breakdown.forEach((b) => {
+    const lastGroup = rateGroups[rateGroups.length - 1];
+    if (lastGroup && lastGroup.rate === b.rate && lastGroup.seasonLabel === b.seasonLabel) {
+      lastGroup.nightsCount += 1;
+      lastGroup.endDateLabel = b.dateLabel;
+      lastGroup.subtotal += b.rate;
+    } else {
+      rateGroups.push({
+        rate: b.rate,
+        seasonLabel: b.seasonLabel,
+        nightsCount: 1,
+        startDateLabel: b.dateLabel,
+        endDateLabel: b.dateLabel,
+        subtotal: b.rate,
+      });
+    }
+  });
+
+  // Build a clean split summary: e.g. "2N @ ₹1,200 + 1N @ ₹2,000"
+  const splitSummary = rateGroups
+    .map((g) => (g.nightsCount > 1 ? `${g.nightsCount}N (${g.startDateLabel}–${g.endDateLabel}) @ ₹${g.rate.toLocaleString("en-IN")}` : `${g.startDateLabel} (1N) @ ₹${g.rate.toLocaleString("en-IN")}`))
+    .join(" + ");
+
+  return {
+    totalCost: isAvailable ? totalCost : 0,
+    avgRate: isAvailable ? avgRate : 0,
+    breakdown,
+    rateGroups,
+    isAvailable,
+    hasSplitSeasons,
+    splitSummary,
   };
 }
 
@@ -167,28 +255,28 @@ export default function HotelRateFinderDialog({
     }
   }, [isOpen, cityName, category, currentMealPlan]);
 
-  const fetchHotelsForCity = useCallback((targetCity) => {
-    if (!targetCity) return;
-    setLoading(true);
-    fetch(`/api/accommodation/hotels?search=${encodeURIComponent(targetCity.trim())}`)
-      .then((r) => r.json())
-      .then(async (data) => {
-        const cityHotels = data.hotels || [];
-        setHotels(cityHotels);
+// In-memory cache to prevent redundant HTTP network requests when opening dialog
+const cityHotelsCache = new Map();
 
-        const roomsMap = {};
-        await Promise.all(
-          cityHotels.map(async (h) => {
-            try {
-              const res = await fetch(`/api/accommodation/rooms?hotelId=${h._id}`);
-              const rData = await res.json();
-              roomsMap[h._id] = rData.rooms || [];
-            } catch (err) {
-              roomsMap[h._id] = [];
-            }
-          })
-        );
+  const fetchHotelsForCity = useCallback((targetCity, force = false) => {
+    if (!targetCity) return;
+    const cacheKey = targetCity.trim().toLowerCase();
+    if (!force && cityHotelsCache.has(cacheKey)) {
+      const cached = cityHotelsCache.get(cacheKey);
+      setHotels(cached.hotels || []);
+      setHotelRoomsMap(cached.roomsMap || {});
+      return;
+    }
+
+    setLoading(true);
+    fetch(`/api/accommodation/hotels?search=${encodeURIComponent(targetCity.trim())}&includeRooms=true`)
+      .then((r) => r.json())
+      .then((data) => {
+        const cityHotels = data.hotels || [];
+        const roomsMap = data.roomsByHotel || {};
+        setHotels(cityHotels);
         setHotelRoomsMap(roomsMap);
+        cityHotelsCache.set(cacheKey, { hotels: cityHotels, roomsMap });
       })
       .catch((err) => console.error("Failed to load hotels:", err))
       .finally(() => setLoading(false));
@@ -241,40 +329,42 @@ export default function HotelRateFinderDialog({
       .map((h) => {
         const rooms = hotelRoomsMap[h._id] || [];
 
-        // Calculate the meal plan rate for every room
+        // Calculate multi-night rates for every room
         const roomRates = rooms.map((r, rIdx) => {
-          const { rate, isSeasonal, isAvailable } = getRoomRateForPlan(
+          const multi = calculateMultiNightRoomRates(
             r,
             selectedMealPlan,
-            startDate
+            startDate,
+            nights
           );
-          return { roomIndex: rIdx, rate, isSeasonal, isAvailable, room: r };
+          return { roomIndex: rIdx, room: r, ...multi };
         });
 
-        // Find lowest valid room (> 0) for the selected meal plan
-        const validRates = roomRates.filter((item) => item.rate > 0);
+        // Find lowest valid room (> 0 and available for all nights)
+        const validRates = roomRates.filter((item) => item.isAvailable && item.totalCost > 0);
         if (validRates.length === 0) {
-          // This hotel does NOT offer the selected meal plan on any room
+          // This hotel does NOT offer the selected meal plan on any room for these dates
           return null;
         }
 
-        validRates.sort((a, b) => a.rate - b.rate);
+        validRates.sort((a, b) => a.totalCost - b.totalCost);
         const lowestRoomIdx = validRates[0].roomIndex;
 
-        // If user has explicitly selected a room index for this hotel AND it has a valid rate for this meal plan
+        // If user has explicitly selected a room index for this hotel AND it is available for all nights
         const userSelectedIdx = selectedRoomIndexMap[h._id];
         const isUserSelectionValid =
           userSelectedIdx !== undefined &&
           userSelectedIdx >= 0 &&
           userSelectedIdx < rooms.length &&
-          (roomRates[userSelectedIdx]?.rate || 0) > 0;
+          (roomRates[userSelectedIdx]?.isAvailable || false);
 
         const activeRoomIdx = isUserSelectionValid ? userSelectedIdx : lowestRoomIdx;
+        const activeRoomData = roomRates[activeRoomIdx] || validRates[0];
         const selectedRoom = rooms[activeRoomIdx] || rooms[lowestRoomIdx] || null;
 
-        const nightlyRate = roomRates[activeRoomIdx]?.rate || validRates[0].rate;
-        const isSeasonal = roomRates[activeRoomIdx]?.isSeasonal || false;
-        const totalCost = nightlyRate * nights * roomsCount;
+        const totalCost = activeRoomData.totalCost * roomsCount;
+        const nightlyRate = activeRoomData.avgRate;
+        const isSeasonal = activeRoomData.breakdown.some((b) => b.isSeasonal);
 
         return {
           hotel: h,
@@ -283,8 +373,13 @@ export default function HotelRateFinderDialog({
           activeRoomIdx,
           lowestRoomIdx,
           validRoomIndices: validRates.map((v) => v.roomIndex),
+          roomRates,
+          activeRoomData,
           nightlyRate,
           isSeasonal,
+          hasSplitSeasons: activeRoomData.hasSplitSeasons,
+          splitSummary: activeRoomData.splitSummary,
+          breakdown: activeRoomData.breakdown,
           totalCost,
         };
       })
@@ -292,9 +387,9 @@ export default function HotelRateFinderDialog({
 
     // Sorting
     if (sortBy === "price_asc") {
-      processed.sort((a, b) => a.nightlyRate - b.nightlyRate);
+      processed.sort((a, b) => a.totalCost - b.totalCost);
     } else if (sortBy === "price_desc") {
-      processed.sort((a, b) => b.nightlyRate - a.nightlyRate);
+      processed.sort((a, b) => b.totalCost - a.totalCost);
     } else if (sortBy === "stars_desc") {
       processed.sort((a, b) => (parseInt(b.hotel.starRating, 10) || 3) - (parseInt(a.hotel.starRating, 10) || 3));
     } else if (sortBy === "name_asc") {
@@ -328,6 +423,10 @@ export default function HotelRateFinderDialog({
         mealPlan: selectedMealPlan,
         pricePerNight: item.nightlyRate,
         totalCost: item.totalCost,
+        hasSplitSeasons: item.hasSplitSeasons,
+        splitSummary: item.splitSummary,
+        rateGroups: item.activeRoomData?.rateGroups || [],
+        breakdown: item.breakdown,
       });
     }
     onClose();
@@ -457,7 +556,7 @@ export default function HotelRateFinderDialog({
               />
               <button
                 type="button"
-                onClick={() => fetchHotelsForCity(searchCity)}
+                onClick={() => fetchHotelsForCity(searchCity, true)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
                 title="Refresh"
               >
@@ -678,11 +777,15 @@ export default function HotelRateFinderDialog({
                             ))}
                           </div>
 
-                          {item.isSeasonal && (
+                          {item.hasSplitSeasons ? (
+                            <span className="text-[10px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 shadow-2xs" title={item.splitSummary}>
+                              ⚡ Split Season ({item.splitSummary})
+                            </span>
+                          ) : item.isSeasonal ? (
                             <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                               Seasonal Rate
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
                         <h4 className="text-[15px] font-black text-slate-900 truncate">
@@ -704,16 +807,17 @@ export default function HotelRateFinderDialog({
                                 className="text-[11.5px] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-2xs cursor-pointer"
                               >
                                 {item.rooms.map((r, rIdx) => {
-                                  const rRate = getRoomRateForPlan(
+                                  const rMulti = calculateMultiNightRoomRates(
                                     r,
                                     selectedMealPlan,
-                                    startDate
-                                  ).rate;
-                                  if (rRate <= 0) return null;
+                                    startDate,
+                                    nights
+                                  );
+                                  if (!rMulti.isAvailable || rMulti.totalCost <= 0) return null;
                                   const isLowest = rIdx === item.lowestRoomIdx && item.validRoomIndices.length > 1;
                                   return (
                                     <option key={r._id || rIdx} value={rIdx}>
-                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rRate.toLocaleString("en-IN")}/n){isLowest ? " • Lowest" : ""}
+                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rMulti.totalCost.toLocaleString("en-IN")}{nights > 1 ? ` • ₹${Math.round(rMulti.avgRate)}/n` : ""}){isLowest ? " • Lowest" : ""}
                                     </option>
                                   );
                                 })}
@@ -733,18 +837,46 @@ export default function HotelRateFinderDialog({
 
                       {/* Right rate & select action */}
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                        <div className="text-left sm:text-right">
-                          <div className="flex items-baseline gap-1 justify-end">
-                            <span className="text-[16px] font-black text-slate-900 font-mono">
-                              ₹{item.nightlyRate.toLocaleString("en-IN")}
-                            </span>
-                            <span className="text-[11px] text-slate-400 font-bold">/ night</span>
-                          </div>
+                        {item.hasSplitSeasons && item.activeRoomData?.rateGroups?.length > 1 ? (
+                          <div className="text-left sm:text-right space-y-1">
+                            <div className="space-y-0.5">
+                              {item.activeRoomData.rateGroups.map((g, gIdx) => (
+                                <div key={gIdx} className="text-[11px] font-bold text-slate-700 flex sm:justify-end items-center gap-1.5 font-mono">
+                                  <span className="text-[10px] text-slate-500 font-sans">
+                                    {g.nightsCount > 1 ? `${g.startDateLabel}–${g.endDateLabel} (${g.nightsCount}N)` : `${g.startDateLabel} (1N)`}:
+                                  </span>
+                                  <span className="text-slate-900 font-black">
+                                    ₹{g.rate.toLocaleString("en-IN")}/n
+                                  </span>
+                                  {g.nightsCount > 1 && (
+                                    <span className="text-slate-400 text-[10px]">
+                                      (= ₹{g.subtotal.toLocaleString("en-IN")})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
 
-                          <span className="text-[11px] text-slate-500 font-bold block">
-                            Total: ₹{item.totalCost.toLocaleString("en-IN")}
-                          </span>
-                        </div>
+                            <div className="pt-0.5 border-t border-slate-200/80">
+                              <span className="text-[13.5px] font-black text-slate-950 font-mono bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-300 inline-block shadow-2xs">
+                                Total: ₹{item.totalCost.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-left sm:text-right">
+                            <div className="flex items-baseline gap-1 justify-end">
+                              <span className="text-[16px] font-black text-slate-900 font-mono">
+                                ₹{Math.round(item.nightlyRate).toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-bold">/ night</span>
+                            </div>
+
+                            <span className="text-[11px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block font-mono">
+                              Total: ₹{item.totalCost.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
 
                         <button
                           type="button"

@@ -270,12 +270,12 @@ export default function PublicClientQuotationPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo.png"
-              alt="Mandate Holidays Logo"
+              alt="Plan My Honeymoon Logo"
               className="h-10 w-auto object-contain"
             />
             <div className="hidden sm:block">
               <div className="flex items-center gap-2">
-                <span className="text-[14.5px] font-black text-slate-900 tracking-tight leading-none">MANDATE HOLIDAYS</span>
+                <span className="text-[14.5px] font-black text-slate-900 tracking-tight leading-none">PLAN MY HONEYMOON</span>
                 <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wider">
                   Verified Proposal
                 </span>
@@ -812,11 +812,11 @@ export default function PublicClientQuotationPage() {
           <div className="flex items-center gap-3.5">
             <div className="bg-white p-2 rounded-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Mandate Holidays" className="h-12 w-auto object-contain" />
+              <img src="/logo.png" alt="Plan My Honeymoon" className="h-12 w-auto object-contain" />
             </div>
             <div>
-              <p className="text-[18px] font-black text-white">MANDATE HOLIDAYS</p>
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Luxury Travel &amp; Tour Curator</p>
+              <p className="text-[18px] font-black text-white">PLAN MY HONEYMOON</p>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Luxury Travel &amp; Honeymoon Curator</p>
             </div>
           </div>
           <div className="text-right">

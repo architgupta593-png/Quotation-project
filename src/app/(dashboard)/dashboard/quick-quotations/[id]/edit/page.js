@@ -16,6 +16,7 @@ import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFe
 import QuickItinerarySection, { syncItineraryWithHotelStays } from "@/components/quick-quotations/QuickItinerarySection";
 import QuickAccommodationSection from "@/components/quick-quotations/QuickAccommodationSection";
 import CustomDatePicker from "@/components/quick-quotations/CustomDatePicker";
+import { convertPackageInstructionsToSpecialInstructions } from "@/lib/formatPackageInstructions";
 
 const THEMES = [
   { id: "general", label: "General Tour", icon: Compass, color: "border-slate-300 text-slate-700 bg-slate-50" },
@@ -291,6 +292,8 @@ export default function EditQuickQuotationPage({ params }) {
       ? pkg.pricing.excludes
       : form.exclusions;
 
+    const pkgSpecialInstructions = convertPackageInstructionsToSpecialInstructions(pkg);
+
     const clientPart = form.client?.name?.trim() ? ` for ${form.client.name.trim()}` : "";
     const newTitle = pkg.title ? `${pkg.title}${clientPart}` : `${nights}N/${days}D ${primaryDest} Holiday${clientPart}`;
 
@@ -319,6 +322,9 @@ export default function EditQuickQuotationPage({ params }) {
       },
       inclusions: pkgInclusions,
       exclusions: pkgExclusions,
+      specialInstructions: (pkgSpecialInstructions && pkgSpecialInstructions.length > 0)
+        ? pkgSpecialInstructions
+        : prev.specialInstructions,
       pricing: {
         ...prev.pricing,
         totalPrice: packageSellingPrice,
@@ -1117,19 +1123,7 @@ export default function EditQuickQuotationPage({ params }) {
               </div>
             </div>
 
-            {/* ── 3. Day-by-Day Tour Itinerary ── */}
-            <QuickItinerarySection
-              itinerary={form.itinerary || []}
-              onChange={(updated) => setForm((p) => ({ ...p, itinerary: updated }))}
-              showItinerary={form.showItinerary !== false}
-              onToggleShowItinerary={() => setForm((p) => ({ ...p, showItinerary: !p.showItinerary }))}
-              daysCount={form.tripDetails?.days || 5}
-              destination={form.tripDetails?.destination || ""}
-              theme={form.tripDetails?.theme || "general"}
-              hotelStays={form.accommodationOptions?.[0]?.hotelStays || form.hotelStays || []}
-            />
-
-            {/* ── 4. Hotel Accommodation Portfolio ── */}
+            {/* ── 3. Hotel Accommodation Portfolio ── */}
             <QuickAccommodationSection
               accommodationOptions={form.accommodationOptions || []}
               onOptionsChange={(opts) => setForm((p) => ({ ...p, accommodationOptions: opts }))}
@@ -1170,6 +1164,18 @@ export default function EditQuickQuotationPage({ params }) {
                   };
                 });
               }}
+            />
+
+            {/* ── 4. Day-by-Day Tour Itinerary ── */}
+            <QuickItinerarySection
+              itinerary={form.itinerary || []}
+              onChange={(updated) => setForm((p) => ({ ...p, itinerary: updated }))}
+              showItinerary={form.showItinerary !== false}
+              onToggleShowItinerary={() => setForm((p) => ({ ...p, showItinerary: !p.showItinerary }))}
+              daysCount={form.tripDetails?.days || 5}
+              destination={form.tripDetails?.destination || ""}
+              theme={form.tripDetails?.theme || "general"}
+              hotelStays={form.accommodationOptions?.[0]?.hotelStays || form.hotelStays || []}
             />
 
             {/* ── 5. Dedicated Transport & Vehicle ── */}

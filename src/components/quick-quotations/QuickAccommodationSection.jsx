@@ -94,7 +94,12 @@ export default function QuickAccommodationSection({
     const newOptions = options.map((opt, i) => {
       if (i === targetOptIdx) {
         const totalCost = updatedStays.reduce(
-          (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
+          (sum, s) => {
+            const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0)
+              ? Number(s.totalCost)
+              : ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)));
+            return sum + (legBase * roomMultiplier);
+          },
           0
         );
         const mVal = Number(opt.margin) || 0;
@@ -118,7 +123,12 @@ export default function QuickAccommodationSection({
     }
     if (typeof onPriceAdjustment === "function") {
       const activeCost = updatedStays.reduce(
-        (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
+        (sum, s) => {
+          const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0)
+            ? Number(s.totalCost)
+            : ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)));
+          return sum + (legBase * roomMultiplier);
+        },
         0
       );
       onPriceAdjustment(activeCost, targetOptIdx);
@@ -126,12 +136,36 @@ export default function QuickAccommodationSection({
   }, [options, safeOptIdx, roomMultiplier, onOptionsChange, onChange, onPriceAdjustment]);
 
   function handleStayChange(idx, field, val) {
-    const updated = currentStays.map((s, i) => (i === idx ? { ...s, [field]: val } : s));
+    const updated = currentStays.map((s, i) => {
+      if (i === idx) {
+        const nextStay = { ...s, [field]: val };
+        if (field === "pricePerNight" || field === "nights") {
+          nextStay.hasSplitSeasons = false;
+          nextStay.totalCost = undefined;
+          nextStay.rateGroups = [];
+        }
+        return nextStay;
+      }
+      return s;
+    });
     updateOptionStays(updated);
   }
 
   function handleOpenFinderDialog(idx) {
     const stay = currentStays[idx];
+
+    let legStartDate = startDate;
+    if (startDate && idx > 0) {
+      const precedingNights = currentStays
+        .slice(0, idx)
+        .reduce((sum, s) => sum + (Math.max(1, parseInt(s.nights, 10) || 1)), 0);
+      const baseD = new Date(startDate);
+      if (!isNaN(baseD.getTime())) {
+        const legD = new Date(baseD.getTime() + precedingNights * 86400000);
+        legStartDate = legD.toISOString().slice(0, 10);
+      }
+    }
+
     setDialogState({
       isOpen: true,
       stayIndex: idx,
@@ -139,6 +173,7 @@ export default function QuickAccommodationSection({
       category: stay.category || "None",
       stayNights: stay.nights || 1,
       currentMealPlan: stay.mealPlan || "CP",
+      legStartDate,
     });
   }
 
@@ -157,6 +192,11 @@ export default function QuickAccommodationSection({
           roomType: selectedData.roomType || s.roomType,
           mealPlan: selectedData.mealPlan || s.mealPlan,
           pricePerNight: selectedData.pricePerNight || s.pricePerNight,
+          totalCost: selectedData.totalCost || undefined,
+          hasSplitSeasons: selectedData.hasSplitSeasons || false,
+          splitSummary: selectedData.splitSummary || "",
+          rateGroups: selectedData.rateGroups || [],
+          breakdown: selectedData.breakdown || [],
         };
       }
       return s;
@@ -502,7 +542,9 @@ export default function QuickAccommodationSection({
         {currentStays.map((stay, idx) => {
           const stayNights = Math.max(1, parseInt(stay.nights, 10) || 1);
           const stayPrice = Number(stay.pricePerNight) || 0;
-          const staySubtotal = stayPrice * stayNights * roomMultiplier;
+          const staySubtotal = (stay.hasSplitSeasons && Number(stay.totalCost) > 0)
+            ? Number(stay.totalCost) * roomMultiplier
+            : stayPrice * stayNights * roomMultiplier;
           const activePlan = stay.mealPlan || "CP";
 
           return (
@@ -629,6 +671,25 @@ export default function QuickAccommodationSection({
                 </button>
               </div>
 
+              {/* Discrete Multi-Season Rate Breakdown Banner */}
+              {stay.hasSplitSeasons && stay.rateGroups?.length > 1 && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/90 via-orange-50/40 to-amber-50/90 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs animate-in fade-in">
+                  <div className="flex items-center gap-1.5 flex-wrap text-[11.5px]">
+                    <span className="font-black text-amber-950 flex items-center gap-1">
+                      <span>⚡ Season Split:</span>
+                    </span>
+                    {stay.rateGroups.map((g, gIdx) => (
+                      <span key={gIdx} className="bg-white px-2.5 py-1 rounded-xl border border-amber-200/90 text-slate-800 font-mono text-[11px] font-bold shadow-2xs">
+                        {g.nightsCount > 1 ? `${g.startDateLabel}–${g.endDateLabel} (${g.nightsCount}N)` : `${g.startDateLabel} (1N)`}: <strong className="text-amber-900 font-black">₹{g.rate.toLocaleString("en-IN")}/n</strong>
+                      </span>
+                    ))}
+                  </div>
+                  <span className="font-mono font-black text-amber-950 text-[12px] bg-amber-200/70 px-2.5 py-1 rounded-xl border border-amber-300/80 shadow-2xs self-start sm:self-auto">
+                    Leg Total: ₹{(stay.totalCost ? stay.totalCost * roomMultiplier : staySubtotal).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
+
               {/* Meal Plan In-Line Tabs */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {MEAL_PLANS.map((plan) => {
@@ -692,7 +753,7 @@ export default function QuickAccommodationSection({
         cityName={dialogState.cityName}
         category={dialogState.category}
         stayNights={dialogState.stayNights}
-        startDate={startDate}
+        startDate={dialogState.legStartDate || startDate}
         totalRooms={totalRooms}
         currentMealPlan={dialogState.currentMealPlan}
         onSelectHotel={handleHotelSelected}

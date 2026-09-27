@@ -7,7 +7,10 @@ import {
   Bold, Italic, List, ListOrdered, Indent, Outdent, Code,
   Eye, Edit3, Copy, Sparkle, Shield, Clock, Award, Compass,
   Layers, CheckCheck, HelpCircle, ArrowUp, ArrowDown, Type,
+  Package as PackageIcon,
 } from "lucide-react";
+import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFetchModal";
+import { convertPackageInstructionsToSpecialInstructions } from "@/lib/formatPackageInstructions";
 
 const PRESET_POLICIES = [
   {
@@ -204,6 +207,7 @@ export default function InstructionsEditorModal({
   const [sections, setSections] = useState([]);
   const [activeSectionId, setActiveSectionId] = useState(null);
   const [activeTab, setActiveTab] = useState("editor"); // "editor" | "preview"
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
   const editorRef = useRef(null);
 
   // Initialize sections from instructions prop
@@ -323,6 +327,34 @@ export default function InstructionsEditorModal({
     updateActiveSectionContent();
   }
 
+  function handleImportPackageInstructions(pkg) {
+    const converted = convertPackageInstructionsToSpecialInstructions(pkg);
+    if (converted && converted.length > 0) {
+      const loaded = converted.map((item, idx) => {
+        let title = `Policy Section ${idx + 1}`;
+        let content = item;
+
+        const titleMatch = item.match(/<strong>([^<]+)<\/strong>/i) || item.match(/•\s*([^:\n]+):/);
+        if (titleMatch && titleMatch[1]) {
+          title = titleMatch[1].replace(/^[🏨🪪🚗🧳💳📌\s]+/, "").trim();
+        }
+
+        return {
+          id: `sec_${Date.now()}_${idx}`,
+          title: title || `Policy Section ${idx + 1}`,
+          content: content,
+        };
+      });
+      setSections(loaded);
+      setActiveSectionId(loaded[0]?.id || null);
+      if (editorRef.current && loaded[0]) {
+        editorRef.current.innerHTML = loaded[0].content;
+      }
+    } else {
+      alert("This package has no specific instructions or policies configured.");
+    }
+  }
+
   function handleResetAllDefaults() {
     if (confirm("Reset all instructions to default agency policies?")) {
       setSections(DEFAULT_SECTIONS);
@@ -436,6 +468,18 @@ export default function InstructionsEditorModal({
                 </button>
               );
             })}
+
+            <div className="h-4 w-[1px] bg-slate-300 mx-1 flex-shrink-0" />
+
+            <button
+              type="button"
+              onClick={() => setPackageModalOpen(true)}
+              className="px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 text-indigo-950 border border-indigo-200 hover:border-indigo-400 font-bold whitespace-nowrap transition-all shadow-2xs text-[11px] flex items-center gap-1.5 active:scale-95 flex-shrink-0"
+            >
+              <PackageIcon className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Fetch from Package</span>
+              <span className="text-[9px] font-black text-indigo-700 bg-indigo-200/70 px-1 py-0.2 rounded">Import</span>
+            </button>
           </div>
 
           <button
@@ -699,6 +743,15 @@ export default function InstructionsEditorModal({
           </button>
         </div>
       </div>
+
+      {/* Package Picker for Policy Import */}
+      {packageModalOpen && (
+        <QuickPackageFetchModal
+          isOpen={packageModalOpen}
+          onClose={() => setPackageModalOpen(false)}
+          onSelectPackage={handleImportPackageInstructions}
+        />
+      )}
     </div>
   );
 }

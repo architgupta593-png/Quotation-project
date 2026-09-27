@@ -183,7 +183,7 @@ export default function QuotationDashboardDetailPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo.png"
-              alt="Mandate Holidays Logo"
+              alt="Plan My Honeymoon Logo"
               className="h-9 w-auto object-contain hidden sm:block"
             />
             <div className="h-5 w-px bg-slate-200 hidden sm:block" />

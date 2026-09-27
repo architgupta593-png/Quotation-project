@@ -260,8 +260,8 @@ export default function QuickQuotationPublicPage({ params }) {
         <div className="flex items-center gap-3">
           <div className="relative h-8 w-28 sm:w-36">
             <Image
-              src="/logo (2).png"
-              alt="Mande Holidays"
+              src="/logo.png"
+              alt="Plan My Honeymoon"
               fill
               sizes="(max-width: 640px) 112px, 144px"
               className="object-contain object-left"
@@ -412,6 +412,138 @@ export default function QuickQuotationPublicPage({ params }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Main Details (8 cols) */}
           <div className="lg:col-span-8 space-y-8">
+            {/* ── Hotel Accommodation Portfolio Showcase ── */}
+            {activeStays && activeStays.length > 0 && (
+              <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
+                      <Hotel className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
+                      <p className="text-[12px] text-slate-500 font-semibold">
+                        Curated stays reserved for your selected itinerary &amp; dates
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+                    {activeStays.length} Destination {activeStays.length === 1 ? "Stay" : "Stays"}
+                  </span>
+                </div>
+
+                {/* Multi-Tier Interactive Selector Tabs (Custom Option Names & Live Deltas) */}
+                {availableOptions.length > 1 && (
+                  <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                    <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
+                      <Layers className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Select Tier:</span>
+                    </div>
+                    {availableOptions.map((opt, oIdx) => {
+                      const isSelected = selectedOptionIdx === oIdx;
+                      const thisOptCost = getOptionWithMargin(opt);
+                      const thisDelta = (baseOptCost > 0 && thisOptCost > 0) ? (thisOptCost - baseOptCost) : 0;
+                      const thisDeltaWithTax = includeGst ? Math.round(thisDelta * (1 + gstRate / 100)) : thisDelta;
+
+                      return (
+                        <button
+                          key={oIdx}
+                          type="button"
+                          onClick={() => setSelectedOptionIdx(oIdx)}
+                          className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${
+                            isSelected
+                              ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
+                              : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                          }`}
+                        >
+                          <span>{opt.label || (oIdx === 0 ? "Standard" : `Option ${oIdx + 1}`)}</span>
+                          <span className={`text-[10.5px] font-bold px-1.5 py-0.2 rounded-md ${
+                            isSelected ? "bg-amber-400/20 text-amber-300" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {oIdx === 0
+                              ? "Base"
+                              : thisDeltaWithTax > 0
+                              ? `+₹${thisDeltaWithTax.toLocaleString("en-IN")}`
+                              : thisDeltaWithTax < 0
+                              ? `-₹${Math.abs(thisDeltaWithTax).toLocaleString("en-IN")}`
+                              : "Same"}
+                          </span>
+                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Stays List */}
+                <div className="space-y-3.5">
+                  {activeStays.map((stay, idx) => {
+                    const planDesc = MEAL_PLAN_DESCRIPTIONS[stay.mealPlan] || {
+                      meaning: `${stay.mealPlan} Meal Plan`,
+                      badge: stay.mealPlan,
+                      description: "Meals included as per plan",
+                    };
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
+                            <span className="text-[14px] leading-none font-mono">{stay.nights || 1}N</span>
+                            <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-amber-700" />
+                                <span>{stay.cityName || tripDetails?.destination || "Destination"} • {stay.nights || 1} {(stay.nights || 1) > 1 ? "Nights" : "Night"}</span>
+                              </span>
+
+                              {stay.category && stay.category !== "None" && (
+                                <span className="text-[10.5px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                  {stay.category}
+                                </span>
+                              )}
+
+                              <div className="flex text-amber-400">
+                                {[...Array(stay.starRating || 3)].map((_, i) => (
+                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                ))}
+                              </div>
+                            </div>
+
+                            <h3 className="text-[16px] font-black text-slate-900 group-hover:text-amber-600 transition-colors">
+                              {stay.hotelName || "Quality Certified Hotel"}
+                            </h3>
+
+                            <p className="text-[12px] text-slate-500 font-semibold">
+                              Room: <span className="text-slate-800 font-bold">{stay.roomType || "Deluxe AC Room"}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {stay.mealPlan && (
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 flex-shrink-0">
+                            <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-950 border border-emerald-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
+                              <span>🍽️</span>
+                              <span>{planDesc.badge || `${stay.mealPlan} • ${planDesc.meaning}`}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 hidden sm:inline">
+                              {planDesc.description}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Minimalist Day-by-Day Tour Itinerary Timeline */}
             {quickQuote.showItinerary !== false && quickQuote.itinerary && quickQuote.itinerary.length > 0 && (
               <section className="bg-white rounded-3xl border border-slate-200/90 hover:border-indigo-400/80 p-6 sm:p-7 shadow-xs transition-all space-y-5">
@@ -553,138 +685,6 @@ export default function QuickQuotationPublicPage({ params }) {
                                 </span>
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* ── Hotel Accommodation Portfolio Showcase ── */}
-            {activeStays && activeStays.length > 0 && (
-              <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
-                      <Hotel className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
-                      <p className="text-[12px] text-slate-500 font-semibold">
-                        Curated stays reserved for your selected itinerary &amp; dates
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
-                    {activeStays.length} Destination {activeStays.length === 1 ? "Stay" : "Stays"}
-                  </span>
-                </div>
-
-                {/* Multi-Tier Interactive Selector Tabs (Custom Option Names & Live Deltas) */}
-                {availableOptions.length > 1 && (
-                  <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
-                    <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
-                      <Layers className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Select Tier:</span>
-                    </div>
-                    {availableOptions.map((opt, oIdx) => {
-                      const isSelected = selectedOptionIdx === oIdx;
-                      const thisOptCost = getOptionWithMargin(opt);
-                      const thisDelta = (baseOptCost > 0 && thisOptCost > 0) ? (thisOptCost - baseOptCost) : 0;
-                      const thisDeltaWithTax = includeGst ? Math.round(thisDelta * (1 + gstRate / 100)) : thisDelta;
-
-                      return (
-                        <button
-                          key={oIdx}
-                          type="button"
-                          onClick={() => setSelectedOptionIdx(oIdx)}
-                          className={`px-4 py-2 rounded-xl text-[12.5px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${
-                            isSelected
-                              ? "bg-slate-900 text-amber-400 shadow-xs ring-2 ring-amber-400/30 scale-[1.02]"
-                              : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                          }`}
-                        >
-                          <span>{opt.label || (oIdx === 0 ? "Standard" : `Option ${oIdx + 1}`)}</span>
-                          <span className={`text-[10.5px] font-bold px-1.5 py-0.2 rounded-md ${
-                            isSelected ? "bg-amber-400/20 text-amber-300" : "bg-slate-100 text-slate-500"
-                          }`}>
-                            {oIdx === 0
-                              ? "Base"
-                              : thisDeltaWithTax > 0
-                              ? `+₹${thisDeltaWithTax.toLocaleString("en-IN")}`
-                              : thisDeltaWithTax < 0
-                              ? `-₹${Math.abs(thisDeltaWithTax).toLocaleString("en-IN")}`
-                              : "Same"}
-                          </span>
-                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Stays List */}
-                <div className="space-y-3.5">
-                  {activeStays.map((stay, idx) => {
-                    const planDesc = MEAL_PLAN_DESCRIPTIONS[stay.mealPlan] || {
-                      meaning: `${stay.mealPlan} Meal Plan`,
-                      badge: stay.mealPlan,
-                      description: "Meals included as per plan",
-                    };
-
-                    return (
-                      <div
-                        key={idx}
-                        className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
-                      >
-                        <div className="flex items-start gap-3.5">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
-                            <span className="text-[14px] leading-none font-mono">{stay.nights || 1}N</span>
-                            <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-amber-700" />
-                                <span>{stay.cityName || tripDetails?.destination || "Destination"} • {stay.nights || 1} {(stay.nights || 1) > 1 ? "Nights" : "Night"}</span>
-                              </span>
-
-                              {stay.category && stay.category !== "None" && (
-                                <span className="text-[10.5px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                  {stay.category}
-                                </span>
-                              )}
-
-                              <div className="flex text-amber-400">
-                                {[...Array(stay.starRating || 3)].map((_, i) => (
-                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                ))}
-                              </div>
-                            </div>
-
-                            <h3 className="text-[16px] font-black text-slate-900 group-hover:text-amber-600 transition-colors">
-                              {stay.hotelName || "Quality Certified Hotel"}
-                            </h3>
-
-                            <p className="text-[12px] text-slate-500 font-semibold">
-                              Room: <span className="text-slate-800 font-bold">{stay.roomType || "Deluxe AC Room"}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {stay.mealPlan && (
-                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 flex-shrink-0">
-                            <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-950 border border-emerald-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
-                              <span>🍽️</span>
-                              <span>{planDesc.badge || `${stay.mealPlan} • ${planDesc.meaning}`}</span>
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-0.5 hidden sm:inline">
-                              {planDesc.description}
-                            </span>
                           </div>
                         )}
                       </div>

@@ -18,18 +18,18 @@ const geistMono = Geist_Mono({
  */
 export const metadata = {
   title: {
-    default: "mandeholidays",
-    template: "%s | mandeholidays",
+    default: "Plan My Honeymoon",
+    template: "%s | Plan My Honeymoon",
   },
   description:
-    "A modern full-stack web application built with Next.js, MongoDB, and Cloudinary.",
+    "Luxury Honeymoon & Holiday Tour Packages, Custom Itineraries & Instant Quotations.",
   metadataBase: new URL(
     process.env.NEXTAUTH_URL || "http://localhost:3000"
   ),
   openGraph: {
-    title: "mandeholidays",
+    title: "Plan My Honeymoon",
     description:
-      "A modern full-stack web application built with Next.js, MongoDB, and Cloudinary.",
+      "Luxury Honeymoon & Holiday Tour Packages, Custom Itineraries & Instant Quotations.",
     type: "website",
     locale: "en_US",
   },

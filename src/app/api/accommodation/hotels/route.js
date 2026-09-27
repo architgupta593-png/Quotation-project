@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Hotel from "@/models/Hotel";
 import City from "@/models/City";
+import Room from "@/models/Room";
 
-// ── GET /api/accommodation/hotels — list hotels (filter by cityId, search) ────
+// ── GET /api/accommodation/hotels — list hotels (filter by cityId, search, includeRooms) ────
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,6 +19,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const cityId = searchParams.get("cityId") || searchParams.get("city");
     const search = searchParams.get("search");
+    const includeRooms = searchParams.get("includeRooms") === "true";
 
     const filter = {};
     if (cityId) filter.city = cityId;
@@ -39,7 +41,20 @@ export async function GET(request) {
       .sort({ name: 1 })
       .lean();
 
-    return NextResponse.json({ hotels });
+    let roomsByHotel = {};
+    if (includeRooms && hotels.length > 0) {
+      const hotelIds = hotels.map((h) => h._id);
+      const rooms = await Room.find({ hotel: { $in: hotelIds } })
+        .sort({ roomType: 1 })
+        .lean();
+      rooms.forEach((r) => {
+        const hId = r.hotel?.toString();
+        if (!roomsByHotel[hId]) roomsByHotel[hId] = [];
+        roomsByHotel[hId].push(r);
+      });
+    }
+
+    return NextResponse.json({ hotels, roomsByHotel });
   } catch (err) {
     console.error("[GET /api/accommodation/hotels]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
