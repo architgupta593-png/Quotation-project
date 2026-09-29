@@ -7,6 +7,7 @@ const QuickItineraryDaySchema = new mongoose.Schema(
     day: { type: Number, required: true, min: 1 },
     title: { type: String, default: "", trim: true },
     description: { type: String, trim: true, default: "" },
+    city: { type: String, trim: true, default: "" },
     activities: { type: [String], default: [] },
     meals: {
       breakfast: { type: Boolean, default: true },
@@ -14,7 +15,7 @@ const QuickItineraryDaySchema = new mongoose.Schema(
       dinner: { type: Boolean, default: false },
     },
   },
-  { _id: false }
+  { _id: false, strict: false }
 );
 
 const HotelStaySchema = new mongoose.Schema(
@@ -22,7 +23,7 @@ const HotelStaySchema = new mongoose.Schema(
     nightNumber: { type: Number, default: 1 },
     nights: { type: Number, min: 1, default: 1 },
     cityName: { type: String, trim: true, default: "" },
-    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", default: null },
+    hotelId: { type: mongoose.Schema.Types.Mixed, default: null },
     hotelName: { type: String, trim: true, default: "" },
     category: { type: String, trim: true, default: "None" },
     starRating: {
@@ -32,6 +33,7 @@ const HotelStaySchema = new mongoose.Schema(
       default: 3,
       set: (v) => Math.max(1, Math.min(5, parseInt(v, 10) || 3)),
     },
+    roomId: { type: mongoose.Schema.Types.Mixed, default: null },
     roomType: { type: String, trim: true, default: "Deluxe AC Room" },
     mealPlan: {
       type: String,
@@ -49,9 +51,15 @@ const HotelStaySchema = new mongoose.Schema(
     availableMealPlans: { type: [String], default: undefined },
     mealPrices: { type: mongoose.Schema.Types.Mixed, default: undefined },
     pricePerNight: { type: Number, min: 0, default: 0 },
+    totalCost: { type: Number, min: 0, default: 0 },
+    hasSplitSeasons: { type: Boolean, default: false },
+    features: { type: [String], default: [] },
+    matchedFeatures: { type: [String], default: [] },
+    hotelActivities: { type: mongoose.Schema.Types.Mixed, default: [] },
+    selectedAddOns: { type: mongoose.Schema.Types.Mixed, default: [] },
     notes: { type: String, trim: true, default: "" },
   },
-  { _id: false }
+  { _id: false, strict: false }
 );
 
 // ── Multi-Tier Accommodation Option (e.g. Option 1: Standard, Option 2: Deluxe, Option 3: Luxury) ──
@@ -64,7 +72,7 @@ const AccommodationOptionSchema = new mongoose.Schema(
     marginType: { type: String, enum: ["absolute", "percentage"], default: "absolute" },
     margin: { type: Number, min: 0, default: 0 },
   },
-  { _id: false }
+  { _id: false, strict: false }
 );
 
 const VehicleSchema = new mongoose.Schema(
@@ -205,7 +213,13 @@ const QuickQuotationSchema = new mongoose.Schema(
       ],
     },
 
-    // ── Special Instructions & Travel Policies ──
+    // ── Package Cover & Hero Images ──
+    packageCoverImage: { type: mongoose.Schema.Types.Mixed, default: null },
+    coverImage: { type: mongoose.Schema.Types.Mixed, default: null },
+    destinationCoverImage: { type: String, trim: true, default: "" },
+
+    // ── Travel Guidelines & Policies ──
+    instructions: { type: [String], default: [] },
     specialInstructions: {
       type: [String],
       default: [
@@ -288,6 +302,7 @@ const QuickQuotationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    strict: false,
   }
 );
 

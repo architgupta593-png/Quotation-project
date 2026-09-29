@@ -5,13 +5,32 @@ import {
   Building2, Plus, Trash2, MapPin, Search,
   CheckCircle2, AlertCircle, Copy, IndianRupee,
   BedDouble, Utensils, Check, ArrowRight, Zap,
-  SlidersHorizontal, Sparkles
+  SlidersHorizontal, Sparkles, Tag, ChevronDown, ChevronUp,
+  Gift, X,
 } from "lucide-react";
 import {
   HOTEL_CATEGORIES,
   getCategoryBadgeClass,
 } from "@/components/packages/AccommodationPanel";
 import HotelRateFinderDialog, { MEAL_PLANS } from "./HotelRateFinderDialog";
+
+export function calculateSingleStayCost(stay, roomMultiplier = 1) {
+  if (!stay) return 0;
+  const stayNights = Math.max(1, parseInt(stay.nights, 10) || 1);
+  const roomMult = Math.max(1, parseInt(roomMultiplier, 10) || 1);
+  const legBase = (stay.hasSplitSeasons && Number(stay.totalCost) > 0)
+    ? Number(stay.totalCost)
+    : ((Number(stay.pricePerNight) || 0) * stayNights);
+  const addOnsCost = (stay.selectedAddOns || []).reduce((sum, item) => {
+    return sum + (typeof item === "object" ? (Number(item?.price) || 0) : 0);
+  }, 0);
+  return (legBase + addOnsCost) * roomMult;
+}
+
+export function calculateStaysCost(stays = [], roomMultiplier = 1) {
+  if (!Array.isArray(stays) || stays.length === 0) return 0;
+  return stays.reduce((sum, s) => sum + calculateSingleStayCost(s, roomMultiplier), 0);
+}
 
 function createDefaultStay(cityName = "", nights = 1, category = "None") {
   return {
@@ -27,14 +46,28 @@ function createDefaultStay(cityName = "", nights = 1, category = "None") {
     availableMealPlans: ["EP", "CP", "MAP", "AP"],
     pricePerNight: 0,
     notes: "",
+    hotelActivities: [],
+    selectedAddOns: [],
   };
 }
 
-function createDefaultOption(label = "Standard", defaultStays = []) {
+function createDefaultOption(label = "Standard", defaultStays = [], roomMultiplier = 1) {
+  const stays = defaultStays.length > 0
+    ? defaultStays.map((s) => ({
+        ...s,
+        features: Array.isArray(s.features) ? [...s.features] : [],
+        matchedFeatures: Array.isArray(s.matchedFeatures) ? [...s.matchedFeatures] : [],
+        hotelActivities: Array.isArray(s.hotelActivities) ? [...s.hotelActivities] : [],
+        selectedAddOns: Array.isArray(s.selectedAddOns)
+          ? s.selectedAddOns.map((a) => (typeof a === "object" ? { ...a } : a))
+          : [],
+      }))
+    : [createDefaultStay("", 1, "None")];
+  const totalCost = calculateStaysCost(stays, roomMultiplier);
   return {
     label: label || "Standard",
-    hotelStays: defaultStays.length > 0 ? defaultStays.map((s) => ({ ...s })) : [createDefaultStay("", 1, "None")],
-    totalPrice: 0,
+    hotelStays: stays,
+    totalPrice: totalCost,
     marginType: "absolute",
     margin: 0,
   };
@@ -52,8 +85,21 @@ export default function QuickAccommodationSection({
   adults = 2,
   passengers = null,
   onPriceAdjustment,
+  activeOptionIndex,
+  onActiveOptionChange,
 }) {
-  const [activeOptIdx, setActiveOptIdx] = useState(0);
+  const [internalOptIdx, setInternalOptIdx] = useState(0);
+  const [openAddOnStayIdx, setOpenAddOnStayIdx] = useState(null);
+
+  const activeOptIdx = activeOptionIndex !== undefined ? activeOptionIndex : internalOptIdx;
+
+  const handleSetActiveOption = useCallback((idx) => {
+    setInternalOptIdx(idx);
+    if (typeof onActiveOptionChange === "function") {
+      onActiveOptionChange(idx);
+    }
+  }, [onActiveOptionChange]);
+
   const [dialogState, setDialogState] = useState({
     isOpen: false,
     stayIndex: 0,
@@ -63,24 +109,24 @@ export default function QuickAccommodationSection({
     currentMealPlan: "CP",
   });
 
+  const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
+
   // Options normalization
   const options = useMemo(() => {
     if (Array.isArray(propOptions) && propOptions.length > 0) {
       return propOptions;
     }
     if (Array.isArray(propStays) && propStays.length > 0) {
-      return [createDefaultOption("Standard", propStays)];
+      return [createDefaultOption("Standard", propStays, roomMultiplier)];
     }
-    return [createDefaultOption("Standard", [createDefaultStay(primaryDestination, totalNights, "None")])];
-  }, [propOptions, propStays, primaryDestination, totalNights]);
+    return [createDefaultOption("Standard", [createDefaultStay(primaryDestination, totalNights, "None")], roomMultiplier)];
+  }, [propOptions, propStays, primaryDestination, totalNights, roomMultiplier]);
 
   const safeOptIdx = Math.min(Math.max(0, activeOptIdx), Math.max(0, options.length - 1));
   const activeOption = options[safeOptIdx] || options[0];
   const currentStays = activeOption.hotelStays && activeOption.hotelStays.length > 0
     ? activeOption.hotelStays
     : [createDefaultStay(primaryDestination, totalNights, "None")];
-
-  const roomMultiplier = Math.max(1, parseInt(totalRooms, 10) || 1);
 
   // Total allocated nights
   const allocatedNights = useMemo(() => {
@@ -91,17 +137,9 @@ export default function QuickAccommodationSection({
 
   // Centralized State Update & Emitter
   const updateOptionStays = useCallback((updatedStays, targetOptIdx = safeOptIdx) => {
+    const totalCost = calculateStaysCost(updatedStays, roomMultiplier);
     const newOptions = options.map((opt, i) => {
       if (i === targetOptIdx) {
-        const totalCost = updatedStays.reduce(
-          (sum, s) => {
-            const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0)
-              ? Number(s.totalCost)
-              : ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)));
-            return sum + (legBase * roomMultiplier);
-          },
-          0
-        );
         const mVal = Number(opt.margin) || 0;
         const mType = opt.marginType || "absolute";
         const mAmt = mType === "percentage" ? (totalCost * mVal) / 100 : mVal;
@@ -118,20 +156,12 @@ export default function QuickAccommodationSection({
     if (typeof onOptionsChange === "function") {
       onOptionsChange(newOptions);
     }
-    if (typeof onChange === "function") {
+    // Only update base stays in parent if editing Option 1 (index 0)
+    if (targetOptIdx === 0 && typeof onChange === "function") {
       onChange(updatedStays);
     }
     if (typeof onPriceAdjustment === "function") {
-      const activeCost = updatedStays.reduce(
-        (sum, s) => {
-          const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0)
-            ? Number(s.totalCost)
-            : ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)));
-          return sum + (legBase * roomMultiplier);
-        },
-        0
-      );
-      onPriceAdjustment(activeCost, targetOptIdx);
+      onPriceAdjustment(totalCost, targetOptIdx);
     }
   }, [options, safeOptIdx, roomMultiplier, onOptionsChange, onChange, onPriceAdjustment]);
 
@@ -197,7 +227,48 @@ export default function QuickAccommodationSection({
           splitSummary: selectedData.splitSummary || "",
           rateGroups: selectedData.rateGroups || [],
           breakdown: selectedData.breakdown || [],
+          features: selectedData.features || [],
+          matchedFeatures: selectedData.matchedFeatures || [],
+          hotelActivities: selectedData.hotelActivities || [],
+          selectedAddOns: selectedData.selectedAddOns || [],
         };
+      }
+      return s;
+    });
+    updateOptionStays(updated);
+  }
+
+  function handleToggleStayAddOn(stayIdx, addOn) {
+    const updated = currentStays.map((s, i) => {
+      if (i === stayIdx) {
+        const current = s.selectedAddOns || [];
+        const exists = current.some(
+          (item) => (item.name || "").trim().toLowerCase() === (addOn.name || "").trim().toLowerCase()
+        );
+        const nextAddOns = exists
+          ? current.filter((item) => (item.name || "").trim().toLowerCase() !== (addOn.name || "").trim().toLowerCase())
+          : [...current, addOn];
+        return { ...s, selectedAddOns: nextAddOns };
+      }
+      return s;
+    });
+    updateOptionStays(updated);
+  }
+
+  function handleSelectAllStayAddOns(stayIdx, activities) {
+    const updated = currentStays.map((s, i) => {
+      if (i === stayIdx) {
+        return { ...s, selectedAddOns: [...(activities || [])] };
+      }
+      return s;
+    });
+    updateOptionStays(updated);
+  }
+
+  function handleClearAllStayAddOns(stayIdx) {
+    const updated = currentStays.map((s, i) => {
+      if (i === stayIdx) {
+        return { ...s, selectedAddOns: [] };
       }
       return s;
     });
@@ -279,17 +350,28 @@ export default function QuickAccommodationSection({
       "Executive Package",
     ];
     const autoLabel = customLabel || defaultLabels[newIdx] || `Option ${newIdx + 1} Package`;
-    const newOption = createDefaultOption(autoLabel, currentStays);
+    const newOption = createDefaultOption(autoLabel, currentStays, roomMultiplier);
     const newOptions = [...options, newOption];
 
     if (typeof onOptionsChange === "function") onOptionsChange(newOptions);
-    setActiveOptIdx(newIdx);
+    handleSetActiveOption(newIdx);
+    if (typeof onPriceAdjustment === "function") {
+      onPriceAdjustment(newOption.totalPrice, newIdx);
+    }
   }
 
   function handleDuplicateOption(idx) {
     const source = options[idx] || options[0];
     const newIdx = options.length;
-    const duplicatedStays = (source.hotelStays || currentStays).map((s) => ({ ...s }));
+    const duplicatedStays = (source.hotelStays || currentStays).map((s) => ({
+      ...s,
+      features: Array.isArray(s.features) ? [...s.features] : [],
+      matchedFeatures: Array.isArray(s.matchedFeatures) ? [...s.matchedFeatures] : [],
+      hotelActivities: Array.isArray(s.hotelActivities) ? [...s.hotelActivities] : [],
+      selectedAddOns: Array.isArray(s.selectedAddOns)
+        ? s.selectedAddOns.map((a) => (typeof a === "object" ? { ...a } : a))
+        : [],
+    }));
     const defaultLabels = [
       "Standard Package",
       "Gold Package",
@@ -300,15 +382,24 @@ export default function QuickAccommodationSection({
     ];
     const fallbackLabel = defaultLabels[newIdx] || `Option ${newIdx + 1} Package`;
     const newLabel = source.label ? `${source.label} (Tier ${newIdx + 1})` : fallbackLabel;
+    const totalCost = calculateStaysCost(duplicatedStays, roomMultiplier);
+    const mVal = Number(source.margin) || 0;
+    const mType = source.marginType || "absolute";
+    const mAmt = mType === "percentage" ? (totalCost * mVal) / 100 : mVal;
+
     const newOption = {
       ...source,
       label: newLabel,
       hotelStays: duplicatedStays,
+      totalPrice: totalCost + mAmt,
     };
     const newOptions = [...options, newOption];
 
     if (typeof onOptionsChange === "function") onOptionsChange(newOptions);
-    setActiveOptIdx(newIdx);
+    handleSetActiveOption(newIdx);
+    if (typeof onPriceAdjustment === "function") {
+      onPriceAdjustment(totalCost, newIdx);
+    }
   }
 
   function handleRemoveOption(idx) {
@@ -316,7 +407,7 @@ export default function QuickAccommodationSection({
     const newOptions = options.filter((_, i) => i !== idx);
     const nextIdx = Math.min(safeOptIdx >= newOptions.length ? newOptions.length - 1 : safeOptIdx, newOptions.length - 1);
     if (typeof onOptionsChange === "function") onOptionsChange(newOptions);
-    setActiveOptIdx(nextIdx);
+    handleSetActiveOption(nextIdx);
   }
 
   function handleRenameOption(idx, newLabel) {
@@ -394,23 +485,19 @@ export default function QuickAccommodationSection({
             {options.map((opt, idx) => {
               const isAct = idx === safeOptIdx;
               const optStays = opt.hotelStays || [];
-              const optCost = optStays.reduce(
-                (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
-                0
-              );
+              const optCost = calculateStaysCost(optStays, roomMultiplier);
 
               return (
                 <div
                   key={idx}
                   onClick={() => {
-                    setActiveOptIdx(idx);
+                    handleSetActiveOption(idx);
                     const targetStays = options[idx]?.hotelStays || currentStays;
-                    if (typeof onChange === "function") onChange(targetStays);
+                    if (idx === 0 && typeof onChange === "function") {
+                      onChange(targetStays);
+                    }
                     if (typeof onPriceAdjustment === "function") {
-                      const cost = targetStays.reduce(
-                        (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier),
-                        0
-                      );
+                      const cost = calculateStaysCost(targetStays, roomMultiplier);
                       onPriceAdjustment(cost, idx);
                     }
                   }}
@@ -510,7 +597,7 @@ export default function QuickAccommodationSection({
           <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1 self-end sm:self-auto">
             <span>Active Tier Stay Cost:</span>
             <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-              ₹{currentStays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (Math.max(1, parseInt(s.nights, 10) || 1)) * roomMultiplier), 0).toLocaleString("en-IN")}
+              ₹{calculateStaysCost(currentStays, roomMultiplier).toLocaleString("en-IN")}
             </span>
           </div>
         </div>
@@ -541,10 +628,7 @@ export default function QuickAccommodationSection({
       <div className="space-y-4">
         {currentStays.map((stay, idx) => {
           const stayNights = Math.max(1, parseInt(stay.nights, 10) || 1);
-          const stayPrice = Number(stay.pricePerNight) || 0;
-          const staySubtotal = (stay.hasSplitSeasons && Number(stay.totalCost) > 0)
-            ? Number(stay.totalCost) * roomMultiplier
-            : stayPrice * stayNights * roomMultiplier;
+          const staySubtotal = calculateSingleStayCost(stay, roomMultiplier);
           const activePlan = stay.mealPlan || "CP";
 
           return (
@@ -670,6 +754,180 @@ export default function QuickAccommodationSection({
                   <span>Find Lowest Rates</span>
                 </button>
               </div>
+
+              {/* Hotel & Room Features Badges */}
+              {stay.features && stay.features.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap px-1 pt-0.5">
+                  <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1 mr-0.5">
+                    <Tag className="w-3 h-3 text-amber-600" /> Features:
+                  </span>
+                  {stay.features.map((feat, fIdx) => {
+                    const isMatched = stay.matchedFeatures?.some(
+                      (mf) => mf.toLowerCase().trim() === feat.toLowerCase().trim()
+                    );
+                    return (
+                      <span
+                        key={fIdx}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                          isMatched
+                            ? "bg-amber-100 text-amber-950 border border-amber-300 font-black shadow-2xs ring-1 ring-amber-400/40"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}
+                      >
+                        {isMatched && <Check className="w-2.5 h-2.5 text-amber-700 stroke-[3]" />}
+                        <span>{feat}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Hotel Activities & Add-ons Dropdown & Selection */}
+              {stay.hotelActivities && stay.hotelActivities.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-violet-50/70 via-purple-50/40 to-violet-50/70 border border-violet-200/90 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-violet-600 text-white flex items-center justify-center font-bold shadow-2xs">
+                        <Gift className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] font-black text-slate-900">
+                            Hotel Activities &amp; Add-ons
+                          </span>
+                          <span className="text-[10.5px] font-bold text-violet-800 bg-violet-100/90 px-2 py-0.2 rounded-md border border-violet-200">
+                            {stay.selectedAddOns?.length || 0}/{stay.hotelActivities.length} Selected
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 font-medium">
+                          Select extra experiences configured for this hotel stay
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Dropdown Toggle Button */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setOpenAddOnStayIdx(openAddOnStayIdx === idx ? null : idx)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11.5px] font-black transition-all shadow-2xs active:scale-95 ${
+                          openAddOnStayIdx === idx
+                            ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                            : "bg-white text-violet-900 hover:bg-violet-50 border-violet-300"
+                        }`}
+                      >
+                        <Sparkles className={`w-3.5 h-3.5 ${openAddOnStayIdx === idx ? "text-amber-300" : "text-violet-600"}`} />
+                        <span>Choose Add-ons</span>
+                        {openAddOnStayIdx === idx ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+
+                      {/* Dropdown Menu Overlay */}
+                      {openAddOnStayIdx === idx && (
+                        <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-violet-200 p-3 z-30 space-y-2 animate-in fade-in zoom-in-95">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span className="text-[11px] font-black uppercase text-slate-400">Available Inclusions</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAllStayAddOns(idx, stay.hotelActivities)}
+                                className="text-[10.5px] font-black text-violet-600 hover:underline"
+                              >
+                                Select All
+                              </button>
+                              <span className="text-slate-300">•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleClearAllStayAddOns(idx)}
+                                className="text-[10.5px] font-bold text-slate-400 hover:text-rose-600"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
+                            {stay.hotelActivities.map((act, aIdx) => {
+                              const isChecked = (stay.selectedAddOns || []).some(
+                                (sel) => (sel.name || "").trim().toLowerCase() === (act.name || "").trim().toLowerCase()
+                              );
+                              return (
+                                <div
+                                  key={aIdx}
+                                  onClick={() => handleToggleStayAddOn(idx, act)}
+                                  className={`flex items-center justify-between p-2 rounded-xl border text-[12px] cursor-pointer transition-all ${
+                                    isChecked
+                                      ? "bg-violet-50/90 border-violet-300 text-violet-950 font-bold"
+                                      : "bg-slate-50/50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}} // Controlled by wrapper onClick
+                                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500 w-3.5 h-3.5 pointer-events-none"
+                                    />
+                                    <span className="truncate">{act.name}</span>
+                                  </div>
+                                  <span className="font-mono text-[11px] font-bold text-violet-700 bg-white px-2 py-0.5 rounded-lg border border-violet-200 flex-shrink-0 ml-2">
+                                    {Number(act.price) > 0 ? `+₹${Number(act.price).toLocaleString("en-IN")}` : "Free"}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="pt-1 border-t border-slate-100 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setOpenAddOnStayIdx(null)}
+                              className="px-3 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800"
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Add-on Badges on the Stay Card */}
+                  {stay.selectedAddOns && stay.selectedAddOns.length > 0 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {stay.selectedAddOns.map((addOn, aIdx) => (
+                        <span
+                          key={aIdx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-violet-950 border border-violet-300/80 text-[11px] font-bold shadow-2xs animate-in fade-in"
+                        >
+                          <span className="text-violet-600">✨</span>
+                          <span>{addOn.name}</span>
+                          {Number(addOn.price) > 0 && (
+                            <span className="font-mono text-[10px] text-violet-800 bg-violet-100 px-1.5 py-0.2 rounded-md font-black">
+                              +₹{Number(addOn.price).toLocaleString("en-IN")}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStayAddOn(idx, addOn)}
+                            className="text-slate-400 hover:text-rose-600 ml-0.5 rounded-full hover:bg-rose-50 p-0.5 transition-colors"
+                            title="Remove add-on"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-violet-700/80 italic">
+                      No extra add-ons selected for this stay leg. Click "Choose Add-ons" above to add romantic decor, candlelight dinner, or spa sessions.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Discrete Multi-Season Rate Breakdown Banner */}
               {stay.hasSplitSeasons && stay.rateGroups?.length > 1 && (

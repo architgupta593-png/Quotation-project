@@ -7,24 +7,34 @@ import {
   IndianRupee, MessageSquare, Mail, Printer, Sparkles, Heart,
   Mountain, Palmtree, Castle, Trees, Flame, Compass, ChevronRight,
   ShieldCheck, Clock, CheckCircle2, Phone, X, Award, ExternalLink,
-  ChevronDown, Star, Layers, Loader2, Share2, Copy, CheckCheck,
+  ChevronDown, ChevronUp, ChevronsUpDown, Star, Layers, Loader2, Share2, Copy, CheckCheck,
+  UserCheck, Download, FileText, Utensils, Gift, BedDouble, Building2
 } from "lucide-react";
 import { getActivityIcon, getStayForDay, getMealsFromStay, MEAL_PLAN_DESCRIPTIONS, getMealPlanLabel } from "@/components/quick-quotations/QuickItinerarySection";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
+import { convertPackageInstructionsToSpecialInstructions } from "@/lib/formatPackageInstructions";
+import { getCategoryBadgeClass } from "@/components/packages/AccommodationPanel";
+
+const DEFAULT_ADVISORY_POLICIES = [
+  "<p><strong>🏨 Hotel Check-in & Check-out:</strong> Standard hotel check-in time is typically 12:00 PM / 2:00 PM and check-out is 10:00 AM / 11:00 AM. Early check-in or late check-out is strictly subject to hotel availability and discretion.</p>",
+  "<p><strong>🪪 Mandatory Photo Identification:</strong> Valid Government-issued Photo ID (Aadhaar Card / Passport / Voter ID / Driving License) is mandatory for every adult traveler upon check-in. PAN cards are not accepted as valid address proof.</p>",
+  "<p><strong>🚗 Dedicated Chauffeur & Vehicle Guidelines:</strong> Chauffeur details and vehicle number will be dispatched via WhatsApp 24 hours prior to travel. AC will remain switched off during steep uphill ghat drives or stationary waiting.</p>",
+  "<p><strong>💳 Booking Confirmation & Vouchers:</strong> Hotel confirmation vouchers will be issued post receipt of the agreed booking advance token. Balance amount is payable as per the mutually agreed payment schedule.</p>",
+];
 
 const THEMES = {
   honeymoon: {
     label: "Honeymoon & Romance",
     icon: Heart,
-    bgImage: "/themes/honeymoon.jpg",
+    bgImage: "https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?w=1600&q=80",
     color: "from-rose-500 via-pink-600 to-purple-600",
     badge: "bg-rose-50 text-rose-700 border-rose-200",
-    tagline: "Romantic Escapes, Candlelight Dinners & Sunset Stays 💕",
+    tagline: "Romantic Escapes, Candlelight Dinners & Sunset Stays",
   },
   mountain: {
     label: "Mountain & Hills",
     icon: Mountain,
-    bgImage: "/themes/mountain.jpg",
+    bgImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1600&q=80",
     color: "from-emerald-500 via-teal-600 to-cyan-700",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
     tagline: "Misty Peaks, Pine Valleys & Fresh Alpine Escapes 🏔️",
@@ -32,7 +42,7 @@ const THEMES = {
   beach: {
     label: "Beach & Coastal",
     icon: Palmtree,
-    bgImage: "/themes/beach.jpg",
+    bgImage: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1600&q=80",
     color: "from-cyan-500 via-blue-600 to-indigo-600",
     badge: "bg-cyan-50 text-cyan-700 border-cyan-200",
     tagline: "Golden Sands, Turquoise Waves & Houseboat Cruises 🏖️",
@@ -40,7 +50,7 @@ const THEMES = {
   heritage: {
     label: "Heritage & Forts",
     icon: Castle,
-    bgImage: "/themes/heritage.jpg",
+    bgImage: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=1600&q=80",
     color: "from-purple-600 via-amber-600 to-orange-600",
     badge: "bg-purple-50 text-purple-700 border-purple-200",
     tagline: "Historic Architecture, Palaces & Imperial Haveli Stays 🏰",
@@ -48,7 +58,7 @@ const THEMES = {
   safari: {
     label: "Nature & Safari",
     icon: Trees,
-    bgImage: "/themes/safari.jpg",
+    bgImage: "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1600&q=80",
     color: "from-amber-500 via-emerald-600 to-green-700",
     badge: "bg-amber-50 text-amber-800 border-amber-200",
     tagline: "Wildlife Sanctuaries, Lush Tea Gardens & Jungle Resorts 🌴",
@@ -56,7 +66,7 @@ const THEMES = {
   adventure: {
     label: "Adventure & Thrill",
     icon: Flame,
-    bgImage: "/themes/adventure.jpg",
+    bgImage: "https://images.unsplash.com/photo-1519904981063-b0cf448d479e?w=1600&q=80",
     color: "from-orange-500 via-rose-600 to-indigo-700",
     badge: "bg-orange-50 text-orange-700 border-orange-200",
     tagline: "High-Altitude Passes, Rafting & Unforgettable Road Trips ⚡",
@@ -64,7 +74,7 @@ const THEMES = {
   general: {
     label: "Curated Holiday Experience",
     icon: Compass,
-    bgImage: "/themes/mountain.jpg",
+    bgImage: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1600&q=80",
     color: "from-indigo-600 via-blue-600 to-cyan-600",
     badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
     tagline: "Handcrafted Itineraries, Premium Stays & Seamless Logistics ✈️",
@@ -92,6 +102,8 @@ export default function QuickQuotationPublicPage({ params }) {
   const [clientNotes, setClientNotes] = useState("");
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [openPreviewDays, setOpenPreviewDays] = useState(() => new Set([0]));
+  const [openPolicies, setOpenPolicies] = useState(() => new Set([0]));
 
   useEffect(() => {
     fetch(`/api/quick-quotations/code/${code}`)
@@ -118,8 +130,40 @@ export default function QuickQuotationPublicPage({ params }) {
 
   const activeStays = useMemo(() => {
     const opt = availableOptions[selectedOptionIdx] || availableOptions[0];
-    return opt?.hotelStays && opt.hotelStays.length > 0 ? opt.hotelStays : (quickQuote?.hotelStays || []);
-  }, [availableOptions, selectedOptionIdx, quickQuote?.hotelStays]);
+    const rawStays = (opt?.hotelStays && opt.hotelStays.length > 0)
+      ? opt.hotelStays
+      : (opt?.nights && opt.nights.length > 0)
+      ? opt.nights
+      : (quickQuote?.hotelStays || []);
+
+    return rawStays.map((s, idx) => ({
+      ...s,
+      cityName: s.cityName || quickQuote?.tripDetails?.destination || "Destination",
+      hotelName: s.hotelName || "Quality Certified Hotel",
+      roomType: s.roomType || "Deluxe AC Room",
+      mealPlan: s.mealPlan || "CP",
+      starRating: s.starRating || 3,
+      nights: s.nights || 1,
+      category: s.category || "Standard",
+      features: s.features || [],
+      matchedFeatures: s.matchedFeatures || [],
+      hotelActivities: s.hotelActivities || [],
+      selectedAddOns: s.selectedAddOns || [],
+    }));
+  }, [availableOptions, selectedOptionIdx, quickQuote]);
+
+  const resolvedInstructions = useMemo(() => {
+    if (!quickQuote) return [];
+    if (Array.isArray(quickQuote.specialInstructions) && quickQuote.specialInstructions.length > 0) {
+      const valid = quickQuote.specialInstructions.filter((s) => typeof s === "string" && s.trim().length > 0);
+      if (valid.length > 0) return valid;
+    }
+    if (Array.isArray(quickQuote.instructions) && quickQuote.instructions.length > 0) {
+      const converted = convertPackageInstructionsToSpecialInstructions(quickQuote);
+      if (converted && converted.length > 0) return converted;
+    }
+    return DEFAULT_ADVISORY_POLICIES;
+  }, [quickQuote]);
 
   function handleCopyLink() {
     if (typeof window !== "undefined") {
@@ -131,11 +175,17 @@ export default function QuickQuotationPublicPage({ params }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#090d16] text-white gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-pulse">
-          <Zap className="w-6 h-6 text-amber-400" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#090d16] text-white p-6 space-y-4">
+        <div className="relative flex items-center justify-center">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-rose-500/30 via-pink-500/20 to-amber-500/30 border border-rose-500/40 flex items-center justify-center animate-pulse shadow-xl shadow-rose-500/10">
+            <Sparkles className="w-8 h-8 text-rose-300" />
+          </div>
+          <div className="absolute inset-0 rounded-3xl bg-rose-500/20 animate-ping opacity-25" />
         </div>
-        <p className="text-[13px] font-bold text-slate-400">Loading your customized proposal...</p>
+        <div className="text-center space-y-1.5">
+          <p className="text-[15px] font-black text-white tracking-wide font-serif">Curating Your Private Travel Proposal</p>
+          <p className="text-[12px] font-bold text-slate-400">Plan My Honeymoon • Loading stays, route &amp; pricing...</p>
+        </div>
       </div>
     );
   }
@@ -154,77 +204,203 @@ export default function QuickQuotationPublicPage({ params }) {
     );
   }
 
-  const { client, tripDetails, passengers, hotelStays = [], vehicle, pricing, inclusions = [], exclusions = [] } = quickQuote;
+  const { client, tripDetails, passengers, hotelStays = [], vehicle, pricing, inclusions = [], exclusions = [], createdBy } = quickQuote;
 
   const themeKey = tripDetails?.theme || "general";
   const currentTheme = THEMES[themeKey] || THEMES.general;
   const ThemeIcon = currentTheme.icon;
 
+  const heroBackgroundImage = quickQuote.packageCoverImage?.url || quickQuote.coverImage?.url || currentTheme.bgImage;
+
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
-    : "Flexible";
+    : "Flexible Dates";
   const endDateStr = tripDetails?.endDate
     ? new Date(tripDetails.endDate).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
-    : "Flexible";
+    : "Flexible Dates";
 
   const numPax = Math.max(1, passengers?.adults || 2);
   const totalRooms = Math.max(1, parseInt(passengers?.totalRooms, 10) || 1);
+  const isCouple = numPax === 2 && (!passengers?.childrenCount || passengers?.childrenCount === 0);
+
+  // Helper to dynamically calculate check-in and check-out dates for each stay leg
+  const getStayDates = (stayIdx, currentStaysList) => {
+    if (!tripDetails?.startDate) return null;
+    try {
+      const baseDate = new Date(tripDetails.startDate);
+      if (isNaN(baseDate.getTime())) return null;
+
+      let precedingNights = 0;
+      for (let i = 0; i < stayIdx; i++) {
+        precedingNights += Math.max(1, parseInt(currentStaysList[i]?.nights, 10) || 1);
+      }
+
+      const stayNights = Math.max(1, parseInt(currentStaysList[stayIdx]?.nights, 10) || 1);
+      const checkIn = new Date(baseDate);
+      checkIn.setDate(checkIn.getDate() + precedingNights);
+
+      const checkOut = new Date(checkIn);
+      checkOut.setDate(checkOut.getDate() + stayNights);
+
+      const checkInStr = checkIn.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+      const checkOutStr = checkOut.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+
+      return { checkInStr, checkOutStr, stayNights };
+    } catch {
+      return null;
+    }
+  };
 
   // Dynamic Tier-Adjusted Price when client toggles between option tiers
   const baseOption = availableOptions[0];
   const currentOption = availableOptions[selectedOptionIdx] || baseOption;
 
-  const getOptionCost = (opt) => {
-    const stays = opt?.hotelStays || [];
-    if (stays.length > 0) {
-      return stays.reduce((sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * totalRooms), 0);
-    }
-    if (opt?.totalPrice && Number(opt.totalPrice) > 0) return Number(opt.totalPrice);
-    return 0;
-  };
-
-  const getOptionWithMargin = (opt) => {
-    const rawCost = getOptionCost(opt);
-    const mType = opt?.marginType || pricing?.packageMarginType || "absolute";
-    const mVal = Number(opt?.margin !== undefined ? opt.margin : (pricing?.packageMargin || 0));
-    const mAmount = mType === "percentage" ? (rawCost * mVal) / 100 : mVal;
-    return rawCost + mAmount;
-  };
-
-  const baseOptCost = getOptionWithMargin(baseOption);
-  const currentOptCost = getOptionWithMargin(currentOption);
-  const tierCostDelta = (baseOptCost > 0 && currentOptCost > 0) ? (currentOptCost - baseOptCost) : 0;
-
-  const baseFinalPrice = pricing?.finalPrice || 0;
   const includeGst = Boolean(pricing?.includeGst);
   const gstRate = Number(pricing?.gstPercentage) || 5;
-  const deltaWithTax = includeGst ? Math.round(tierCostDelta * (1 + gstRate / 100)) : tierCostDelta;
 
-  const finalPrice = Math.max(0, baseFinalPrice + deltaWithTax);
-  const discountAmount = Number(pricing?.discountAmount) || 0;
+  const markupType = pricing?.markupType || "absolute";
+  const markupPct = Number(pricing?.markupPercentage) || 0;
+  const markupAmtFixed = Number(pricing?.markupAmount) || 0;
+
+  const discountType = pricing?.discountType || "fixed";
+  const discountVal = Number(pricing?.discountValue) || 0;
+  const discountAmtFixed = Number(pricing?.discountAmount) || 0;
+
+  // Exact option pricing resolver aligned with Direct Commercials
+  const resolveOptionPricing = (opt, isBase = false) => {
+    if (!opt) {
+      return {
+        basePrice: 0,
+        markupAmount: 0,
+        preTaxPrice: 0,
+        gstAmount: 0,
+        discountAmount: 0,
+        finalPrice: 0,
+      };
+    }
+
+    // 1. If opt has explicit finalPrice saved from Direct Commercials
+    if (opt.finalPrice && Number(opt.finalPrice) > 0) {
+      const fPrice = Number(opt.finalPrice);
+      const bPrice = Number(opt.baseCost) || Number(opt.totalPrice) || fPrice;
+      const mAmount = Number(opt.markupAmount) || (markupType === "percentage" ? Math.round((bPrice * markupPct) / 100) : markupAmtFixed);
+      const ptPrice = Math.max(0, bPrice + mAmount);
+      const gAmount = Number(opt.gstAmount) || (includeGst ? Math.round((ptPrice * gstRate) / 100) : 0);
+      const dAmount = Number(opt.discountAmount) || (discountType === "percentage" ? Math.round(((ptPrice + gAmount) * Math.min(100, discountVal)) / 100) : (discountVal > 0 ? discountVal : discountAmtFixed));
+
+      return {
+        basePrice: bPrice,
+        markupAmount: mAmount,
+        preTaxPrice: ptPrice,
+        gstAmount: gAmount,
+        discountAmount: dAmount,
+        finalPrice: fPrice,
+      };
+    }
+
+    // 2. If opt has totalPrice saved from Direct Commercials (e.g. Option 1 = 25000, Option 2 = 35000)
+    if (opt.totalPrice && Number(opt.totalPrice) > 0) {
+      const bPrice = Number(opt.totalPrice);
+      const mAmount = markupType === "percentage" ? Math.round((bPrice * markupPct) / 100) : markupAmtFixed;
+      const ptPrice = Math.max(0, bPrice + mAmount);
+      const gAmount = includeGst ? Math.round((ptPrice * gstRate) / 100) : 0;
+      const dAmount = discountType === "percentage"
+        ? Math.round(((ptPrice + gAmount) * Math.min(100, discountVal)) / 100)
+        : (discountVal > 0 ? discountVal : discountAmtFixed);
+      const fPrice = Math.max(0, ptPrice + gAmount - dAmount);
+
+      return {
+        basePrice: bPrice,
+        markupAmount: mAmount,
+        preTaxPrice: ptPrice,
+        gstAmount: gAmount,
+        discountAmount: dAmount,
+        finalPrice: fPrice,
+      };
+    }
+
+    // 3. If it's base option and pricing has totalPrice / finalPrice
+    if (isBase) {
+      const bPrice = Number(pricing?.totalPrice) || Number(pricing?.baseCost) || 0;
+      const mAmount = markupType === "percentage" ? Math.round((bPrice * markupPct) / 100) : markupAmtFixed;
+      const ptPrice = Math.max(0, bPrice + mAmount);
+      const gAmount = includeGst ? Math.round((ptPrice * gstRate) / 100) : 0;
+      const dAmount = discountType === "percentage"
+        ? Math.round(((ptPrice + gAmount) * Math.min(100, discountVal)) / 100)
+        : (discountVal > 0 ? discountVal : discountAmtFixed);
+      const fPrice = Number(pricing?.finalPrice) > 0 ? Number(pricing.finalPrice) : Math.max(0, ptPrice + gAmount - dAmount);
+
+      return {
+        basePrice: bPrice,
+        markupAmount: mAmount,
+        preTaxPrice: ptPrice,
+        gstAmount: gAmount,
+        discountAmount: dAmount,
+        finalPrice: fPrice,
+      };
+    }
+
+    // 4. Fallback: compute from raw stays if nothing else exists
+    const stays = (opt?.hotelStays && opt.hotelStays.length > 0) ? opt.hotelStays : (opt?.nights && opt.nights.length > 0 ? opt.nights : []);
+    const rawStaysCost = stays.reduce((sum, s) => {
+      const stayNights = Math.max(1, parseInt(s.nights, 10) || 1);
+      const addOnsCost = (s.selectedAddOns || []).reduce((aSum, item) => aSum + (typeof item === "object" ? (Number(item?.price) || 0) : 0), 0);
+      const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0) ? Number(s.totalCost) : ((Number(s.pricePerNight) || 0) * stayNights);
+      return sum + ((legBase + addOnsCost) * totalRooms);
+    }, 0);
+
+    const mType = opt?.marginType || pricing?.packageMarginType || "absolute";
+    const mVal = Number(opt?.margin !== undefined && opt?.margin > 0 ? opt.margin : (pricing?.packageMargin || 0));
+    const marginAmt = mType === "percentage" ? (rawStaysCost * mVal) / 100 : mVal;
+    const bPrice = rawStaysCost + marginAmt;
+    const mAmount = markupType === "percentage" ? Math.round((bPrice * markupPct) / 100) : markupAmtFixed;
+    const ptPrice = Math.max(0, bPrice + mAmount);
+    const gAmount = includeGst ? Math.round((ptPrice * gstRate) / 100) : 0;
+    const dAmount = discountType === "percentage" ? Math.round(((ptPrice + gAmount) * Math.min(100, discountVal)) / 100) : (discountVal > 0 ? discountVal : discountAmtFixed);
+    const fPrice = Math.max(0, ptPrice + gAmount - dAmount);
+
+    return {
+      basePrice: bPrice,
+      markupAmount: mAmount,
+      preTaxPrice: ptPrice,
+      gstAmount: gAmount,
+      discountAmount: dAmount,
+      finalPrice: fPrice,
+    };
+  };
+
+  const basePricingResolved = resolveOptionPricing(baseOption, true);
+  const currentPricingResolved = resolveOptionPricing(currentOption, selectedOptionIdx === 0);
+
+  const finalPrice = currentPricingResolved.finalPrice;
+  const discountAmount = currentPricingResolved.discountAmount;
   const originalPrice = discountAmount > 0 ? finalPrice + discountAmount : finalPrice;
   const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
+
   const perPerson = Math.round(finalPrice / numPax);
-  const perCouple = Math.round(perPerson * 2);
-  const gstAmount = includeGst ? Math.round((finalPrice * gstRate) / (100 + gstRate)) : 0;
+  const perCouple = isCouple ? finalPrice : Math.round(perPerson * 2);
+  const gstAmount = currentPricingResolved.gstAmount;
 
   // Advance Payment calculations (Absolute / Percentage)
   const advanceType = pricing?.advanceType || "absolute";
-  const advanceAmount = Number(pricing?.advanceAmount) > 0 ? Number(pricing.advanceAmount) : (Number(pricing?.advancePayment) || 0);
-  const advancePercentage = Number(pricing?.advancePercentage) || 25;
+  const advancePercentage = Math.max(0, Math.min(100, Number(pricing?.advancePercentage) || 25));
   let advancePayment = 0;
   if (advanceType === "percentage") {
     advancePayment = Math.round((finalPrice * advancePercentage) / 100);
-  } else if (advanceAmount > 0) {
-    advancePayment = Math.min(finalPrice, advanceAmount);
+  } else if (Number(pricing?.advanceAmount) > 0) {
+    advancePayment = Math.min(finalPrice, Number(pricing.advanceAmount));
+  } else if (Number(pricing?.advancePayment) > 0) {
+    advancePayment = Math.min(finalPrice, Number(pricing.advancePayment));
   } else {
     advancePayment = Math.round(finalPrice * 0.25);
   }
   const balancePayment = Math.max(0, finalPrice - advancePayment);
   const advancePct = finalPrice > 0 ? Math.round((advancePayment / finalPrice) * 100) : 0;
-  const advanceToken = advancePayment;
 
   const vehicleImg = getVehicleImage(vehicle?.vehicleType || "Sedan");
+  const agentPhone = createdBy?.phone || quickQuote.agencyPhone || "919876543210";
+  const agentName = createdBy?.name || "Plan My Honeymoon Specialist";
+  const agentEmail = createdBy?.email || "contact@planmyhoneymoon.com";
 
   // Accept Proposal Handler
   async function handleAcceptQuote() {
@@ -254,8 +430,43 @@ export default function QuickQuotationPublicPage({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-amber-500 selection:text-white">
-      {/* ── Fixed Top Action Bar ── */}
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-rose-500 selection:text-white pb-20 sm:pb-12">
+      {/* ── 🖨️ Dedicated Printable PDF Header (Page 1 Top in PDF/Print) ── */}
+      <div className="hidden print:block mb-6 pb-4 border-b-2 border-slate-900 print-header">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="relative h-10 w-44">
+              <Image
+                src="/logo.png"
+                alt="Plan My Honeymoon"
+                fill
+                sizes="176px"
+                className="object-contain object-left"
+                priority
+              />
+            </div>
+            <p className="text-[11px] font-bold text-slate-600">Curated Honeymoon & Romantic Travel Specialists</p>
+            <p className="text-[10px] text-slate-500">Email: contact@planmyhoneymoon.com • Web: holidays.planmyhoneymoon.com</p>
+          </div>
+
+          <div className="text-right space-y-0.5">
+            <span className="text-[12px] font-black uppercase text-slate-900 block font-mono">
+              PROPOSAL #{quickQuote.quickQuoteCode}
+            </span>
+            <p className="text-[10.5px] text-slate-600">
+              Date: <strong>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong>
+            </p>
+            <p className="text-[10.5px] text-slate-600">
+              Client: <strong>{client?.name || "Valued Client"}</strong> ({client?.phone || "N/A"})
+            </p>
+            <p className="text-[10.5px] text-slate-600">
+              Specialist: <strong>{agentName}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Fixed Top Action Bar (Screen Only) ── */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs print:hidden">
         <div className="flex items-center gap-3">
           <div className="relative h-8 w-28 sm:w-36">
@@ -269,7 +480,7 @@ export default function QuickQuotationPublicPage({ params }) {
             />
           </div>
           <div className="hidden md:flex items-center gap-2 pl-3 border-l border-slate-200">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
               {quickQuote.quickQuoteCode}
             </span>
             <span className="text-[12px] font-bold text-slate-500 truncate max-w-xs">
@@ -283,7 +494,7 @@ export default function QuickQuotationPublicPage({ params }) {
           <button
             type="button"
             onClick={handleCopyLink}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-[12px] font-bold transition-all shadow-2xs ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-bold transition-all shadow-2xs ${
               copied
                 ? "bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/30"
                 : "border-slate-300 hover:bg-slate-100 text-slate-700"
@@ -300,7 +511,7 @@ export default function QuickQuotationPublicPage({ params }) {
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-[12px] transition-all shadow-2xs"
           >
-            <Printer className="w-3.5 h-3.5" />
+            <Printer className="w-3.5 h-3.5 text-slate-600" />
             <span className="hidden sm:inline">Save PDF / Print</span>
           </button>
 
@@ -314,7 +525,7 @@ export default function QuickQuotationPublicPage({ params }) {
             <button
               type="button"
               onClick={() => setAcceptModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[12.5px] shadow-md shadow-emerald-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 via-rose-700 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-black text-[12.5px] shadow-md shadow-rose-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Accept Proposal</span>
@@ -327,32 +538,39 @@ export default function QuickQuotationPublicPage({ params }) {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-8">
         {/* ── 1. Hero Showcase Banner ── */}
         <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-950 border border-slate-800 text-white">
-          {/* Background Theme Image with Gradient Overlay */}
+          {/* Background Theme / Cover Image with Gradient Overlay */}
           <div className="absolute inset-0 z-0">
             <img
-              src={currentTheme.bgImage}
-              alt={currentTheme.label}
-              className="w-full h-full object-cover opacity-35 filter brightness-90 scale-105"
+              src={heroBackgroundImage}
+              alt={tripDetails?.title || currentTheme.label}
+              className="w-full h-full object-cover opacity-40 filter brightness-95 scale-105"
             />
-            <div className={`absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent`} />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent" />
           </div>
 
           {/* Hero Content */}
           <div className="relative z-10 p-6 sm:p-10 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-amber-300 text-[11px] font-black uppercase tracking-wider border border-white/15">
                   <ThemeIcon className="w-3.5 h-3.5" />
                   {currentTheme.label}
                 </span>
+
+                {isCouple && (
+                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/30 backdrop-blur-md text-rose-200 text-[11px] font-black border border-rose-400/40">
+                    <Sparkles className="w-3 h-3 text-rose-300" /> Couple Romantic Escape
+                  </span>
+                )}
+
                 <span className="px-3 py-1 rounded-full bg-indigo-500/20 backdrop-blur-md text-indigo-200 text-[11px] font-bold border border-indigo-500/30">
                   Ref: {quickQuote.quickQuoteCode}
                 </span>
               </div>
 
               {discountAmount > 0 && (
-                <span className="px-3.5 py-1 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 text-white font-black text-[12px] shadow-md shadow-rose-500/30 animate-pulse">
-                  🔥 Special Deal: Save ₹{discountAmount.toLocaleString("en-IN")} ({discountPercent}% OFF)
+                <span className="px-3.5 py-1 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 text-white font-black text-[12px] shadow-md shadow-rose-500/30">
+                  Special Savings: Save ₹{discountAmount.toLocaleString("en-IN")} ({discountPercent}% OFF)
                 </span>
               )}
             </div>
@@ -375,7 +593,7 @@ export default function QuickQuotationPublicPage({ params }) {
                 <div className="flex items-center gap-1.5 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-1">
                   <MapPin className="w-3.5 h-3.5" /> Destination
                 </div>
-                <p className="text-[15px] font-black text-white truncate">{tripDetails?.destination}</p>
+                <p className="text-[15px] font-black text-white truncate">{tripDetails?.destination || "Custom Route"}</p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
@@ -392,7 +610,7 @@ export default function QuickQuotationPublicPage({ params }) {
                 </div>
                 <p className="text-[14px] font-black text-white">
                   {numPax} Adults
-                  {passengers?.childrenCount > 0 ? `, ${passengers.childrenCount} Child${passengers.childrenCount > 1 ? "ren" : ""}${passengers.childrenAges?.filter(Boolean).length > 0 ? ` (${passengers.childrenAges.filter(Boolean).join(", ")} yrs)` : ""}` : ""}
+                  {passengers?.childrenCount > 0 ? `, ${passengers.childrenCount} Child${passengers.childrenCount > 1 ? "ren" : ""}` : ""}
                 </p>
                 <p className="text-[10px] text-slate-400 font-semibold">{passengers?.totalRooms || 1} Private Room(s)</p>
               </div>
@@ -417,34 +635,41 @@ export default function QuickQuotationPublicPage({ params }) {
               <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
                       <Hotel className="w-5 h-5" />
                     </div>
                     <div>
                       <h2 className="text-[18px] font-black text-slate-900">Hotel Accommodation Portfolio</h2>
                       <p className="text-[12px] text-slate-500 font-semibold">
-                        Curated stays reserved for your selected itinerary &amp; dates
+                        Curated verified stays reserved for your selected itinerary &amp; dates
                       </p>
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
-                    {activeStays.length} Destination {activeStays.length === 1 ? "Stay" : "Stays"}
-                  </span>
+                  {/* Consolidated Portfolio Summary Ribbon */}
+                  <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
+                    <span className="text-[11px] font-black text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{activeStays.reduce((acc, s) => acc + (Math.max(1, parseInt(s.nights, 10) || 1)), 0)} Nights Total</span>
+                    </span>
+                    <span className="text-[11px] font-black text-slate-800 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1">
+                      <BedDouble className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{totalRooms} {totalRooms === 1 ? "Room" : "Rooms"} • {numPax} {numPax === 1 ? "Guest" : "Guests"}</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* Multi-Tier Interactive Selector Tabs (Custom Option Names & Live Deltas) */}
                 {availableOptions.length > 1 && (
-                  <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                  <div className="p-2.5 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center gap-2 overflow-x-auto scrollbar-none print:hidden">
                     <div className="flex items-center gap-1 text-[11px] font-black uppercase text-slate-500 px-1.5 flex-shrink-0">
                       <Layers className="w-3.5 h-3.5 text-amber-600" />
                       <span>Select Tier:</span>
                     </div>
                     {availableOptions.map((opt, oIdx) => {
                       const isSelected = selectedOptionIdx === oIdx;
-                      const thisOptCost = getOptionWithMargin(opt);
-                      const thisDelta = (baseOptCost > 0 && thisOptCost > 0) ? (thisOptCost - baseOptCost) : 0;
-                      const thisDeltaWithTax = includeGst ? Math.round(thisDelta * (1 + gstRate / 100)) : thisDelta;
+                      const optResolved = resolveOptionPricing(opt, oIdx === 0);
+                      const thisDelta = optResolved.finalPrice - basePricingResolved.finalPrice;
 
                       return (
                         <button
@@ -463,10 +688,10 @@ export default function QuickQuotationPublicPage({ params }) {
                           }`}>
                             {oIdx === 0
                               ? "Base"
-                              : thisDeltaWithTax > 0
-                              ? `+₹${thisDeltaWithTax.toLocaleString("en-IN")}`
-                              : thisDeltaWithTax < 0
-                              ? `-₹${Math.abs(thisDeltaWithTax).toLocaleString("en-IN")}`
+                              : thisDelta > 0
+                              ? `+₹${thisDelta.toLocaleString("en-IN")}`
+                              : thisDelta < 0
+                              ? `-₹${Math.abs(thisDelta).toLocaleString("en-IN")}`
                               : "Same"}
                           </span>
                           {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
@@ -477,64 +702,139 @@ export default function QuickQuotationPublicPage({ params }) {
                 )}
 
                 {/* Stays List */}
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                   {activeStays.map((stay, idx) => {
                     const planDesc = MEAL_PLAN_DESCRIPTIONS[stay.mealPlan] || {
                       meaning: `${stay.mealPlan} Meal Plan`,
                       badge: stay.mealPlan,
                       description: "Meals included as per plan",
                     };
+                    const dates = getStayDates(idx, activeStays);
+                    const stayNights = Math.max(1, parseInt(stay.nights, 10) || 1);
+                    const stayPrice = Number(stay.pricePerNight) || 0;
+                    const addOnsTotal = (stay.selectedAddOns || []).reduce((sum, item) => {
+                      return sum + (typeof item === "object" ? (Number(item.price) || 0) : 0);
+                    }, 0);
 
                     return (
                       <div
                         key={idx}
-                        className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-amber-400/80 transition-all group"
+                        className="p-5 rounded-3xl bg-slate-50 border border-slate-200/90 flex flex-col gap-4 hover:border-amber-400/80 transition-all group"
                       >
-                        <div className="flex items-start gap-3.5">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
-                            <span className="text-[14px] leading-none font-mono">{stay.nights || 1}N</span>
-                            <span className="text-[9px] uppercase tracking-tighter text-amber-100">Stay</span>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[11.5px] font-black text-amber-900 uppercase tracking-wider bg-amber-100/70 px-2.5 py-0.5 rounded-md border border-amber-300/80 flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-amber-700" />
-                                <span>{stay.cityName || tripDetails?.destination || "Destination"} • {stay.nights || 1} {(stay.nights || 1) > 1 ? "Nights" : "Night"}</span>
-                              </span>
-
-                              {stay.category && stay.category !== "None" && (
-                                <span className="text-[10.5px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                  {stay.category}
-                                </span>
-                              )}
-
-                              <div className="flex text-amber-400">
-                                {[...Array(stay.starRating || 3)].map((_, i) => (
-                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                                ))}
-                              </div>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
+                              <span className="text-[15px] leading-none font-mono">{stayNights}N</span>
+                              <span className="text-[8.5px] uppercase tracking-tighter text-amber-100 mt-0.5">Stay</span>
                             </div>
 
-                            <h3 className="text-[16px] font-black text-slate-900 group-hover:text-amber-600 transition-colors">
-                              {stay.hotelName || "Quality Certified Hotel"}
-                            </h3>
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              {/* Location + Dates + Category Row */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[11.5px] font-black text-amber-900 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-300/80 flex items-center gap-1 shadow-2xs">
+                                  <MapPin className="w-3 h-3 text-amber-700" />
+                                  <span>{stay.cityName || tripDetails?.destination || "Destination"}</span>
+                                </span>
 
-                            <p className="text-[12px] text-slate-500 font-semibold">
-                              Room: <span className="text-slate-800 font-bold">{stay.roomType || "Deluxe AC Room"}</span>
-                            </p>
+                                {dates && (
+                                  <span className="text-[11px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1">
+                                    <Calendar className="w-3 h-3 text-indigo-600" />
+                                    <span>{dates.checkInStr} → {dates.checkOutStr}</span>
+                                  </span>
+                                )}
+
+                                {stay.category && stay.category !== "None" && (
+                                  <span className={`text-[10.5px] font-black px-2 py-0.5 rounded-md border shadow-2xs ${getCategoryBadgeClass(stay.category)}`}>
+                                    {stay.category}
+                                  </span>
+                                )}
+
+                                <div className="flex text-amber-400">
+                                  {[...Array(stay.starRating || 3)].map((_, i) => (
+                                    <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                  ))}
+                                </div>
+                              </div>
+
+                              <h3 className="text-[17px] font-black text-slate-900 group-hover:text-amber-600 transition-colors leading-snug">
+                                {stay.hotelName || "Quality Certified Hotel"}
+                              </h3>
+
+                              {/* Room Category & Occupancy */}
+                              <div className="flex items-center gap-2 flex-wrap text-[12px] text-slate-600 font-semibold pt-0.5">
+                                <span className="flex items-center gap-1 text-slate-900 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                                  <BedDouble className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>{stay.roomType || "Deluxe AC Room"}</span>
+                                </span>
+                                <span className="text-slate-400">•</span>
+                                <span>{totalRooms} {totalRooms === 1 ? "Room" : "Rooms"} ({numPax} {numPax === 1 ? "Guest" : "Guests"})</span>
+                              </div>
+
+                              {/* Room Features */}
+                              {stay.features && stay.features.length > 0 && (
+                                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                  {stay.features.map((feat, fIdx) => (
+                                    <span
+                                      key={fIdx}
+                                      className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-slate-200/90 text-slate-700 shadow-2xs flex items-center gap-1"
+                                    >
+                                      <span className="text-emerald-600 font-black">✓</span> {feat}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
+
+                          {/* Meal Plan Pill */}
+                          {stay.mealPlan && (
+                            <div className="flex sm:flex-col items-start sm:items-end justify-between sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 flex-shrink-0 space-y-1">
+                              <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200 text-[11.5px] font-black flex items-center gap-1.5 shadow-2xs">
+                                <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{planDesc.badge || `${stay.mealPlan} Plan`}</span>
+                              </span>
+                              <span className="text-[10.5px] text-slate-500 font-medium text-right max-w-[170px] hidden sm:block">
+                                {planDesc.description}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        {stay.mealPlan && (
-                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 flex-shrink-0">
-                            <span className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-950 border border-emerald-200 text-[11.5px] font-extrabold flex items-center gap-1.5 shadow-2xs">
-                              <span>🍽️</span>
-                              <span>{planDesc.badge || `${stay.mealPlan} • ${planDesc.meaning}`}</span>
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-0.5 hidden sm:inline">
-                              {planDesc.description}
-                            </span>
+                        {/* Special Hotel Experiences & Add-ons Box */}
+                        {stay.selectedAddOns && stay.selectedAddOns.length > 0 && (
+                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-violet-50/80 via-purple-50/60 to-violet-50/80 border border-violet-200/90 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-wider text-violet-900 flex items-center gap-1.5">
+                                <Gift className="w-3.5 h-3.5 text-violet-600" />
+                                <span>Curated Hotel Add-ons &amp; Experiences:</span>
+                              </span>
+                              {addOnsTotal > 0 && (
+                                <span className="text-[10.5px] font-black text-violet-800 bg-white px-2 py-0.5 rounded-md border border-violet-200 shadow-2xs">
+                                  Total Value: ₹{addOnsTotal.toLocaleString("en-IN")}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {stay.selectedAddOns.map((addOn, aIdx) => {
+                                const addOnName = typeof addOn === "string" ? addOn : addOn.name;
+                                const addOnPrice = typeof addOn === "object" ? Number(addOn.price) : 0;
+                                return (
+                                  <span
+                                    key={aIdx}
+                                    className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-white text-violet-950 border border-violet-200 shadow-2xs flex items-center gap-1.5"
+                                  >
+                                    <Sparkles className="w-3 h-3 text-violet-600" />
+                                    <span>{addOnName}</span>
+                                    {addOnPrice > 0 && (
+                                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                        +₹{addOnPrice.toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -544,32 +844,48 @@ export default function QuickQuotationPublicPage({ params }) {
               </section>
             )}
 
-            {/* Minimalist Day-by-Day Tour Itinerary Timeline */}
-            {quickQuote.showItinerary !== false && quickQuote.itinerary && quickQuote.itinerary.length > 0 && (
+            {/* Day-by-Day Tour Itinerary Timeline */}
+            {quickQuote.itinerary && quickQuote.itinerary.length > 0 && (
               <section className="bg-white rounded-3xl border border-slate-200/90 hover:border-indigo-400/80 p-6 sm:p-7 shadow-xs transition-all space-y-5">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs flex-shrink-0">
                       <Compass className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 className="text-[17px] font-black text-slate-900">Day-by-Day Tour Itinerary</h2>
-                        <span className="text-[10.5px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.2 rounded-full border border-indigo-200">
-                          {quickQuote.itinerary.length} Days
+                        <span className="text-[10.5px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                          {quickQuote.itinerary.length} Days Planned
                         </span>
                       </div>
-                      <p className="text-[11.5px] text-slate-500 font-semibold">Curated sightseeing route, transfer schedule &amp; meal schedule</p>
+                      <p className="text-[11.5px] text-slate-500 font-semibold">Curated sightseeing route, transfer schedule &amp; meal plan</p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 hidden sm:inline-block">
-                    Full Day Schedule
-                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const areAllOpen = openPreviewDays.size === quickQuote.itinerary.length;
+                      if (areAllOpen) {
+                        setOpenPreviewDays(new Set());
+                      } else {
+                        setOpenPreviewDays(new Set(quickQuote.itinerary.map((_, i) => i)));
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11.5px] font-black transition-all shadow-2xs self-start sm:self-auto active:scale-95"
+                  >
+                    <ChevronsUpDown className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>
+                      {openPreviewDays.size === quickQuote.itinerary.length ? "Collapse All" : "Expand All"}
+                    </span>
+                  </button>
                 </div>
 
-                {/* Luxury Journey Stream Layout */}
-                <div className="space-y-4">
+                {/* Accordion Stream Layout */}
+                <div className="space-y-3.5">
                   {quickQuote.itinerary.map((dayItem, idx) => {
+                    const isOpen = openPreviewDays.has(idx);
                     const matchingStay = getStayForDay(idx, activeStays);
                     const mealInfo = getMealsFromStay(matchingStay, idx, quickQuote.itinerary.length);
                     const cityLeg = dayItem.city || matchingStay?.cityName || quickQuote.tripDetails?.destination;
@@ -579,112 +895,116 @@ export default function QuickQuotationPublicPage({ params }) {
                     return (
                       <div
                         key={idx}
-                        className="group relative rounded-3xl bg-white border border-slate-200/90 hover:border-amber-400/80 p-5 sm:p-6 shadow-xs hover:shadow-md transition-all space-y-4 overflow-hidden"
+                        className={`group relative rounded-3xl bg-white border transition-all duration-200 overflow-hidden ${
+                          isOpen
+                            ? "border-indigo-300 shadow-md ring-2 ring-indigo-500/10"
+                            : "border-slate-200/90 hover:border-amber-400/80 shadow-xs hover:shadow-sm"
+                        }`}
                       >
-                        {/* Subtle top ambient gradient accent */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+                        <div
+                          className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 transition-opacity ${
+                            isOpen ? "opacity-100" : "opacity-40 group-hover:opacity-100"
+                          }`}
+                        />
 
-                        {/* Top Row: Hero Day Number + Title + City & Meals */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3 border-b border-slate-100">
+                        {/* Top Row: Hero Day Number + Title + City & Meals (Clickable Accordion Header) */}
+                        <div
+                          onClick={() => {
+                            setOpenPreviewDays((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(idx)) next.delete(idx);
+                              else next.add(idx);
+                              return next;
+                            });
+                          }}
+                          className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 cursor-pointer select-none transition-colors ${
+                            isOpen ? "bg-slate-50/60 border-b border-slate-100" : "bg-white hover:bg-slate-50/40"
+                          }`}
+                        >
                           <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
                             {/* Hero Day Squircle Tile */}
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
-                              <span className="font-mono font-black text-[16px] sm:text-[18px] leading-none">
+                            <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
+                              <span className="font-mono font-black text-[15px] sm:text-[17px] leading-none">
                                 {String(dayItem.day || idx + 1).padStart(2, "0")}
                               </span>
-                              <span className="text-[8.5px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
+                              <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
                                 DAY
                               </span>
                             </div>
 
-                            <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex-1 min-w-0 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {cityLeg && (
-                                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
-                                    <MapPin className="w-3 h-3 text-amber-600" />
-                                    <span>{cityLeg}</span>
+                                {/* Meal Plan Connection Badge (Only shown when a meal plan is selected) */}
+                                {mealInfo.mealPlan && (
+                                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[10.5px] flex items-center gap-1.5 shadow-2xs">
+                                    <Utensils className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                    <span className="text-emerald-900 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} Plan`}</span>
                                   </span>
                                 )}
 
-                                {/* Hotel & Meal Plan badge - Shown ONLY when hotel is selected */}
-                                {mealInfo.hasHotel && (
-                                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[11px] flex items-center gap-1.5 shadow-2xs">
-                                    <Hotel className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                                    <span className="truncate max-w-[170px]">{mealInfo.hotelName}</span>
-                                    <span className="text-emerald-400">•</span>
-                                    <span className="text-emerald-800 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} • ${mealInfo.planDesc?.shortMeaning || "Meals"}`}</span>
+                                {!isOpen && dayItem.activities && dayItem.activities.length > 0 && (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                    {dayItem.activities.length} {dayItem.activities.length === 1 ? "Activity" : "Activities"}
                                   </span>
                                 )}
-
-                                <span className="text-[10.5px] font-bold text-slate-400">
-                                  Milestone #{dayItem.day || idx + 1}
-                                </span>
                               </div>
 
-                              <h3 className="text-[16px] sm:text-[17px] font-black text-slate-900 leading-snug">
+                              <h3 className="text-[15px] sm:text-[16px] font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">
                                 {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
                               </h3>
                             </div>
                           </div>
 
-                          {/* Meals Included Pills - ONLY shown when hotel is selected */}
-                          {mealInfo.hasHotel && (
-                            <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
-                              {meals.breakfast && (
-                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-950 border border-amber-200 shadow-2xs flex items-center gap-1" title="Daily Morning Breakfast Included">
-                                  <span>🌅</span>
-                                  <span>Breakfast Included</span>
-                                </span>
-                              )}
-                              {meals.lunch && (
-                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-orange-50 text-orange-950 border border-orange-200 shadow-2xs flex items-center gap-1" title="Lunch Included">
-                                  <span>☀️</span>
-                                  <span>Lunch Included</span>
-                                </span>
-                              )}
-                              {meals.dinner && (
-                                <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 text-purple-950 border border-purple-200 shadow-2xs flex items-center gap-1" title="Evening Dinner Included">
-                                  <span>🌙</span>
-                                  <span>Dinner Included</span>
-                                </span>
-                              )}
-                              {!hasAnyMeal && mealInfo.mealPlan === "EP" && (
-                                <span className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-slate-50 text-slate-600 border border-slate-200 shadow-2xs flex items-center gap-1" title="Room Only - No meals included in this stay">
-                                  <span>🍽️</span>
-                                  <span>Room Only (No Meals)</span>
-                                </span>
+                          {/* Right Controls: Chevron Button */}
+                          <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+                            <div
+                              className={`p-1.5 rounded-xl border transition-all ${
+                                isOpen
+                                  ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                  : "bg-white text-slate-500 hover:bg-slate-100 border-slate-200"
+                              }`}
+                            >
+                              {isOpen ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
                               )}
                             </div>
-                          )}
+                          </div>
                         </div>
 
-                        {/* Narrative Story Description */}
-                        {dayItem.description && (
-                          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-                            <div
-                              className="text-[13.5px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
-                              dangerouslySetInnerHTML={{ __html: dayItem.description }}
-                            />
-                          </div>
-                        )}
+                        {/* Collapsible Accordion Body */}
+                        {isOpen && (
+                          <div className="p-4 sm:p-6 space-y-4 bg-white animate-in slide-in-from-top-2 duration-200">
+                            {/* Narrative Story Description */}
+                            {dayItem.description && (
+                              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1">
+                                <div
+                                  className="text-[13.5px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
+                                  dangerouslySetInnerHTML={{ __html: dayItem.description }}
+                                />
+                              </div>
+                            )}
 
-                        {/* Planned Highlights & Activities Tags */}
-                        {dayItem.activities && dayItem.activities.length > 0 && (
-                          <div className="space-y-1.5 pt-1">
-                            <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
-                              Day Highlights &amp; Inclusions:
-                            </span>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {dayItem.activities.map((act, aIdx) => (
-                                <span
-                                  key={aIdx}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs"
-                                >
-                                  <span className="text-[12px]">{getActivityIcon(act)}</span>
-                                  <span>{act}</span>
+                            {/* Planned Highlights & Activities Tags */}
+                            {dayItem.activities && dayItem.activities.length > 0 && (
+                              <div className="space-y-1.5 pt-1">
+                                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
+                                  Day Highlights &amp; Inclusions:
                                 </span>
-                              ))}
-                            </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {dayItem.activities.map((act, aIdx) => (
+                                    <span
+                                      key={aIdx}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs"
+                                    >
+                                      <span className="text-[12px]">{getActivityIcon(act)}</span>
+                                      <span>{act}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -723,7 +1043,7 @@ export default function QuickQuotationPublicPage({ params }) {
                     {vehicle?.notes || "Exclusive air-conditioned vehicle with courteous driver, all toll charges, interstate taxes, fuel & parking included."}
                   </p>
 
-                  <div className="flex items-center justify-center sm:justify-start gap-2 pt-2">
+                  <div className="flex items-center justify-center sm:justify-start gap-2 pt-2 flex-wrap">
                     <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs">
                       👥 {vehicle?.seats || 4} Seater Capacity
                     </span>
@@ -747,110 +1067,218 @@ export default function QuickQuotationPublicPage({ params }) {
             </section>
 
             {/* Inclusions & Exclusions */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Inclusions */}
-              <div className="bg-white rounded-3xl border border-emerald-200/90 p-6 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 text-emerald-800 pb-2 border-b border-emerald-100">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <h3 className="text-[16px] font-black">Package Inclusions</h3>
+            {(inclusions.length > 0 || exclusions.length > 0) && (
+              <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Inclusions */}
+                <div className="bg-white rounded-3xl border border-emerald-200/90 p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-emerald-100">
+                    <div className="flex items-center gap-2 text-emerald-900">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <h3 className="text-[16px] font-black">Package Inclusions</h3>
+                    </div>
+                    <span className="text-[10.5px] font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                      {inclusions.length} {inclusions.length === 1 ? "Inclusion" : "Inclusions"}
+                    </span>
+                  </div>
+                  {inclusions.length > 0 ? (
+                    <ul className="space-y-2.5 text-[12.5px] text-slate-700 font-medium">
+                      {inclusions.map((inc, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                          <span className="leading-snug">{inc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 italic">No specific inclusions added for this quote.</p>
+                  )}
                 </div>
-                <ul className="space-y-2 text-[12.5px] text-slate-700 font-medium">
-                  {inclusions.map((inc, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span>{inc}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
 
-              {/* Exclusions */}
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 text-slate-700 pb-2 border-b border-slate-100">
-                  <X className="w-5 h-5 text-slate-400" />
-                  <h3 className="text-[16px] font-black">Exclusions &amp; Notes</h3>
+                {/* Exclusions */}
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2 text-slate-800">
+                      <X className="w-5 h-5 text-slate-400" />
+                      <h3 className="text-[16px] font-black">Exclusions &amp; Notes</h3>
+                    </div>
+                    <span className="text-[10.5px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                      {exclusions.length} {exclusions.length === 1 ? "Exclusion" : "Exclusions"}
+                    </span>
+                  </div>
+                  {exclusions.length > 0 ? (
+                    <ul className="space-y-2.5 text-[12.5px] text-slate-600 font-medium">
+                      {exclusions.map((exc, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="text-rose-400 font-black text-[14px] leading-none mt-0.5">•</span>
+                          <span className="leading-snug">{exc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 italic">No exclusions listed for this quote.</p>
+                  )}
                 </div>
-                <ul className="space-y-2 text-[12.5px] text-slate-500 font-medium">
-                  {exclusions.map((exc, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-slate-400 font-black">•</span>
-                      <span>{exc}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
+              </section>
+            )}
 
-            {/* Luxury Redesigned Travel Guidelines & Important Advisory */}
-            {quickQuote.specialInstructions?.length > 0 && (
-              <section className="bg-white rounded-3xl border-2 border-slate-200/90 hover:border-amber-400/80 p-6 sm:p-8 shadow-xs transition-all space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Travel Guidelines & Important Advisory (Interactive Accordion Layout) */}
+            {resolvedInstructions && resolvedInstructions.length > 0 && (
+              <section className="bg-white rounded-3xl border border-slate-200/90 hover:border-amber-400/80 p-6 sm:p-7 shadow-xs transition-all space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20">
-                      <ShieldCheck className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20 flex-shrink-0">
+                      <ShieldCheck className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-[18px] font-black text-slate-900">Trip Guidelines &amp; Important Advisory</h2>
+                        <h2 className="text-[17px] font-black text-slate-900">Trip Guidelines &amp; Important Advisory</h2>
                         <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                           Mandatory
                         </span>
                       </div>
-                      <p className="text-[12px] text-slate-500 font-semibold">Essential check-in policies, ID verifications &amp; transport rules</p>
+                      <p className="text-[11.5px] text-slate-500 font-semibold">Essential check-in policies, ID verifications &amp; transport rules</p>
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 hidden sm:inline-block">
-                    Advisory Terms
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const areAllOpen = openPolicies.size === resolvedInstructions.length;
+                      if (areAllOpen) {
+                        setOpenPolicies(new Set());
+                      } else {
+                        setOpenPolicies(new Set(resolvedInstructions.map((_, i) => i)));
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11.5px] font-black transition-all shadow-2xs self-start sm:self-auto active:scale-95"
+                  >
+                    <ChevronsUpDown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>
+                      {openPolicies.size === resolvedInstructions.length ? "Collapse All Policies" : "Expand All Policies"}
+                    </span>
+                  </button>
                 </div>
 
-                <div className="space-y-4">
-                  {quickQuote.specialInstructions.map((inst, i) => {
+                <div className="space-y-3">
+                  {resolvedInstructions.map((inst, i) => {
                     const isHtml = typeof inst === "string" && (inst.includes("<p>") || inst.includes("<ul>") || inst.includes("<ol>") || inst.includes("<li>") || inst.includes("<div"));
+                    const isOpen = openPolicies.has(i);
+                    const titleMatch = typeof inst === "string" && (inst.match(/<strong>([^<]+)<\/strong>/i) || inst.match(/•\s*([^:\n]+):/));
+                    const sectionTitle = titleMatch && titleMatch[1] ? titleMatch[1].replace(/^[🏨🪪🚗🧳💳📌\s]+/, "").trim() : `Advisory Policy Section ${i + 1}`;
+
                     return (
                       <div
                         key={i}
-                        className="bg-gradient-to-br from-slate-50 via-white to-amber-50/20 p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2"
+                        className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                          isOpen
+                            ? "bg-white border-amber-300 shadow-sm ring-2 ring-amber-400/10"
+                            : "bg-slate-50/50 border-slate-200/80 hover:bg-slate-50 hover:border-slate-300"
+                        }`}
                       >
-                        <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/80">
-                          <span className="w-6 h-6 rounded-lg bg-slate-900 text-amber-400 font-mono font-black text-[11px] flex items-center justify-center">
-                            {i + 1}
-                          </span>
-                          <span className="text-[12px] font-black text-slate-800 tracking-wide">
-                            {(() => {
-                              const titleMatch = typeof inst === "string" && (inst.match(/<strong>([^<]+)<\/strong>/i) || inst.match(/•\s*([^:\n]+):/));
-                              return titleMatch && titleMatch[1] ? titleMatch[1].replace(/^[🏨🪪🚗🧳💳📌\s]+/, "").trim() : `Advisory Policy Section ${i + 1}`;
-                            })()}
-                          </span>
+                        {/* Policy Accordion Header */}
+                        <div
+                          onClick={() => {
+                            setOpenPolicies((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i);
+                              else next.add(i);
+                              return next;
+                            });
+                          }}
+                          className="p-3.5 sm:p-4 flex items-center justify-between gap-3 cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-6 h-6 rounded-lg bg-slate-900 text-amber-400 font-mono font-black text-[11px] flex items-center justify-center flex-shrink-0">
+                              {i + 1}
+                            </span>
+                            <span className="text-[13px] font-black text-slate-800 tracking-tight truncate">
+                              {sectionTitle}
+                            </span>
+                          </div>
+
+                          <div
+                            className={`p-1 rounded-lg border transition-all flex-shrink-0 ${
+                              isOpen
+                                ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                                : "bg-white text-slate-400 border-slate-200"
+                            }`}
+                          >
+                            {isOpen ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </div>
                         </div>
 
-                        <div className="text-[13.5px] text-slate-800 leading-relaxed font-medium pl-1">
-                          {isHtml ? (
-                            <div
-                              className="prose prose-base max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-6 [&>ol]:list-decimal [&>ol]:pl-6 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-6 [&>p]:mb-2 [&>ul]:mb-2.5 [&>ol]:mb-2.5 [&>p>strong]:text-slate-950 [&>p>strong]:font-black"
-                              dangerouslySetInnerHTML={{ __html: inst }}
-                            />
-                          ) : (
-                            <div className="whitespace-pre-wrap leading-relaxed">
-                              {inst}
-                            </div>
-                          )}
-                        </div>
+                        {/* Collapsible Policy Content */}
+                        {isOpen && (
+                          <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 text-[13px] text-slate-800 leading-relaxed font-medium animate-in slide-in-from-top-1 duration-150">
+                            {isHtml ? (
+                              <div
+                                className="prose prose-sm max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-5 [&>p]:mb-1.5 [&>ul]:mb-2 [&>ol]:mb-2 [&>p>strong]:text-slate-950 [&>p>strong]:font-black"
+                                dangerouslySetInnerHTML={{ __html: inst }}
+                              />
+                            ) : (
+                              <div className="whitespace-pre-wrap leading-relaxed">
+                                {inst}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </section>
             )}
+
+            {/* ── 🌟 Dedicated Travel Specialist Profile Card ── */}
+            <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white font-black text-[16px] flex items-center justify-center shadow-md">
+                    {agentName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[17px] font-bold text-white leading-tight">{agentName}</h3>
+                      <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded border border-amber-400/30">
+                        {createdBy?.role || "Travel Specialist"}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-slate-300 mt-0.5">
+                      Your Dedicated Honeymoon &amp; Custom Tour Manager • Plan My Honeymoon
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(agentPhone)}&text=Hi%20Plan%20My%20Honeymoon,%20I%20am%20reviewing%20my%20proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Tour")}.%20Please%20connect%20with%20me.`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold transition-all shadow-xs"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                  </a>
+                  <a
+                    href={`tel:${agentPhone}`}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold transition-all border border-white/20"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> Call {agentPhone}
+                  </a>
+                </div>
+              </div>
+            </section>
           </div>
 
           {/* Sticky Pricing & Acceptance Sidebar (4 cols) */}
           <div className="lg:col-span-4 sticky top-20 space-y-5">
-            <div className="bg-white rounded-3xl border-2 border-amber-300 p-6 shadow-xl space-y-6">
+            <div className="bg-white rounded-3xl border-2 border-rose-200/90 p-6 shadow-xl space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1">
-                  <Award className="w-4 h-4 text-amber-500" /> Formal Commercial Proposal
+                <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 flex items-center gap-1">
+                  <Award className="w-4 h-4 text-rose-500" /> Formal Commercial Proposal
                 </span>
                 <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   All Taxes Incl.
@@ -858,7 +1286,7 @@ export default function QuickQuotationPublicPage({ params }) {
               </div>
 
               {/* Price Highlight Box */}
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white space-y-3 shadow-lg">
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950 text-white space-y-3 shadow-lg">
                 {discountAmount > 0 && (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between flex-wrap gap-1">
@@ -917,17 +1345,24 @@ export default function QuickQuotationPublicPage({ params }) {
                   <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-1">
                     <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-black text-[14px]">
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      <span>Booking Confirmed!</span>
+                      <span>Proposal Accepted!</span>
                     </div>
                     <p className="text-[11.5px] text-emerald-700 font-medium">
                       Our operations team is finalizing your hotel vouchers.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-700 text-white font-bold text-[11.5px] hover:bg-emerald-800 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Download Booking Slip
+                    </button>
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setAcceptModalOpen(true)}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[14px] shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-black text-[14px] shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Accept Proposal Online</span>
@@ -936,7 +1371,7 @@ export default function QuickQuotationPublicPage({ params }) {
 
                 {/* WhatsApp Connect */}
                 <a
-                  href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(quickQuote.agencyPhone || "919876543210")}&text=Hi%20Mande%20Holidays,%20I%20am%20reviewing%20my%20Quick%20Proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Holiday")}.%20Please%20connect%20with%20me.`}
+                  href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(agentPhone)}&text=Hi%20Plan%20My%20Honeymoon,%20I%20am%20reviewing%20my%20proposal%20${quickQuote.quickQuoteCode}%20for%20${encodeURIComponent(tripDetails?.title || "Custom Tour")}.%20Please%20connect%20with%20me.`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 font-bold text-[13px] transition-all flex items-center justify-center gap-2"
@@ -961,6 +1396,42 @@ export default function QuickQuotationPublicPage({ params }) {
           </div>
         </div>
       </main>
+
+      {/* ── 📱 Mobile Sticky Bottom Action Bar (Screen Only) ── */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 flex items-center justify-between shadow-2xl print:hidden">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Price</p>
+          <p className="text-[18px] font-black text-slate-900 leading-none">
+            ₹{finalPrice.toLocaleString("en-IN")}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(agentPhone)}&text=Hi%20Plan%20My%20Honeymoon,%20I%20am%20reviewing%20my%20proposal%20${quickQuote.quickQuoteCode}.`}
+            target="_blank"
+            rel="noreferrer"
+            className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200"
+            title="WhatsApp Specialist"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </a>
+
+          {quickQuote.status === "accepted" ? (
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-800 font-bold text-[12px] border border-emerald-300">
+              Accepted ✓
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAcceptModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold text-[12.5px] shadow-sm"
+            >
+              Accept Proposal
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ── Client Accept Modal ── */}
       {acceptModalOpen && (
@@ -993,15 +1464,24 @@ export default function QuickQuotationPublicPage({ params }) {
                 </div>
                 <h4 className="text-[18px] font-black text-slate-900">Proposal Confirmed!</h4>
                 <p className="text-[13px] text-slate-500 max-w-sm mx-auto">
-                  Thank you, <span className="font-bold text-slate-800">{client?.name}</span>! Your proposal has been accepted. Our travel manager will connect with you on WhatsApp ({client?.phone}) with your confirmed booking voucher.
+                  Thank you, <span className="font-bold text-slate-800">{client?.name}</span>! Your proposal has been accepted. Our travel manager ({agentName}) will connect with you on WhatsApp ({client?.phone}) with your confirmed booking voucher.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setAcceptModalOpen(false)}
-                  className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-[13px]"
-                >
-                  Close
-                </button>
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 text-white font-bold text-[12.5px] hover:bg-emerald-800"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Booking Slip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAcceptModalOpen(false)}
+                    className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-[12.5px] hover:bg-slate-200"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1028,7 +1508,7 @@ export default function QuickQuotationPublicPage({ params }) {
                   type="button"
                   onClick={handleAcceptQuote}
                   disabled={accepting}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[13.5px] shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-black text-[13.5px] shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {accepting && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Confirm &amp; Accept Proposal</span>
@@ -1038,18 +1518,24 @@ export default function QuickQuotationPublicPage({ params }) {
           </div>
         </div>
       )}
-      {/* ── Print Stylesheet for High-Quality PDF Output ── */}
+
+      {/* ── 🖨️ High-Quality A4 Print & PDF Stylesheet ── */}
       <style jsx global>{`
         @media print {
           body {
             background: white !important;
-            color: black !important;
-            font-size: 11pt !important;
+            color: #0f172a !important;
+            font-size: 10.5pt !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           header,
           .print\\:hidden,
           .fixed {
             display: none !important;
+          }
+          .print-header {
+            display: block !important;
           }
           section,
           article,
@@ -1068,7 +1554,7 @@ export default function QuickQuotationPublicPage({ params }) {
             box-shadow: none !important;
           }
           .border {
-            border-color: #cbd5e1 !important;
+            border-color: #e2e8f0 !important;
           }
           .max-w-5xl,
           .max-w-6xl {
@@ -1077,8 +1563,8 @@ export default function QuickQuotationPublicPage({ params }) {
             margin: 0 !important;
           }
           @page {
-            margin: 1cm;
-            size: A4;
+            margin: 0.8cm 1cm;
+            size: A4 portrait;
           }
         }
       `}</style>

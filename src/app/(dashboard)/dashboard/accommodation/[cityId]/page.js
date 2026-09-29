@@ -9,6 +9,7 @@ import SearchBar from "@/components/accommodation/SearchBar";
 import HotelCard from "@/components/accommodation/HotelCard";
 import HotelFormModal from "@/components/accommodation/HotelFormModal";
 import HotelPreviewModal from "@/components/accommodation/HotelPreviewModal";
+import ConfirmDeleteModal from "@/components/common/ConfirmDeleteModal";
 
 const CATEGORY_FILTERS = [
   "ALL",
@@ -45,6 +46,13 @@ export default function AccommodationHotelsPage() {
   const [editHotel, setEditHotel] = useState(null);
   const [editRooms, setEditRooms] = useState([]);
   const [loadingEditRooms, setLoadingEditRooms] = useState(false);
+
+  // ── Delete modal state ───────────────────────────────────────────────────────
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    hotel: null,
+    loading: false,
+  });
 
   // ── Fetch city ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -120,8 +128,18 @@ export default function AccommodationHotelsPage() {
     }
   }
 
-  async function handleDelete(hotelId) {
-    if (!confirm("Delete this hotel? Associated rooms will also be removed.")) return;
+  function promptDeleteHotel(hotel) {
+    setDeleteModal({
+      isOpen: true,
+      hotel,
+      loading: false,
+    });
+  }
+
+  async function handleConfirmDeleteHotel() {
+    if (!deleteModal.hotel) return;
+    const hotelId = deleteModal.hotel._id;
+    setDeleteModal((p) => ({ ...p, loading: true }));
     try {
       const res = await fetch(`/api/accommodation/hotels/${hotelId}`, { method: "DELETE" });
       if (!res.ok) {
@@ -130,8 +148,10 @@ export default function AccommodationHotelsPage() {
       }
       setHotels((prev) => prev.filter((h) => h._id !== hotelId));
       if (previewHotel?._id === hotelId) setPreviewOpen(false);
+      setDeleteModal({ isOpen: false, hotel: null, loading: false });
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
+      setDeleteModal((p) => ({ ...p, loading: false }));
     }
   }
 
@@ -268,7 +288,7 @@ export default function AccommodationHotelsPage() {
                   isAdmin={isAdmin}
                   onClick={() => openPreview(hotel)}
                   onEdit={() => openEdit(hotel)}
-                  onDelete={() => handleDelete(hotel._id)}
+                  onDelete={() => promptDeleteHotel(hotel)}
                 />
               ))}
             </div>
@@ -298,6 +318,20 @@ export default function AccommodationHotelsPage() {
           onSaved={handleSaved}
         />
       )}
+
+      {/* ── Confirm Delete Modal ──────────────────────────────────────────── */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, hotel: null, loading: false })}
+        onConfirm={handleConfirmDeleteHotel}
+        title="Delete Hotel Property?"
+        itemTitle={deleteModal.hotel?.name || "Hotel Property"}
+        itemSubtitle={city?.name ? `${city.name} • ${deleteModal.hotel?.category || "Standard"}` : "Hotel Property"}
+        itemBadge={deleteModal.hotel?.category || "Hotel"}
+        warningMessage="This action is permanent. All rooms, seasonal rate groups, and meal plans for this property will also be cascade-deleted."
+        confirmText="Yes, Delete Hotel"
+        loading={deleteModal.loading}
+      />
     </div>
   );
 }

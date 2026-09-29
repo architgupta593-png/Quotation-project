@@ -99,7 +99,7 @@ export default function PublicVoucherVerificationPage() {
     : "—";
 
   const isPaid = paymentStatus === "paid";
-  const shareUrl = typeof window !== "undefined" ? window.location.href : `https://mandeholidays.com/vouchers/${voucherCode}`;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : `https://holidays.planmyhoneymoon.com/vouchers/${voucherCode}`;
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans py-10 px-4 sm:px-6">

@@ -14,14 +14,16 @@ export async function GET(req, { params }) {
 
     const quickQuotation = await QuickQuotation.findOne({
       quickQuoteCode: code.toUpperCase().trim(),
-    }).lean();
+    })
+      .populate("createdBy", "name email phone role image")
+      .lean();
 
     if (!quickQuotation) {
       return NextResponse.json({ error: "Proposal not found or has been removed" }, { status: 404 });
     }
 
-    // Increment view count if first time viewing
-    await QuickQuotation.updateOne(
+    // Asynchronous non-blocking view tracking (faster response without DB write delay)
+    QuickQuotation.updateOne(
       { _id: quickQuotation._id },
       {
         $inc: { viewsCount: 1 },
@@ -30,7 +32,7 @@ export async function GET(req, { params }) {
           ...(quickQuotation.status === "sent" ? { status: "viewed" } : {}),
         },
       }
-    );
+    ).catch((e) => console.error("[QuickQuote GET ViewTracking Error]", e));
 
     return NextResponse.json({ quickQuotation });
   } catch (err) {

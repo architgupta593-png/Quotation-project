@@ -35,7 +35,7 @@ export default function ActivityVoucherModal({ booking, onClose }) {
 
   const verificationUrl = typeof window !== "undefined"
     ? `${window.location.origin}/vouchers/${voucherCode}`
-    : `https://mandeholidays.com/vouchers/${voucherCode}`;
+    : `https://holidays.planmyhoneymoon.com/vouchers/${voucherCode}`;
 
   function handlePrint() {
     window.print();

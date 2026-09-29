@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Plus, Search, Filter, Loader2, PackageOpen, AlertCircle } from "lucide-react";
 import PackageCard from "@/components/packages/PackageCard";
+import ConfirmDeleteModal from "@/components/common/ConfirmDeleteModal";
 
 export default function PackagesListPage() {
   const { data: session } = useSession();
@@ -17,6 +18,13 @@ export default function PackagesListPage() {
   const [statusFilter, setStatusFilter] = useState(""); // "" | "draft" | "published"
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, pages: 1 });
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    pkg: null,
+    loading: false,
+  });
 
   const fetchPackages = useCallback(async () => {
     setLoading(true);
@@ -49,16 +57,29 @@ export default function PackagesListPage() {
     return () => clearTimeout(debounce);
   }, [fetchPackages]);
 
-  async function handleDelete(pkgId) {
+  function promptDeletePackage(pkg) {
+    setDeleteModal({
+      isOpen: true,
+      pkg,
+      loading: false,
+    });
+  }
+
+  async function handleConfirmDeletePackage() {
+    if (!deleteModal.pkg) return;
+    const pkgId = deleteModal.pkg._id || deleteModal.pkg;
+    setDeleteModal((p) => ({ ...p, loading: true }));
     try {
       const res = await fetch(`/api/packages/${pkgId}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error);
+        throw new Error(data.error || "Delete failed");
       }
       setPackages((prev) => prev.filter((p) => p._id !== pkgId));
+      setDeleteModal({ isOpen: false, pkg: null, loading: false });
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
+      setDeleteModal((p) => ({ ...p, loading: false }));
     }
   }
 
@@ -177,7 +198,7 @@ export default function PackagesListPage() {
                   key={pkg._id}
                   pkg={pkg}
                   isAdmin={isAdmin}
-                  onDelete={handleDelete}
+                  onDelete={promptDeletePackage}
                 />
               ))}
             </div>
@@ -228,6 +249,20 @@ export default function PackagesListPage() {
           </>
         )}
       </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, pkg: null, loading: false })}
+        onConfirm={handleConfirmDeletePackage}
+        title="Delete Travel Package?"
+        itemTitle={deleteModal.pkg?.title || "Travel Package"}
+        itemSubtitle={deleteModal.pkg?.packageCode ? `Code: ${deleteModal.pkg.packageCode} • ${deleteModal.pkg.tripDetails?.destination || "Custom Itinerary"}` : "Travel Package"}
+        itemBadge={deleteModal.pkg?.status || "Package"}
+        warningMessage="This package will be permanently deleted and removed from the active catalog. Any draft proposals referencing this template will lose sync."
+        confirmText="Yes, Delete Package"
+        loading={deleteModal.loading}
+      />
     </div>
   );
 }

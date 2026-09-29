@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import QuickWhatsAppShareModal from "@/components/quick-quotations/QuickWhatsAppShareModal";
 import QuickEmailShareModal from "@/components/quick-quotations/QuickEmailShareModal";
+import ConfirmDeleteModal from "@/components/common/ConfirmDeleteModal";
 
 const STATUS_CONFIG = {
   draft: { label: "Draft", bg: "bg-slate-100 text-slate-700 border-slate-200/80", dot: "bg-slate-400" },
@@ -65,7 +66,7 @@ function formatRelativeTime(isoString) {
 
 // ── Couple Initials Helper ───────────────────────────────────────────────────
 function getClientInitials(name) {
-  if (!name || typeof name !== "string") return "❤️";
+  if (!name || typeof name !== "string") return "PMH";
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -85,6 +86,13 @@ export default function QuickQuotationsPipelinePage() {
   const [shareQuote, setShareQuote] = useState(null);
   const [emailQuote, setEmailQuote] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    quote: null,
+    loading: false,
+  });
 
   const fetchQuickQuotations = useCallback(async () => {
     setLoading(true);
@@ -111,8 +119,18 @@ export default function QuickQuotationsPipelinePage() {
     return () => clearTimeout(debounce);
   }, [fetchQuickQuotations]);
 
-  async function handleDelete(id) {
-    if (!confirm("Are you sure you want to delete this quick quotation?")) return;
+  function promptDeleteQuickQuote(qq) {
+    setDeleteModal({
+      isOpen: true,
+      quote: qq,
+      loading: false,
+    });
+  }
+
+  async function handleConfirmDeleteQuickQuote() {
+    if (!deleteModal.quote) return;
+    const id = deleteModal.quote._id;
+    setDeleteModal((p) => ({ ...p, loading: true }));
     try {
       const res = await fetch(`/api/quick-quotations/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -120,9 +138,11 @@ export default function QuickQuotationsPipelinePage() {
         throw new Error(data.error || "Failed to delete");
       }
       setQuickQuotations((prev) => prev.filter((q) => q._id !== id));
+      setDeleteModal({ isOpen: false, quote: null, loading: false });
       fetchQuickQuotations();
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
+      setDeleteModal((p) => ({ ...p, loading: false }));
     }
   }
 
@@ -501,6 +521,11 @@ export default function QuickQuotationsPipelinePage() {
                         <p className="text-[10.5px] font-bold text-rose-600">
                           {isCouple ? "Couple Package Total" : `₹${(qq.pricing?.perPersonPrice || 0).toLocaleString("en-IN")} / Person`}
                         </p>
+                        {Array.isArray(qq.accommodationOptions) && qq.accommodationOptions.length > 1 && (
+                          <span className="inline-block mt-0.5 text-[9.5px] font-extrabold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            ✨ {qq.accommodationOptions.length} Tiers
+                          </span>
+                        )}
                       </div>
 
                       {/* Action buttons */}
@@ -580,7 +605,7 @@ export default function QuickQuotationsPipelinePage() {
                         {/* Delete */}
                         <button
                           type="button"
-                          onClick={() => handleDelete(qq._id)}
+                          onClick={() => promptDeleteQuickQuote(qq)}
                           title="Delete Quick Quote"
                           className="p-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200/80 hover:border-rose-200 transition-colors active:scale-95"
                         >
@@ -613,6 +638,20 @@ export default function QuickQuotationsPipelinePage() {
           onClose={() => setEmailQuote(null)}
         />
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, quote: null, loading: false })}
+        onConfirm={handleConfirmDeleteQuickQuote}
+        title="Delete Quick Quotation?"
+        itemTitle={deleteModal.quote?.quickQuoteCode ? `${deleteModal.quote.quickQuoteCode} • ${deleteModal.quote.client?.name || "Client"}` : "Quick Quotation"}
+        itemSubtitle={deleteModal.quote?.tripDetails?.destination ? `${deleteModal.quote.tripDetails.destination} (${deleteModal.quote.tripDetails.nights || 1}N/${deleteModal.quote.tripDetails.days || 1}D)` : "Custom Travel Proposal"}
+        itemBadge={deleteModal.quote?.status ? STATUS_CONFIG[deleteModal.quote.status]?.label || deleteModal.quote.status : "Quick Quote"}
+        warningMessage="This quick quotation will be permanently deleted. The client view link and all shared proposal tokens will be permanently deactivated."
+        confirmText="Yes, Delete Quote"
+        loading={deleteModal.loading}
+      />
     </div>
   );
 }

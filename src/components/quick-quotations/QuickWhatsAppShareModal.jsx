@@ -32,7 +32,7 @@ const EMOJI = {
 
 export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose }) {
   const [copied, setCopied] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState("detailed");
+  const [selectedTemplate, setSelectedTemplate] = useState("honeymoon");
   const [customText, setCustomText] = useState("");
   const [targetPhone, setTargetPhone] = useState("");
 
@@ -46,7 +46,7 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
 
   const publicUrl = typeof window !== "undefined"
     ? `${window.location.origin}/quick-quote/${quickQuoteCode}`
-    : `https://mandeholidays.com/quick-quote/${quickQuoteCode}`;
+    : `https://holidays.planmyhoneymoon.com/quick-quote/${quickQuoteCode}`;
 
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
@@ -83,55 +83,87 @@ export default function QuickWhatsAppShareModal({ quickQuote, isOpen, onClose })
 
     const gstNote = includeGst ? " (Includes 5% GST)" : " (Excl. 5% GST)";
     const discountText = discountAmount > 0
-      ? `\n${EMOJI.FIRE} *Special Offer Deal:* Save ₹${discountAmount.toLocaleString("en-IN")} (Offer: ₹${finalPrice.toLocaleString("en-IN")}, Original: ~₹${originalPrice.toLocaleString("en-IN")}~)`
+      ? `\n${EMOJI.FIRE} *Special Honeymoon Offer:* Save ₹${discountAmount.toLocaleString("en-IN")} (Special Deal: ₹${finalPrice.toLocaleString("en-IN")}, Standard: ~₹${originalPrice.toLocaleString("en-IN")}~)`
       : "";
-
-    if (templateType === "short") {
-      return `*MANDE HOLIDAYS — QUICK TRAVEL QUOTE* ${EMOJI.ZAP} ${EMOJI.SPARKLES}
-Ref: *${quickQuoteCode}*
-Dear *${client?.name || "Valued Traveler"}*,
-
-Here is your rapid holiday quotation for *${tripDetails?.title || "Holiday Package"}*:
-
-${EMOJI.PIN} *Destination:* ${tripDetails?.destination}
-${EMOJI.CALENDAR} *Duration:* ${startDateStr} - ${endDateStr} (${tripDetails?.nights}N / ${tripDetails?.days}D)
-${EMOJI.PEOPLE} *Party:* ${numPax} Adults (${passengers?.totalRooms || 1} Room)
-${EMOJI.CAR} *Private Transport:* Dedicated AC ${vehicle?.vehicleType || "Cab"} with Driver
-${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}${discountText}
-${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toLocaleString("en-IN")}
-
-${EMOJI.POINT_RIGHT} *View Complete Proposal & Accept Online:*
-${publicUrl}
-
-Feel free to reply for any customization! ${EMOJI.STAR}`;
-    }
 
     const options = (quickQuote?.accommodationOptions && quickQuote.accommodationOptions.length > 0)
       ? quickQuote.accommodationOptions
       : [{ label: "Standard Accommodation", hotelStays: hotelStays }];
 
     const formattedHotelSection = options.length > 1
-      ? options.map((opt, i) =>
-          `*${opt.label || (i === 0 ? "Standard" : `Option ${i + 1}`)}*\n` +
-          (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, ${s.roomType || "Deluxe AC"}, ${s.mealPlan || "CP"})`).join("\n")
-        ).join("\n\n")
+      ? options.map((opt, i) => {
+          const optPrice = Number(opt.finalPrice) || Number(opt.totalPrice) || finalPrice;
+          return `*${opt.label || (i === 0 ? "Standard Package" : `Option ${i + 1}`)}* (₹${optPrice.toLocaleString("en-IN")})\n` +
+            (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, ${s.roomType || "Deluxe AC"}, ${s.mealPlan || "CP"})`).join("\n");
+        }).join("\n\n")
       : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [${s.roomType || "Deluxe AC"} - ${s.mealPlan || "CP"}]`).join("\n");
 
-    if (templateType === "honeymoon") {
-      return `*MANDE HOLIDAYS — ROMANTIC HONEYMOON PROPOSAL* ${EMOJI.HEARTS} ${EMOJI.CHEERS}
+    if (templateType === "short") {
+      return `*PLAN MY HONEYMOON — RAPID COUPLE QUOTE* ${EMOJI.ZAP} ${EMOJI.SPARKLES}
 Ref: *${quickQuoteCode}*
-Dear *${client?.name || "Valued Traveler"}*,
+Dear *${client?.name || "Valued Couple"}*,
 
-Congratulations on planning your romantic holiday! Here is your private honeymoon proposal:
+Here is your romantic getaway quote for *${tripDetails?.title || `${tripDetails?.destination || "Honeymoon"} Holiday`}*:
+
+${EMOJI.PIN} *Destination:* ${tripDetails?.destination} (${tripDetails?.nights}N / ${tripDetails?.days}D)
+${EMOJI.CALENDAR} *Duration:* ${startDateStr} - ${endDateStr}
+${EMOJI.PEOPLE} *Party:* ${numPax} Adults (${passengers?.totalRooms || 1} Private Room)
+${EMOJI.CAR} *Private Transport:* Dedicated AC ${vehicle?.vehicleType || "Cab"} with Chauffeur
+${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}${discountText}
+${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
+${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toLocaleString("en-IN")}
+
+${EMOJI.POINT_RIGHT} *View Complete Proposal & Accept Online:*
+${publicUrl}
+
+Feel free to reply for romantic customizations! ${EMOJI.HEARTS}`;
+    }
+
+    if (templateType === "detailed") {
+      const childrenText = (passengers?.childrenCount > 0 || (passengers?.childrenAges && passengers.childrenAges.length > 0))
+        ? `, ${passengers.childrenCount || passengers.childrenAges.length} Child (${(passengers.childrenAges || []).join(", ")} yrs)`
+        : "";
+
+      return `*PLAN MY HONEYMOON — LUXURY HONEYMOON ITINERARY* ${EMOJI.PALM} ${EMOJI.SPARKLES}
+Ref: *${quickQuoteCode}*
+Dear *${client?.name || "Valued Couple"}*,
+
+Thank you for choosing Plan My Honeymoon! We are delighted to present your bespoke couple itinerary:
+
+${EMOJI.PIN} *Tour:* ${tripDetails?.title || "Bespoke Honeymoon Tour"}
+${EMOJI.CALENDAR} *Dates:* ${startDateStr} to ${endDateStr} (${tripDetails?.nights}N / ${tripDetails?.days}D)
+${EMOJI.PEOPLE} *Couple / Travelers:* ${numPax} Adults${childrenText} (${passengers?.totalRooms || 1} Room)
+${EMOJI.CAR} *Private Transport:* AC ${vehicle?.vehicleType || "Sedan"} (${vehicle?.model || "Dedicated Cab"} with chauffeur, tolls & parking)
+
+${EMOJI.HOTEL} *Curated Hotel Stays:*
+${formattedHotelSection}${discountText}
+
+${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}
+${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
+${EMOJI.PERSON} *Rate Per Person:* ₹${perPerson.toLocaleString("en-IN")}
+${EMOJI.CASH} *${advancePct}% Booking Advance Token:* ₹${advanceToken.toLocaleString("en-IN")}
+
+${EMOJI.DOC} *View Live Proposal & Confirm Online:*
+${EMOJI.POINT_RIGHT} ${publicUrl}
+
+For instant booking or special honeymoon requests (Candlelight dinner, cake, decorations), please reply! ${EMOJI.STAR}`;
+    }
+
+    // Default Romantic Honeymoon Template ("honeymoon")
+    return `*PLAN MY HONEYMOON — PRIVATE ROMANTIC PROPOSAL* ${EMOJI.HEARTS} ${EMOJI.CHEERS}
+Ref: *${quickQuoteCode}*
+Dear *${client?.name || "Valued Couple"}*,
+
+Congratulations on planning your romantic getaway! Here is your private honeymoon proposal crafted with love:
 
 ${EMOJI.PIN} *Destination:* ${tripDetails?.destination} (${tripDetails?.nights}N / ${tripDetails?.days}D)
 ${EMOJI.CALENDAR} *Travel Dates:* ${startDateStr} to ${endDateStr}
-${EMOJI.CAR} *Private Cab:* Dedicated AC ${vehicle?.vehicleType || "Sedan"} with Chauffeur
+${EMOJI.CAR} *Private Cab:* Dedicated AC ${vehicle?.vehicleType || "Sedan"} with Professional Chauffeur
 
-${EMOJI.HOTEL} *Curated Stays:*
+${EMOJI.HOTEL} *Curated Romantic Stays:*
 ${formattedHotelSection}
 
-${EMOJI.SPARKLES} *Inclusions:* Daily Breakfast, Sightseeing Transfers, Tolls, Fuel & Chauffeur Allowance.${discountText}
+${EMOJI.SPARKLES} *Special Inclusions:* Daily Breakfast, Sightseeing Transfers, Tolls, Fuel & Chauffeur Allowance.${discountText}
 
 ${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}
 ${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
@@ -140,37 +172,7 @@ ${EMOJI.CASH} *Advance Token to Confirm (${advancePct}%):* ₹${advanceToken.toL
 ${EMOJI.POINT_RIGHT} *Review Itinerary & Accept Online:*
 ${publicUrl}
 
-Reply to this message for any customization or date confirmation! ${EMOJI.HEARTS}`;
-    }
-
-    const childrenText = (passengers?.childrenCount > 0 || (passengers?.childrenAges && passengers.childrenAges.length > 0))
-      ? `, ${passengers.childrenCount || passengers.childrenAges.length} Child (${(passengers.childrenAges || []).join(", ")} yrs)`
-      : "";
-
-    // Default Detailed Template
-    return `*MANDE HOLIDAYS — QUICK TRAVEL PROPOSAL* ${EMOJI.PALM} ${EMOJI.SPARKLES}
-Ref: *${quickQuoteCode}*
-Dear *${client?.name || "Valued Traveler"}*,
-
-Thank you for contacting Mande Holidays! Here is your customized travel proposal:
-
-${EMOJI.PIN} *Tour:* ${tripDetails?.title || "Custom Holiday"}
-${EMOJI.CALENDAR} *Dates:* ${startDateStr} to ${endDateStr} (${tripDetails?.nights}N / ${tripDetails?.days}D)
-${EMOJI.PEOPLE} *Party:* ${numPax} Adults${childrenText} (${passengers?.totalRooms || 1} Room)
-${EMOJI.CAR} *Private Transport:* AC ${vehicle?.vehicleType || "Sedan"} (${vehicle?.model || "Commercial Cab"} with chauffeur, tolls & parking)
-
-${EMOJI.HOTEL} *Hotel Accommodation:*
-${formattedHotelSection}${discountText}
-
-${EMOJI.MONEY_BAG} *Total Package Value:* ₹${finalPrice.toLocaleString("en-IN")}${gstNote}
-${EMOJI.COUPLE} *Rate Per Couple (2 Adults):* ₹${perCouple.toLocaleString("en-IN")}
-${EMOJI.PERSON} *Rate Per Adult (${numPax} Pax):* ₹${perPerson.toLocaleString("en-IN")}
-${EMOJI.CASH} *${advancePct}% Advance Token to Confirm:* ₹${advanceToken.toLocaleString("en-IN")}
-
-${EMOJI.DOC} *View Live Proposal & Confirm Online:*
-${EMOJI.POINT_RIGHT} ${publicUrl}
-
-For any customization or instant booking, please reply to this message! ${EMOJI.STAR}`;
+Reply to this message for instant customizations or date confirmation! ${EMOJI.HEARTS}`;
   }
 
   useEffect(() => {

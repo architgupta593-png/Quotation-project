@@ -3,44 +3,13 @@
 import { useState } from "react";
 import {
   Compass, Plus, Trash2, ChevronDown, ChevronUp,
-  Sparkles, Clock, Check, Utensils, Tag, MapPin,
+  Clock, Check, Utensils, Tag, MapPin,
   Calendar, Layers, CheckCheck, Sun, Moon, Coffee,
   Camera, Navigation, Flag, ShieldCheck, Edit3, X,
   FileText, CheckCircle2, ArrowUp, ArrowDown, Copy,
-  Eye, EyeOff, Hotel,
+  Hotel, ChevronsUpDown,
 } from "lucide-react";
 import DescriptionEditorDialog from "@/components/packages/DescriptionEditorDialog";
-
-const THEME_PRESETS = {
-  honeymoon: [
-    { title: "Romantic Arrival, Flower Bed & Candlelight Welcome", activities: ["Airport Pickup", "Candlelight Dinner", "Flower Bed Decor", "Sunset Walk"] },
-    { title: "Private Scenic Valleys, Tea Gardens & Viewpoints", activities: ["Private Cab Sightseeing", "Tea Plantation Walk", "Photo Point", "Sunset View"] },
-    { title: "Serene Backwaters, Houseboat Cruise & Lagoon Stay", activities: ["Houseboat Check-in", "Backwater Cruise", "Traditional Lunch", "Sunset on Deck"] },
-    { title: "Beachfront Candlelight Dinner & Spa Relaxation", activities: ["Couples Spa", "Beach Walk", "Seafood Dinner", "Sunset Photography"] },
-    { title: "Cherished Farewell & Departure Transfer", activities: ["Breakfast", "Souvenir Shopping", "Airport Drop"] },
-  ],
-  mountain: [
-    { title: "Arrival in Misty Hills & Mountain Resort Check-in", activities: ["Mountain Drive", "Resort Check-in", "Bonfire Evening", "Leisure Walk"] },
-    { title: "Full-Day Peak Viewpoints, Waterfalls & Pine Forests", activities: ["Waterfall Visit", "Pine Forest Trail", "Valley View", "Local Market"] },
-    { title: "Adventure Valley, Cable Car / Ropeway & Trekking", activities: ["Ropeway Ride", "Nature Trek", "Adventure Activities", "Cafe Hop"] },
-    { title: "High-Altitude Pass Excursion & Snow/River Spot", activities: ["High Pass Visit", "River Crossing", "Photo Spot", "Local Snacks"] },
-    { title: "Scenic Return Drive & Departure Transfer", activities: ["Breakfast", "Check-out", "Scenic Return Drive", "Departure Drop"] },
-  ],
-  beach: [
-    { title: "Arrival in Coastal Paradise & Beach Resort Check-in", activities: ["Airport Pickup", "Resort Check-in", "Beach Sunset Walk", "Welcome Drink"] },
-    { title: "Island Hopping, Watersports & Snorkeling / Scuba", activities: ["Speedboat Ride", "Watersports", "Snorkeling", "Seafood Lunch"] },
-    { title: "Heritage Forts, Coastal Cafes & Sunset Cruise", activities: ["Coastal Fort Visit", "Beach Shacks", "Sunset Cruise", "Live Music"] },
-    { title: "Leisure Beach Day, Spa & Night Flea Market", activities: ["Beach Lounging", "Ayurvedic Massage", "Flea Market", "Beach Dining"] },
-    { title: "Tropical Farewell & Airport Departure", activities: ["Beach Walk", "Breakfast Buffet", "Hotel Check-out", "Airport Transfer"] },
-  ],
-  general: [
-    { title: "Arrival & Scenic Hotel Check-in", activities: ["Airport Pickup", "Hotel Check-in", "Evening Leisure Walk"] },
-    { title: "Full-Day Iconic Landmarks & City Sightseeing", activities: ["Full-Day Sightseeing", "Heritage Monuments", "Scenic Valley View", "Local Market"] },
-    { title: "Cultural Heritage, Nature Exploration & Bazaars", activities: ["Local Culture", "Plantation Walk", "Sunset Photography"] },
-    { title: "Scenic Excursion, Local Cuisine & Leisure Delights", activities: ["Scenic Excursion", "Regional Cuisine", "Sunset Point"] },
-    { title: "Departure Transfer with Wonderful Memories", activities: ["Morning Breakfast", "Hotel Check-out", "Departure Transfer"] },
-  ],
-};
 
 const ACTIVITY_SUGGESTIONS = [
   "Airport / Station Pickup",
@@ -153,10 +122,6 @@ export function getStayForDay(dayIndex, hotelStays = []) {
 
 /**
  * Derives the exact meal inclusions according to the hotel's selected meal plan.
- * EP: Room Only (No meals)
- * CP: Bed & Breakfast (Morning Breakfast only; on arrival day check-in is afternoon so no breakfast)
- * MAP: Half Board (Breakfast + Dinner; arrival day has dinner, departure day has breakfast)
- * AP: Full Board (All Meals: Breakfast + Lunch + Dinner; arrival day has lunch/dinner, departure day has breakfast)
  */
 export function getMealsFromStay(stay, dayIndex, totalDays) {
   const isFirstDay = dayIndex === 0;
@@ -251,60 +216,36 @@ export function syncItineraryWithHotelStays(itinerary = [], hotelStays = [], tot
 export default function QuickItinerarySection({
   itinerary = [],
   onChange,
-  showItinerary = true,
-  onToggleShowItinerary,
   daysCount = 5,
   destination = "",
-  theme = "honeymoon",
   hotelStays = [],
 }) {
-  const [activeTabDay, setActiveTabDay] = useState("all"); // "all" | number (0-indexed)
+  // Accordion State: Track which day card indices are expanded
+  const [openDays, setOpenDays] = useState(() => new Set([0]));
   const [editingDayIndex, setEditingDayIndex] = useState(null); // index of day being edited in modal
   const [richEditorDayIdx, setRichEditorDayIdx] = useState(null); // index of day being edited in TipTap rich text modal
   const [newActivityInput, setNewActivityInput] = useState("");
 
-  // Auto-generate realistic itinerary based on destination, duration, theme and hotel meal plans
-  function generateDefaultItinerary() {
-    const dest = destination.trim() || "Destination";
-    const themeKey = THEME_PRESETS[theme] ? theme : "general";
-    const templates = THEME_PRESETS[themeKey];
-    const generated = [];
+  const areAllOpen = itinerary.length > 0 && openDays.size === itinerary.length;
 
-    for (let i = 1; i <= daysCount; i++) {
-      const matchingStay = getStayForDay(i - 1, hotelStays);
-      const mealInfo = getMealsFromStay(matchingStay, i - 1, daysCount);
-      const city = matchingStay?.cityName || dest;
-      const template = templates[Math.min(i - 1, templates.length - 1)];
-
-      let title = "";
-      let description = "";
-      let activities = [];
-
-      if (i === 1) {
-        title = `Day 1: Arrival in ${city} • ${template.title}`;
-        description = `Arrive at the airport / railway station. Meet and greet with our private representative and transfer smoothly to your booked hotel in ${city}. Complete check-in formalities and enjoy leisure time exploring local surroundings and markets.`;
-        activities = template.activities || ["Airport Pickup", "Hotel Check-in", "Evening Leisure Walk"];
-      } else if (i === daysCount) {
-        title = `Day ${i}: Departure from ${city} with Wonderful Memories`;
-        description = `Relish a delicious breakfast at the hotel, complete check-out formalities, and transfer comfortably in your private vehicle to the airport/station for onward journey.`;
-        activities = ["Morning Breakfast", "Hotel Check-out", "Departure Transfer"];
+  function toggleDayAccordion(index) {
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
       } else {
-        title = `Day ${i}: ${city} • ${template.title.replace(/^Day \d+[:\s-]*/i, "")}`;
-        description = `After breakfast, embark on a curated full-day sightseeing tour of ${city} exploring scenic viewpoints, famous landmarks, and cultural highlights.`;
-        activities = template.activities || ["Full-Day Sightseeing", "Monument Visits", "Scenic Viewpoint"];
+        next.add(index);
       }
+      return next;
+    });
+  }
 
-      generated.push({
-        day: i,
-        city: city,
-        title,
-        description,
-        activities,
-        meals: mealInfo.meals,
-      });
+  function handleToggleAllAccordions() {
+    if (areAllOpen) {
+      setOpenDays(new Set());
+    } else {
+      setOpenDays(new Set(itinerary.map((_, i) => i)));
     }
-
-    onChange(generated);
   }
 
   function handleDayChange(index, field, value) {
@@ -355,8 +296,12 @@ export default function QuickItinerarySection({
       activities: ["Local Sightseeing", "Leisure Time"],
       meals: { breakfast: true, lunch: false, dinner: false },
     };
+    const nextIndex = itinerary.length;
     onChange([...itinerary, newDay]);
-    setEditingDayIndex(itinerary.length);
+    
+    // Auto expand the new day
+    setOpenDays((prev) => new Set([...prev, nextIndex]));
+    setEditingDayIndex(nextIndex);
   }
 
   function handleMoveDay(index, direction) {
@@ -371,7 +316,6 @@ export default function QuickItinerarySection({
     onChange(reindexed);
   }
 
-  
   function handleRemoveDay(index) {
     if (itinerary.length <= 1) return;
     const updated = itinerary
@@ -381,40 +325,33 @@ export default function QuickItinerarySection({
     if (editingDayIndex === index) {
       setEditingDayIndex(null);
     }
+    // Update openDays set
+    setOpenDays((prev) => {
+      const next = new Set();
+      prev.forEach((i) => {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      });
+      return next;
+    });
   }
-
-  const displayedDays = activeTabDay === "all"
-    ? itinerary
-    : itinerary.filter((_, idx) => idx === activeTabDay);
 
   const editingDay = editingDayIndex !== null ? itinerary[editingDayIndex] : null;
 
   return (
-    <div className={`bg-white rounded-3xl border transition-all ${
-      showItinerary ? "border-slate-200/90 shadow-xs" : "border-slate-200/60 bg-slate-50/50"
-    } p-5 sm:p-7 space-y-5`}>
-      {/* ── Minimalist Clean Header ── */}
+    <div className="bg-white rounded-3xl border border-slate-200/90 hover:border-amber-400/50 shadow-xs p-5 sm:p-7 space-y-5 transition-all">
+      {/* ── Section Header with Accordion Controls ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black transition-colors ${
-            showItinerary
-              ? "bg-indigo-600 text-white shadow-xs"
-              : "bg-slate-200 text-slate-500"
-          }`}>
-            <Compass className="w-4 h-4" />
+          <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs flex-shrink-0">
+            <Compass className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-[16px] font-black text-slate-900">Day-by-Day Tour Itinerary</h3>
-              {showItinerary ? (
-                <span className="text-[10.5px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.2 rounded-md border border-indigo-200">
-                  {itinerary.length} Days Planned
-                </span>
-              ) : (
-                <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 px-2 py-0.2 rounded-md border border-slate-200">
-                  Hidden from Proposal
-                </span>
-              )}
+              <span className="text-[10.5px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
+                {itinerary.length} {itinerary.length === 1 ? "Day" : "Days"} Planned
+              </span>
             </div>
             <p className="text-[11.5px] text-slate-400 font-medium">
               Daily sightseeing route, transfer schedule, meals &amp; activities
@@ -422,305 +359,256 @@ export default function QuickItinerarySection({
           </div>
         </div>
 
+        {/* Header Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
-          {/* Hide / Show Switch */}
-          {onToggleShowItinerary && (
+          {itinerary.length > 0 && (
             <button
               type="button"
-              onClick={onToggleShowItinerary}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11.5px] font-black transition-all ${
-                showItinerary
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-2xs"
-                  : "bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200"
-              }`}
-              title={showItinerary ? "Click to hide itinerary from proposal" : "Click to include itinerary in proposal"}
+              onClick={handleToggleAllAccordions}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/90 text-[11.5px] font-black transition-all shadow-2xs active:scale-95"
+              title={areAllOpen ? "Collapse all day cards" : "Expand all day cards"}
             >
-              {showItinerary ? (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Visible in Proposal</span>
-                </>
-              ) : (
-                <>
-                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Hidden in Proposal</span>
-                </>
-              )}
+              <ChevronsUpDown className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{areAllOpen ? "Collapse All" : "Expand All"}</span>
             </button>
           )}
 
-          {showItinerary && (
-            <>
-              <button
-                type="button"
-                onClick={generateDefaultItinerary}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11.5px] font-black transition-all shadow-2xs"
-                title="Auto-fill itinerary days based on destination & theme"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>Auto-Generate</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAddDay}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11.5px] font-black transition-all shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Add Day</span>
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={handleAddDay}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11.5px] font-black transition-all shadow-2xs active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-400" />
+            <span>Add Day</span>
+          </button>
         </div>
       </div>
 
-      {/* When Hidden Banner */}
-      {!showItinerary ? (
-        <div className="py-3 px-4 rounded-2xl bg-slate-100/90 border border-slate-200 flex items-center justify-between gap-3 text-[12px] text-slate-600">
-          <div className="flex items-center gap-2">
-            <EyeOff className="w-4 h-4 text-slate-400" />
-            <span className="font-semibold">Day-by-Day Itinerary is currently hidden from the client's quotation proposal.</span>
+      {/* ── Empty State ── */}
+      {itinerary.length === 0 ? (
+        <div className="text-center py-10 bg-slate-50/70 rounded-3xl border-2 border-dashed border-slate-200 p-6 space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
+            <Compass className="w-6 h-6" />
           </div>
-          {onToggleShowItinerary && (
-            <button
-              type="button"
-              onClick={onToggleShowItinerary}
-              className="text-[11.5px] font-black text-indigo-600 hover:underline"
-            >
-              Show Itinerary
-            </button>
-          )}
-        </div>
-      ) : itinerary.length === 0 ? (
-        /* Empty State */
-        <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4 space-y-2">
-          <p className="text-[13px] font-bold text-slate-700">No Day-by-Day Itinerary Added Yet</p>
-          <p className="text-[11.5px] text-slate-400">Click Auto-Generate to build a realistic {daysCount}-day sightseeing plan in 1 click.</p>
+          <div>
+            <p className="text-[14px] font-black text-slate-800">No Day-by-Day Itinerary Added Yet</p>
+            <p className="text-[12px] text-slate-400 font-medium max-w-md mx-auto mt-0.5">
+              Build a structured daily sightseeing and transfer plan for this quotation proposal.
+            </p>
+          </div>
           <button
             type="button"
-            onClick={generateDefaultItinerary}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[12px] shadow-xs"
+            onClick={handleAddDay}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[12.5px] shadow-xs active:scale-95 transition-all"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Generate {daysCount}-Day Plan</span>
+            <Plus className="w-4 h-4 text-amber-400" />
+            <span>Add Day 1 Plan</span>
           </button>
         </div>
       ) : (
-        <>
-          {/* ── Day Navigation Pill Bar (Minimalist) ── */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11.5px]">
-            <button
-              type="button"
-              onClick={() => setActiveTabDay("all")}
-              className={`px-3 py-1 rounded-xl font-bold transition-all whitespace-nowrap border ${
-                activeTabDay === "all"
-                  ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                  : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200"
-              }`}
-            >
-              All Days ({itinerary.length})
-            </button>
+        /* ── Day-by-Day Accordion Stream Layout ── */
+        <div className="space-y-3.5">
+          {itinerary.map((dayItem, idx) => {
+            const isOpen = openDays.has(idx);
+            const matchingStay = getStayForDay(idx, hotelStays);
+            const mealInfo = getMealsFromStay(matchingStay, idx, daysCount || itinerary.length);
+            const cityLeg = dayItem.city || matchingStay?.cityName || destination;
 
-            {itinerary.map((dayItem, idx) => {
-              const matchingStay = hotelStays[Math.min(idx, hotelStays.length - 1)];
-              const city = dayItem.city || matchingStay?.cityName;
+            return (
+              <div
+                key={idx}
+                className={`group relative rounded-3xl bg-white border transition-all duration-200 overflow-hidden ${
+                  isOpen
+                    ? "border-indigo-300 shadow-md ring-2 ring-indigo-500/10"
+                    : "border-slate-200/90 hover:border-amber-400/80 shadow-xs hover:shadow-sm"
+                }`}
+              >
+                {/* Top ambient accent gradient line */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 transition-opacity ${
+                    isOpen ? "opacity-100" : "opacity-40 group-hover:opacity-100"
+                  }`}
+                />
 
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveTabDay(idx)}
-                  className={`px-2.5 py-1 rounded-xl font-medium transition-all whitespace-nowrap border flex items-center gap-1.5 ${
-                    activeTabDay === idx
-                      ? "bg-indigo-600 text-white border-indigo-600 font-bold shadow-2xs"
-                      : "bg-white text-slate-700 hover:bg-indigo-50 border-slate-200"
+                {/* ── Interactive Accordion Header Bar ── */}
+                <div
+                  onClick={() => toggleDayAccordion(idx)}
+                  className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 cursor-pointer select-none transition-colors ${
+                    isOpen ? "bg-slate-50/60 border-b border-slate-100" : "bg-white hover:bg-slate-50/40"
                   }`}
                 >
-                  <span className="font-mono text-[10.5px] opacity-80 font-bold">D{dayItem.day || idx + 1}</span>
-                  <span className="truncate max-w-[110px]">
-                    {city ? `${city}` : `Day ${idx + 1}`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ── Luxury Journey Stream Layout ── */}
-          <div className="space-y-4">
-            {displayedDays.map((dayItem, realIdx) => {
-              const idx = activeTabDay === "all" ? realIdx : activeTabDay;
-              const matchingStay = getStayForDay(idx, hotelStays);
-              const mealInfo = getMealsFromStay(matchingStay, idx, daysCount || itinerary.length);
-              const meals = dayItem.meals || mealInfo.meals || { breakfast: false, lunch: false, dinner: false };
-              const cityLeg = dayItem.city || matchingStay?.cityName || destination;
-
-              return (
-                <div
-                  key={idx}
-                  className="group relative rounded-3xl bg-white border border-slate-200/90 hover:border-amber-400/80 p-4 sm:p-6 shadow-xs hover:shadow-md transition-all space-y-4 overflow-hidden"
-                >
-                  {/* Subtle top ambient gradient line */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-
-                  {/* Header Row: Hero Day Tile + Title + Location + Actions */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3 border-b border-slate-100">
-                    <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
-                      {/* Hero Day Number Squircle Tile */}
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
-                        <span className="font-mono font-black text-[16px] sm:text-[18px] leading-none">
-                          {String(dayItem.day || idx + 1).padStart(2, "0")}
-                        </span>
-                        <span className="text-[8.5px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
-                          DAY
-                        </span>
-                      </div>
-
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {cityLeg && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-900 border border-amber-200/90 font-black text-[11px] flex items-center gap-1 shadow-2xs">
-                              <MapPin className="w-3 h-3 text-amber-600" />
-                              <span>{cityLeg}</span>
-                            </span>
-                          )}
-
-                          {/* Hotel & Meal Plan Connection Badge - Only shown when hotel is selected */}
-                          {mealInfo.hasHotel && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[11px] flex items-center gap-1.5 shadow-2xs">
-                              <Hotel className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                              <span className="truncate max-w-[170px]">{mealInfo.hotelName}</span>
-                              <span className="text-emerald-400">•</span>
-                              <span className="text-emerald-800 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} • ${mealInfo.planDesc?.shortMeaning}`}</span>
-                            </span>
-                          )}
-
-                          <span className="text-[10.5px] font-bold text-slate-400">
-                            Milestone #{dayItem.day || idx + 1}
-                          </span>
-                        </div>
-
-                        <h4
-                          onClick={() => setEditingDayIndex(idx)}
-                          className="text-[15px] sm:text-[16px] font-black text-slate-900 hover:text-indigo-600 transition-colors cursor-pointer leading-snug"
-                          title="Click to edit day title & narrative"
-                        >
-                          {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
-                        </h4>
-                      </div>
+                  {/* Left Column: Hero Day Badge + Title + Location / Meal Pills */}
+                  <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                    {/* Hero Day Number Squircle Tile */}
+                    <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-amber-400 flex flex-col items-center justify-center flex-shrink-0 shadow-md ring-2 ring-amber-400/20">
+                      <span className="font-mono font-black text-[15px] sm:text-[17px] leading-none">
+                        {String(dayItem.day || idx + 1).padStart(2, "0")}
+                      </span>
+                      <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase mt-0.5">
+                        DAY
+                      </span>
                     </div>
 
-                    {/* Day Action Buttons */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0 self-start sm:self-center">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Meal Plan Connection Badge (Only shown when a meal plan is selected) */}
+                        {mealInfo.mealPlan && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[10.5px] flex items-center gap-1.5 shadow-2xs">
+                            <Utensils className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                            <span className="text-emerald-900 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} Plan`}</span>
+                          </span>
+                        )}
+
+                        {!isOpen && dayItem.activities && dayItem.activities.length > 0 && (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                            {dayItem.activities.length} {dayItem.activities.length === 1 ? "Activity" : "Activities"}
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-[15px] font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug truncate">
+                        {dayItem.title || `Day ${idx + 1} Sightseeing & Experience`}
+                      </h4>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Actions & Accordion Toggle Icon */}
+                  <div
+                    className="flex items-center gap-1.5 flex-shrink-0 self-start sm:self-center"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setEditingDayIndex(idx)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
+                      title="Edit Day Details in Studio Modal"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Edit</span>
+                    </button>
+
+                    <div className="flex items-center bg-slate-50 p-0.5 rounded-xl border border-slate-200">
                       <button
                         type="button"
-                        onClick={() => setEditingDayIndex(idx)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[11.5px] transition-all shadow-2xs active:scale-95"
-                        title="Edit Day Details in Studio Modal"
+                        onClick={() => handleMoveDay(idx, -1)}
+                        disabled={idx === 0}
+                        className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                        title="Move Day Up"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Edit</span>
+                        <ArrowUp className="w-3.5 h-3.5" />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveDay(idx, 1)}
+                        disabled={idx === itinerary.length - 1}
+                        className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
+                        title="Move Day Down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                      {itinerary.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDay(idx)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                          title="Delete Day"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
 
-                      <div className="flex items-center bg-slate-50 p-0.5 rounded-xl border border-slate-200">
+                    {/* Accordion Expand/Collapse Chevron Button */}
+                    <button
+                      type="button"
+                      onClick={() => toggleDayAccordion(idx)}
+                      className={`p-1.5 rounded-xl border transition-all ${
+                        isOpen
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                          : "bg-white text-slate-500 hover:bg-slate-100 border-slate-200"
+                      }`}
+                      title={isOpen ? "Collapse day" : "Expand day"}
+                    >
+                      {isOpen ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Collapsible Accordion Body ── */}
+                {isOpen && (
+                  <div className="p-4 sm:p-6 space-y-4 bg-white animate-in slide-in-from-top-2 duration-200">
+                    {/* Narrative Story Description */}
+                    <div
+                      onClick={() => setEditingDayIndex(idx)}
+                      className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 hover:bg-amber-50/40 border border-slate-200/80 hover:border-amber-300 transition-all cursor-pointer space-y-1"
+                    >
+                      {dayItem.description ? (
+                        <div
+                          className="text-[13px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
+                          dangerouslySetInnerHTML={{ __html: dayItem.description }}
+                        />
+                      ) : (
+                        <p className="text-[13px] text-slate-400 italic">
+                          Click to add a detailed morning-to-evening sightseeing narrative for this day...
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Visual Activity Chips */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400">
+                          Planned Highlights &amp; Activities:
+                        </span>
                         <button
                           type="button"
-                          onClick={() => handleMoveDay(idx, -1)}
-                          disabled={idx === 0}
-                          className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
-                          title="Move Day Up"
+                          onClick={() => setEditingDayIndex(idx)}
+                          className="text-[11px] font-bold text-indigo-600 hover:underline"
                         >
-                          <ArrowUp className="w-3.5 h-3.5" />
+                          + Add Custom
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveDay(idx, 1)}
-                          disabled={idx === itinerary.length - 1}
-                          className="p-1.5 text-slate-400 hover:text-slate-800 disabled:opacity-20 transition-colors"
-                          title="Move Day Down"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                        {itinerary.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveDay(idx)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                            title="Delete Day"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {dayItem.activities && dayItem.activities.length > 0 ? (
+                          dayItem.activities.map((act, actIdx) => (
+                            <span
+                              key={actIdx}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs transition-all hover:scale-102"
+                            >
+                              <span className="text-[12px]">{getActivityIcon(act)}</span>
+                              <span>{act}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveActivity(idx, actIdx);
+                                }}
+                                className="text-slate-400 hover:text-rose-600 ml-0.5 rounded-full hover:bg-rose-50 p-0.5 transition-colors"
+                                title="Remove activity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[11.5px] text-slate-400 italic">No activity tags added yet</span>
                         )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Narrative Story Description */}
-                  <div
-                    onClick={() => setEditingDayIndex(idx)}
-                    className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 hover:bg-amber-50/40 border border-slate-200/80 hover:border-amber-300 transition-all cursor-pointer space-y-1"
-                  >
-                    {dayItem.description ? (
-                      <div
-                        className="text-[13px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
-                        dangerouslySetInnerHTML={{ __html: dayItem.description }}
-                      />
-                    ) : (
-                      <p className="text-[13px] text-slate-400 italic">
-                        Click to add a detailed morning-to-evening sightseeing narrative for this day...
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Visual Activity Chips */}
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400">
-                        Planned Highlights &amp; Activities:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingDayIndex(idx)}
-                        className="text-[11px] font-bold text-indigo-600 hover:underline"
-                      >
-                        + Add Custom
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {dayItem.activities && dayItem.activities.length > 0 ? (
-                        dayItem.activities.map((act, actIdx) => (
-                          <span
-                            key={actIdx}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs transition-all hover:scale-102"
-                          >
-                            <span className="text-[12px]">{getActivityIcon(act)}</span>
-                            <span>{act}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveActivity(idx, actIdx);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 ml-0.5 rounded-full hover:bg-rose-50 p-0.5 transition-colors"
-                              title="Remove activity"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-[11.5px] text-slate-400 italic">No activity tags added yet</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* ── 🌟 Dedicated Day Itinerary Studio Modal Dialog (Opens when clicking Edit) ── */}
+      {/* ── Dedicated Day Itinerary Studio Modal Dialog (Opens when clicking Edit) ── */}
       {editingDayIndex !== null && editingDay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
           {/* Backdrop */}

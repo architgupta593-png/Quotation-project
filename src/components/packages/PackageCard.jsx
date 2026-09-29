@@ -126,11 +126,7 @@ export default function PackageCard({ pkg, onDelete, isAdmin = false }) {
               </Link>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(`Delete "${pkg.title}"? This cannot be undone.`)) {
-                    onDelete?.(pkg._id);
-                  }
-                }}
+                onClick={() => onDelete?.(pkg)}
                 className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all"
                 aria-label="Delete package"
               >

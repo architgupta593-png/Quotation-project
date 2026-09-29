@@ -57,7 +57,7 @@ export async function GET(request) {
 
     // ── Read credentials from env or use defaults ───────────────────────
     const name = process.env.SUPERUSER_NAME || "Super Admin";
-    const email = process.env.SUPERUSER_EMAIL || "admin@mandeholidays.com";
+    const email = process.env.SUPERUSER_EMAIL || "admin@planmyhoneymoon.com";
     const password = process.env.SUPERUSER_PASSWORD || "Admin@123";
 
     // Check if this email already exists

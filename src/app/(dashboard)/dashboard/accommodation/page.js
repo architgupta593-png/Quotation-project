@@ -16,6 +16,7 @@ import {
 import SearchBar from "@/components/accommodation/SearchBar";
 import CityCard from "@/components/accommodation/CityCard";
 import CityFormModal from "@/components/accommodation/CityFormModal";
+import ConfirmDeleteModal from "@/components/common/ConfirmDeleteModal";
 
 export default function AccommodationCitiesPage() {
   const { data: session } = useSession();
@@ -31,8 +32,12 @@ export default function AccommodationCitiesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editCity, setEditCity] = useState(null); // null = create mode
 
-  // Delete confirm
-  const [deletingId, setDeletingId] = useState(null);
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    city: null,
+    loading: false,
+  });
 
   const fetchCities = useCallback(async () => {
     setLoading(true);
@@ -71,9 +76,18 @@ export default function AccommodationCitiesPage() {
     fetchCities();
   }
 
-  async function handleDelete(cityId) {
-    if (!confirm("Delete this city? This will not delete associated hotels.")) return;
-    setDeletingId(cityId);
+  function promptDeleteCity(city) {
+    setDeleteModal({
+      isOpen: true,
+      city,
+      loading: false,
+    });
+  }
+
+  async function handleConfirmDeleteCity() {
+    if (!deleteModal.city) return;
+    const cityId = deleteModal.city._id;
+    setDeleteModal((p) => ({ ...p, loading: true }));
     try {
       const res = await fetch(`/api/accommodation/cities/${cityId}`, {
         method: "DELETE",
@@ -83,10 +97,10 @@ export default function AccommodationCitiesPage() {
         throw new Error(data.error || "Delete failed");
       }
       setCities((prev) => prev.filter((c) => c._id !== cityId));
+      setDeleteModal({ isOpen: false, city: null, loading: false });
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
-    } finally {
-      setDeletingId(null);
+      setDeleteModal((p) => ({ ...p, loading: false }));
     }
   }
 
@@ -195,7 +209,7 @@ export default function AccommodationCitiesPage() {
                 isAdmin={isAdmin}
                 onClick={() => router.push(`/dashboard/accommodation/${city._id}`)}
                 onEdit={() => openEdit(city)}
-                onDelete={() => handleDelete(city._id)}
+                onDelete={() => promptDeleteCity(city)}
               />
             ))}
           </div>
@@ -210,6 +224,20 @@ export default function AccommodationCitiesPage() {
           onSaved={handleSaved}
         />
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, city: null, loading: false })}
+        onConfirm={handleConfirmDeleteCity}
+        title="Delete City Destination?"
+        itemTitle={deleteModal.city?.name || "Destination City"}
+        itemSubtitle={deleteModal.city?.state ? `${deleteModal.city.state}, India` : "Accommodation Destination"}
+        itemBadge="Destination"
+        warningMessage="This will remove the destination city from the accommodation directory. Associated hotels can be reassigned."
+        confirmText="Yes, Delete City"
+        loading={deleteModal.loading}
+      />
     </div>
   );
 }

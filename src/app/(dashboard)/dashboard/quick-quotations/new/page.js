@@ -9,13 +9,14 @@ import {
   Tag, ShieldCheck, Heart, Mountain, Compass, Waves, Trees,
   Baby, CheckCircle2, ChevronRight, FileText, Info, HelpCircle,
   Star, Clock, Building, Compass as CompassIcon, Shield, CheckCheck, Edit3,
-  Package as PackageIcon, Percent, X, Save,
+  Package as PackageIcon, Percent, X, Save, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";
 import InstructionsEditorModal from "@/components/quick-quotations/InstructionsEditorModal";
 import QuickPackageFetchModal from "@/components/quick-quotations/QuickPackageFetchModal";
 import QuickItinerarySection, { syncItineraryWithHotelStays } from "@/components/quick-quotations/QuickItinerarySection";
 import QuickAccommodationSection from "@/components/quick-quotations/QuickAccommodationSection";
+import QuickInclusionsExclusionsSection from "@/components/quick-quotations/QuickInclusionsExclusionsSection";
 import CustomDatePicker from "@/components/quick-quotations/CustomDatePicker";
 import { convertPackageInstructionsToSpecialInstructions } from "@/lib/formatPackageInstructions";
 
@@ -75,6 +76,27 @@ export default function NewQuickQuotationPage() {
   const [showAgentGuide, setShowAgentGuide] = useState(true);
   const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
   const [packageModalOpen, setPackageModalOpen] = useState(false);
+  const [expandedPolicies, setExpandedPolicies] = useState({ 0: true });
+  const [activeOptionIdx, setActiveOptionIdx] = useState(0);
+
+  function togglePolicyAccordion(idx) {
+    setExpandedPolicies((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  }
+
+  function handleToggleAllPolicies() {
+    const total = form.specialInstructions?.length || 0;
+    const areAllExpanded = Object.keys(expandedPolicies).length >= total && Object.values(expandedPolicies).every(Boolean);
+    if (areAllExpanded) {
+      setExpandedPolicies({});
+    } else {
+      const allTrue = {};
+      for (let i = 0; i < total; i++) allTrue[i] = true;
+      setExpandedPolicies(allTrue);
+    }
+  }
 
   const [form, setForm] = useState({
     client: {
@@ -685,8 +707,13 @@ export default function NewQuickQuotationPage() {
     ? activePeriodFromPkg.vehicles
     : (Array.isArray(importedPkg?.vehicles) && importedPkg.vehicles.length > 0 ? importedPkg.vehicles : []);
 
-  // Pricing calculations
-  const basePrice = Number(form.pricing.totalPrice) || 0;
+  // Pricing calculations reactive to active option tier
+  const activeOpt = (form.accommodationOptions && form.accommodationOptions[activeOptionIdx]) || form.accommodationOptions?.[0];
+  const activeTierBasePrice = activeOptionIdx === 0
+    ? (Number(form.pricing.totalPrice) || 0)
+    : (Number(activeOpt?.totalPrice) || Number(form.pricing.totalPrice) || 0);
+
+  const basePrice = activeTierBasePrice;
   const markupType = form.pricing.markupType || "absolute";
   const markupPercentage = Math.max(0, Number(form.pricing.markupPercentage) || 0);
   const markupAmount = markupType === "percentage"
@@ -826,13 +853,52 @@ export default function NewQuickQuotationPage() {
         nightNumber: s.nightNumber || i + 1,
       }));
 
-      const normalizedOptions = (form.accommodationOptions || []).map((opt) => ({
-        ...opt,
-        hotelStays: (opt.hotelStays || []).map((s, i) => ({
-          ...s,
-          nightNumber: s.nightNumber || i + 1,
-        })),
-      }));
+      const baseOptionPrice = Number(form.accommodationOptions?.[0]?.totalPrice) || Number(form.pricing.totalPrice) || 0;
+
+      const normalizedOptions = (form.accommodationOptions || []).map((opt, oIdx) => {
+        const optBasePrice = Number(opt.totalPrice) || (oIdx === 0 ? baseOptionPrice : 0);
+        const optMarkupAmount = markupType === "percentage"
+          ? Math.round((optBasePrice * markupPercentage) / 100)
+          : (Number(form.pricing.markupAmount) || 0);
+        const optPreTax = Math.max(0, optBasePrice + optMarkupAmount);
+        const optGstAmount = includeGst ? Math.round((optPreTax * gstPercentage) / 100) : 0;
+        const optDiscountAmount = discountType === "percentage"
+          ? Math.round(((optPreTax + optGstAmount) * Math.min(100, discountValue)) / 100)
+          : (discountValue > 0 ? discountValue : (Number(form.pricing.discountAmount) || 0));
+        const optFinalPrice = Math.max(0, optPreTax + optGstAmount - optDiscountAmount);
+        const optPerPerson = Math.round(optFinalPrice / numPax);
+        const optPerCouple = Math.round(optPerPerson * 2);
+
+        return {
+          ...opt,
+          totalPrice: optBasePrice,
+          baseCost: optBasePrice,
+          finalPrice: optFinalPrice,
+          markupAmount: optMarkupAmount,
+          gstAmount: optGstAmount,
+          discountAmount: optDiscountAmount,
+          perPersonPrice: optPerPerson,
+          perCouplePrice: optPerCouple,
+          hotelStays: (opt.hotelStays || []).map((s, i) => ({
+            ...s,
+            nightNumber: s.nightNumber || i + 1,
+          })),
+        };
+      });
+
+      // Base pricing calculations for Option 1
+      const baseMarkupAmount = markupType === "percentage" ? Math.round((baseOptionPrice * markupPercentage) / 100) : (Number(form.pricing.markupAmount) || 0);
+      const basePreTax = Math.max(0, baseOptionPrice + baseMarkupAmount);
+      const baseGstAmount = includeGst ? Math.round((basePreTax * gstPercentage) / 100) : 0;
+      const baseDiscountAmount = discountType === "percentage"
+        ? Math.round(((basePreTax + baseGstAmount) * Math.min(100, discountValue)) / 100)
+        : (discountValue > 0 ? discountValue : (Number(form.pricing.discountAmount) || 0));
+      const baseFinalPrice = Math.max(0, basePreTax + baseGstAmount - baseDiscountAmount);
+      const baseAdvancePayment = advanceType === "percentage"
+        ? Math.round((baseFinalPrice * advancePercentage) / 100)
+        : (form.pricing.advanceAmount !== undefined && form.pricing.advanceAmount !== null && form.pricing.advanceAmount !== ""
+          ? Math.min(baseFinalPrice, Number(form.pricing.advanceAmount) || 0)
+          : (baseFinalPrice > 0 ? Math.round(baseFinalPrice * 0.25) : 0));
 
       const payload = {
         ...form,
@@ -840,28 +906,28 @@ export default function NewQuickQuotationPage() {
         accommodationOptions: normalizedOptions.length > 0 ? normalizedOptions : undefined,
         pricing: {
           ...form.pricing,
-          baseCost: basePrice,
-          totalPrice: basePrice,
+          baseCost: baseOptionPrice,
+          totalPrice: baseOptionPrice,
           markupType,
           markupPercentage,
-          markupAmount,
+          markupAmount: baseMarkupAmount,
           discountType,
           discountValue,
-          discountAmount,
+          discountAmount: baseDiscountAmount,
           discountReason,
           hasTimerDiscount: Boolean(form.pricing?.hasTimerDiscount),
           discountValidUntil: form.pricing?.discountValidUntil || "",
           includeGst,
           gstPercentage,
-          gstAmount,
-          finalPrice,
-          perPersonPrice,
-          perCouplePrice,
+          gstAmount: baseGstAmount,
+          finalPrice: baseFinalPrice,
+          perPersonPrice: Math.round(baseFinalPrice / numPax),
+          perCouplePrice: Math.round((baseFinalPrice / numPax) * 2),
           advanceType,
-          advanceAmount: advanceType === "absolute" ? advancePayment : (form.pricing?.advanceAmount || 0),
+          advanceAmount: advanceType === "absolute" ? baseAdvancePayment : (form.pricing?.advanceAmount || 0),
           advancePercentage,
-          advancePayment,
-          balancePayment,
+          advancePayment: baseAdvancePayment,
+          balancePayment: Math.max(0, baseFinalPrice - baseAdvancePayment),
         },
         status,
       };
@@ -1312,7 +1378,13 @@ export default function NewQuickQuotationPage() {
             {/* ── 3. Hotel Accommodation Portfolio ── */}
             <QuickAccommodationSection
               accommodationOptions={form.accommodationOptions || []}
-              onOptionsChange={(opts) => setForm((p) => ({ ...p, accommodationOptions: opts }))}
+              onOptionsChange={(opts) => {
+                setForm((p) => ({
+                  ...p,
+                  accommodationOptions: opts,
+                  hotelStays: opts[0]?.hotelStays || p.hotelStays,
+                }));
+              }}
               hotelStays={form.hotelStays || []}
               onChange={(updated) => {
                 setForm((p) => {
@@ -1330,6 +1402,8 @@ export default function NewQuickQuotationPage() {
               totalRooms={form.passengers.totalRooms || 1}
               adults={form.passengers?.adults || 2}
               passengers={form.passengers}
+              activeOptionIndex={activeOptionIdx}
+              onActiveOptionChange={(idx) => setActiveOptionIdx(idx)}
               onPriceAdjustment={(newAccomCost, optIdx = 0) => {
                 setForm((p) => {
                   const vehCost = Number(p.vehicle?.vehiclePrice) || 0;
@@ -1341,28 +1415,43 @@ export default function NewQuickQuotationPage() {
                   const mType = (activeOpt?.margin !== undefined && activeOpt?.margin > 0 && activeOpt?.marginType) ? activeOpt.marginType : (p.pricing?.packageMarginType || "absolute");
                   const marginAmt = mType === "percentage" ? (netCost * mVal) / 100 : mVal;
                   const calculated = netCost + marginAmt;
+
+                  const updatedOptions = (p.accommodationOptions || []).map((opt, i) => {
+                    if (i === optIdx) {
+                      return {
+                        ...opt,
+                        totalPrice: calculated,
+                      };
+                    }
+                    return opt;
+                  });
                   
+                  if (optIdx === 0) {
+                    return {
+                      ...p,
+                      accommodationOptions: updatedOptions.length > 0 ? updatedOptions : p.accommodationOptions,
+                      pricing: {
+                        ...p.pricing,
+                        accommodationTotal: newAccomCost,
+                        totalPrice: calculated,
+                      },
+                    };
+                  }
+
                   return {
                     ...p,
-                    pricing: {
-                      ...p.pricing,
-                      accommodationTotal: newAccomCost,
-                      totalPrice: calculated,
-                    },
+                    accommodationOptions: updatedOptions,
                   };
                 });
               }}
             />
 
-            {/* ── 4. Day-by-Day Tour Itinerary ── */}
+            {/* ── 4. Day-by-Day Tour Itinerary (Accordion) ── */}
             <QuickItinerarySection
               itinerary={form.itinerary || []}
               onChange={(updated) => setForm((p) => ({ ...p, itinerary: updated }))}
-              showItinerary={form.showItinerary !== false}
-              onToggleShowItinerary={() => setForm((p) => ({ ...p, showItinerary: !p.showItinerary }))}
               daysCount={form.tripDetails.days}
               destination={form.tripDetails.destination}
-              theme={form.tripDetails.theme}
               hotelStays={form.accommodationOptions?.[0]?.hotelStays || form.hotelStays || []}
             />
 
@@ -1576,7 +1665,15 @@ export default function NewQuickQuotationPage() {
               </div>
             </div>
 
-            {/* ── 5. Luxury Redesigned Trip Instructions & Policies Card ── */}
+            {/* ── 6. Package Inclusions & Exclusions Section ── */}
+            <QuickInclusionsExclusionsSection
+              inclusions={form.inclusions || []}
+              exclusions={form.exclusions || []}
+              onChangeInclusions={(updated) => setForm((p) => ({ ...p, inclusions: updated }))}
+              onChangeExclusions={(updated) => setForm((p) => ({ ...p, exclusions: updated }))}
+            />
+
+            {/* ── 7. Luxury Redesigned Trip Instructions & Policies Card (Accordion Layout) ── */}
             <div className="bg-white rounded-3xl border-2 border-slate-200/90 hover:border-amber-400/60 p-6 sm:p-7 shadow-xs transition-all space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -1594,64 +1691,117 @@ export default function NewQuickQuotationPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setInstructionsModalOpen(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white font-black text-[12.5px] shadow-sm transition-all hover:scale-105 active:scale-95 self-start sm:self-auto border border-indigo-900/50"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Open Policy Studio &amp; Editor</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(form.specialInstructions || []).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleToggleAllPolicies}
+                      className="text-[11.5px] font-bold text-slate-600 hover:text-slate-950 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      {Object.keys(expandedPolicies).length >= (form.specialInstructions?.length || 0) && Object.values(expandedPolicies).every(Boolean)
+                        ? "Collapse All"
+                        : "Expand All"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white font-black text-[12px] shadow-sm transition-all hover:scale-105 active:scale-95 border border-indigo-900/50 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Open Policy Studio &amp; Editor</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Redesigned Active Instructions Surface */}
-              <div className="space-y-3">
+              {/* Redesigned Active Instructions Surface (Accordion Layout) */}
+              <div className="space-y-2.5">
                 {(form.specialInstructions || []).map((inst, i) => {
                   const isHtml = typeof inst === "string" && (inst.includes("<p>") || inst.includes("<ul>") || inst.includes("<ol>") || inst.includes("<li>") || inst.includes("<div"));
+                  const isExpanded = Boolean(expandedPolicies[i]);
+                  // Plain text preview for header summary
+                  const plainText = typeof inst === "string" ? inst.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
+
                   return (
                     <div
                       key={i}
-                      className="group relative bg-gradient-to-br from-slate-50 via-white to-amber-50/20 p-5 rounded-2xl border border-slate-200/90 hover:border-amber-300 transition-all shadow-2xs space-y-2"
+                      className="group relative bg-gradient-to-br from-slate-50 via-white to-amber-50/20 rounded-2xl border border-slate-200/90 hover:border-amber-300 transition-all shadow-2xs overflow-hidden"
                     >
-                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-mono font-black text-[11px] flex items-center justify-center">
+                      {/* Accordion Clickable Header */}
+                      <div
+                        onClick={() => togglePolicyAccordion(i)}
+                        className="flex items-center justify-between gap-3 p-4 cursor-pointer hover:bg-amber-50/30 transition-colors select-none"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-mono font-black text-[11px] flex items-center justify-center flex-shrink-0">
                             {i + 1}
                           </span>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                            Policy Section {i + 1}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex-shrink-0">
+                                Policy Section {i + 1}
+                              </span>
+                              {!isExpanded && plainText && (
+                                <span className="text-[12px] font-medium text-slate-700 truncate max-w-[280px] sm:max-w-md hidden sm:inline-block">
+                                  — {plainText}
+                                </span>
+                              )}
+                            </div>
+                            {!isExpanded && plainText && (
+                              <p className="text-[11.5px] font-medium text-slate-600 truncate sm:hidden">
+                                {plainText}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button
                             type="button"
-                            onClick={() => setInstructionsModalOpen(true)}
-                            className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInstructionsModalOpen(true);
+                            }}
+                            className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
                           >
-                            Edit in Studio
+                            Edit
                           </button>
                           <button
                             type="button"
-                            onClick={() => removeInstruction(i)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeInstruction(i);
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Remove Note"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                          <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center group-hover:bg-amber-100 group-hover:text-amber-900 transition-colors ml-1">
+                            {isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-[13px] text-slate-800 leading-relaxed font-medium pl-1">
-                        {isHtml ? (
-                          <div
-                            className="prose prose-sm max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-5 [&>p]:mb-1.5 [&>ul]:mb-1.5 [&>ol]:mb-1.5 [&>p>strong]:text-slate-950"
-                            dangerouslySetInnerHTML={{ __html: inst }}
-                          />
-                        ) : (
-                          <div className="whitespace-pre-wrap leading-relaxed">{inst}</div>
-                        )}
-                      </div>
+                      {/* Accordion Expanded Body */}
+                      {isExpanded && (
+                        <div className="px-5 pb-5 pt-1 border-t border-slate-100">
+                          <div className="text-[13px] text-slate-800 leading-relaxed font-medium pt-2">
+                            {isHtml ? (
+                              <div
+                                className="prose prose-sm max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-5 [&>p]:mb-1.5 [&>ul]:mb-1.5 [&>ol]:mb-1.5 [&>p>strong]:text-slate-950"
+                                dangerouslySetInnerHTML={{ __html: inst }}
+                              />
+                            ) : (
+                              <div className="whitespace-pre-wrap leading-relaxed">{inst}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1793,44 +1943,109 @@ export default function NewQuickQuotationPage() {
                 <span className="text-[11px] font-bold text-slate-400">1-Minute Entry</span>
               </div>
 
+              {/* Multi-Tier Package Selector (when > 1 tier configured) */}
+              {form.accommodationOptions && form.accommodationOptions.length > 1 && (
+                <div className="p-2.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-black uppercase text-amber-900 px-1">
+                    <span>Package Tier View:</span>
+                    <span className="text-[10px] text-amber-700 font-bold">{activeOptionIdx + 1} of {form.accommodationOptions.length} Tiers</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {form.accommodationOptions.map((opt, oIdx) => {
+                      const isSelected = activeOptionIdx === oIdx;
+                      const optCost = Number(opt.totalPrice) || 0;
+                      const baseCost = Number(form.accommodationOptions[0]?.totalPrice) || Number(form.pricing.totalPrice) || 0;
+                      const delta = optCost - baseCost;
+
+                      return (
+                        <button
+                          key={oIdx}
+                          type="button"
+                          onClick={() => setActiveOptionIdx(oIdx)}
+                          className={`p-2 rounded-xl text-left transition-all border ${
+                            isSelected
+                              ? "bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-amber-400/40"
+                              : "bg-white hover:bg-amber-100/50 text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[11.5px] font-black truncate">{opt.label || `Tier ${oIdx + 1}`}</span>
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                          </div>
+                          <p className={`text-[12px] font-black font-mono mt-0.5 ${isSelected ? "text-amber-300" : "text-slate-900"}`}>
+                            ₹{optCost.toLocaleString("en-IN")}
+                          </p>
+                          {oIdx > 0 && (
+                            <p className={`text-[9.5px] font-bold ${delta >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                              {delta >= 0 ? `+₹${delta.toLocaleString("en-IN")}` : `-₹${Math.abs(delta).toLocaleString("en-IN")}`} vs Base
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* 1. Base Target Package Price Input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="block text-[12px] font-black text-slate-800">
-                    Target / Base Package Price (₹) *
+                    {activeOptionIdx === 0
+                      ? "Target / Base Package Price (₹) *"
+                      : `${form.accommodationOptions?.[activeOptionIdx]?.label || `Tier ${activeOptionIdx + 1}`} Price (₹) *`}
                   </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || Math.ceil((parseInt(form.passengers?.adults, 10) || 2) / 2) || 1);
-                        const activeStays = (form.accommodationOptions && form.accommodationOptions.length > 0)
-                          ? (form.accommodationOptions.find((o) => o.isDefault)?.hotelStays || form.accommodationOptions[0].hotelStays || form.hotelStays || [])
-                          : (form.hotelStays || []);
-                        const accomCost = activeStays.reduce(
-                          (sum, s) => sum + ((Number(s.pricePerNight) || 0) * (s.nights || 1) * roomMult),
-                          0
-                        );
-                        const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
-                        const actCost = (form.itinerary || []).reduce((sum, d) => sum + (d.activities || []).reduce((asum, a) => asum + (Number(a.price) || 0), 0), 0);
-                        const netCost = accomCost + vehCost + actCost;
-                        
-                        const mVal = Number(form.pricing?.packageMargin !== undefined ? form.pricing.packageMargin : (importedPkg?.pricing?.margin || 0));
-                        const mType = form.pricing?.packageMarginType || importedPkg?.pricing?.marginType || "absolute";
-                        const marginAmt = mType === "percentage" ? (netCost * mVal) / 100 : mVal;
-                        const calculated = netCost + marginAmt;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const roomMult = Math.max(1, parseInt(form.passengers?.totalRooms, 10) || Math.ceil((parseInt(form.passengers?.adults, 10) || 2) / 2) || 1);
+                      const activeOpt = (form.accommodationOptions && form.accommodationOptions[activeOptionIdx]) || form.accommodationOptions?.[0];
+                      const activeStays = activeOpt?.hotelStays || form.hotelStays || [];
+                      const accomCost = activeStays.reduce(
+                        (sum, s) => {
+                          const stayNights = Math.max(1, parseInt(s.nights, 10) || 1);
+                          const legBase = (s.hasSplitSeasons && Number(s.totalCost) > 0)
+                            ? Number(s.totalCost)
+                            : ((Number(s.pricePerNight) || 0) * stayNights);
+                          const addOnsCost = (s.selectedAddOns || []).reduce((aSum, item) => {
+                            const p = typeof item === "object" ? (Number(item?.price) || 0) : 0;
+                            return aSum + p;
+                          }, 0);
+                          return sum + ((legBase + addOnsCost) * roomMult);
+                        },
+                        0
+                      );
+                      const vehCost = Number(form.vehicle?.vehiclePrice) || 0;
+                      const actCost = (form.itinerary || []).reduce((sum, d) => sum + (d.activities || []).reduce((asum, a) => asum + (Number(a.price) || 0), 0), 0);
+                      const netCost = accomCost + vehCost + actCost;
+                      
+                      const mVal = Number(activeOpt?.margin !== undefined && activeOpt?.margin > 0 ? activeOpt.margin : (form.pricing?.packageMargin !== undefined ? form.pricing.packageMargin : (importedPkg?.pricing?.margin || 0)));
+                      const mType = (activeOpt?.margin !== undefined && activeOpt?.margin > 0 && activeOpt?.marginType) ? activeOpt.marginType : (form.pricing?.packageMarginType || importedPkg?.pricing?.marginType || "absolute");
+                      const marginAmt = mType === "percentage" ? (netCost * mVal) / 100 : mVal;
+                      const calculated = netCost + marginAmt;
 
-                        setForm((p) => ({
+                      setForm((p) => {
+                        const updatedOpts = (p.accommodationOptions || []).map((o, i) => (i === activeOptionIdx ? { ...o, totalPrice: calculated } : o));
+                        if (activeOptionIdx === 0) {
+                          return {
+                            ...p,
+                            accommodationOptions: updatedOpts.length > 0 ? updatedOpts : p.accommodationOptions,
+                            pricing: {
+                              ...p.pricing,
+                              accommodationTotal: accomCost,
+                              totalPrice: calculated,
+                            },
+                          };
+                        }
+                        return {
                           ...p,
-                          pricing: {
-                            ...p.pricing,
-                            accommodationTotal: accomCost,
-                            totalPrice: calculated,
-                          },
-                        }));
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                      title="Auto-calculate: Accommodation Total + Vehicle Price + Package Margin"
-                    >
+                          accommodationOptions: updatedOpts,
+                        };
+                      });
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                    title="Auto-calculate active tier price: Accommodation + Vehicle + Margin"
+                  >
                     <Sparkles className="w-3 h-3 text-amber-600" />
                     <span>⚡ Auto-Calculate</span>
                   </button>
@@ -1840,8 +2055,24 @@ export default function NewQuickQuotationPage() {
                   <input
                     type="number"
                     min="0"
-                    value={form.pricing.totalPrice || ""}
-                    onChange={(e) => setForm((p) => ({ ...p, pricing: { ...p.pricing, totalPrice: parseFloat(e.target.value) || 0 } }))}
+                    value={activeOptionIdx === 0 ? (form.pricing.totalPrice || "") : ((form.accommodationOptions?.[activeOptionIdx]?.totalPrice) || "")}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setForm((p) => {
+                        const updatedOpts = (p.accommodationOptions || []).map((o, i) => (i === activeOptionIdx ? { ...o, totalPrice: val } : o));
+                        if (activeOptionIdx === 0) {
+                          return {
+                            ...p,
+                            accommodationOptions: updatedOpts,
+                            pricing: { ...p.pricing, totalPrice: val },
+                          };
+                        }
+                        return {
+                          ...p,
+                          accommodationOptions: updatedOpts,
+                        };
+                      });
+                    }}
                     placeholder="e.g. 25000"
                     className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-300 font-black text-[16px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-right font-mono"
                   />

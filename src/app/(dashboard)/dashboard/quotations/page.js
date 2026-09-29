@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import WhatsAppShareModal from "@/components/quotations/WhatsAppShareModal";
 import EmailShareModal from "@/components/quotations/EmailShareModal";
+import ConfirmDeleteModal from "@/components/common/ConfirmDeleteModal";
 import { Mail } from "lucide-react";
 
 const STATUS_BADGES = {
@@ -34,6 +35,13 @@ export default function QuotationsPipelinePage() {
   const [shareQuote, setShareQuote] = useState(null);
   const [emailQuote, setEmailQuote] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    quote: null,
+    loading: false,
+  });
 
   const fetchQuotations = useCallback(async () => {
     setLoading(true);
@@ -59,8 +67,18 @@ export default function QuotationsPipelinePage() {
     return () => clearTimeout(debounce);
   }, [fetchQuotations]);
 
-  async function handleDelete(quoteId) {
-    if (!confirm("Are you sure you want to delete this quotation?")) return;
+  function promptDeleteQuote(quote) {
+    setDeleteModal({
+      isOpen: true,
+      quote,
+      loading: false,
+    });
+  }
+
+  async function handleConfirmDeleteQuote() {
+    if (!deleteModal.quote) return;
+    const quoteId = deleteModal.quote._id;
+    setDeleteModal((p) => ({ ...p, loading: true }));
     try {
       const res = await fetch(`/api/quotations/${quoteId}`, { method: "DELETE" });
       if (!res.ok) {
@@ -68,8 +86,10 @@ export default function QuotationsPipelinePage() {
         throw new Error(data.error || "Failed to delete");
       }
       setQuotations((prev) => prev.filter((q) => q._id !== quoteId));
+      setDeleteModal({ isOpen: false, quote: null, loading: false });
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
+      setDeleteModal((p) => ({ ...p, loading: false }));
     }
   }
 
@@ -339,7 +359,7 @@ export default function QuotationsPipelinePage() {
                         {/* Delete */}
                         <button
                           type="button"
-                          onClick={() => handleDelete(quote._id)}
+                          onClick={() => promptDeleteQuote(quote)}
                           title="Delete Quotation"
                           className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors"
                         >
@@ -367,6 +387,20 @@ export default function QuotationsPipelinePage() {
         isOpen={Boolean(emailQuote)}
         quotation={emailQuote}
         onClose={() => setEmailQuote(null)}
+      />
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, quote: null, loading: false })}
+        onConfirm={handleConfirmDeleteQuote}
+        title="Delete Quotation Proposal?"
+        itemTitle={deleteModal.quote?.quotationCode ? `${deleteModal.quote.quotationCode} • ${deleteModal.quote.customer?.name || "Customer"}` : "Quotation Proposal"}
+        itemSubtitle={deleteModal.quote?.destination ? `${deleteModal.quote.destination} (${deleteModal.quote.nights || 1}N/${deleteModal.quote.days || 1}D)` : "Custom Itinerary Proposal"}
+        itemBadge={deleteModal.quote?.status ? STATUS_BADGES[deleteModal.quote.status] ? deleteModal.quote.status : "Quotation" : "Quotation"}
+        warningMessage="This quotation proposal and its online viewing access will be permanently deleted. This action cannot be undone."
+        confirmText="Yes, Delete Quotation"
+        loading={deleteModal.loading}
       />
     </div>
   );

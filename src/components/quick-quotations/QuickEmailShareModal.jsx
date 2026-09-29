@@ -12,6 +12,9 @@ const EMOJI = {
   PHONE: String.fromCodePoint(0x1F4DE),       // 📞
   MAIL: String.fromCodePoint(0x2709, 0xFE0F), // ✉️
   GLOBE: String.fromCodePoint(0x1F310),      // 🌐
+  HEARTS: String.fromCodePoint(0x1F495),     // 💕
+  SPARKLES: String.fromCodePoint(0x2728),    // ✨
+  CHEERS: String.fromCodePoint(0x1F942),     // 🥂
 };
 
 export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
@@ -31,7 +34,7 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
 
   const publicUrl = typeof window !== "undefined"
     ? `${window.location.origin}/quick-quote/${quickQuoteCode}`
-    : `https://mandeholidays.com/quick-quote/${quickQuoteCode}`;
+    : `https://holidays.planmyhoneymoon.com/quick-quote/${quickQuoteCode}`;
 
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
@@ -66,14 +69,14 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
   function generateDefaultContent() {
     if (!quickQuote) return;
 
-    const sub = `${EMOJI.PLANE} Quick Proposal: ${tripDetails?.title || "Custom Holiday"} | Mande Holidays (Ref: ${quickQuoteCode})`;
+    const sub = `${EMOJI.HEARTS} Romantic Honeymoon Proposal: ${tripDetails?.title || `${tripDetails?.destination || "Custom"} Honeymoon Getaway`} | Plan My Honeymoon (Ref: ${quickQuoteCode})`;
     setSubject(sub);
     setRecipientEmail(client?.email || "");
 
     const gstNotice = includeGst ? " (Inclusive of 5% GST)" : " (Exclusive of 5% GST)";
     const discountBlock = discountAmount > 0
-      ? `• Original Price: ₹${originalPrice.toLocaleString("en-IN")}\n• Special Offer Discount: -₹${discountAmount.toLocaleString("en-IN")} SAVED${pricing?.discountReason ? ` (${pricing.discountReason})` : ""}\n• Net Offer Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`
-      : `• Total Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`;
+      ? `• Original Package Value: ₹${originalPrice.toLocaleString("en-IN")}\n• Special Honeymoon Discount: -₹${discountAmount.toLocaleString("en-IN")} SAVED${pricing?.discountReason ? ` (${pricing.discountReason})` : ""}\n• Net Offer Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`
+      : `• Total Honeymoon Package Value: ₹${finalPrice.toLocaleString("en-IN")}${gstNotice}`;
 
     const childrenEmailText = (passengers?.childrenCount > 0 || (passengers?.childrenAges && passengers.childrenAges.length > 0))
       ? `, ${passengers.childrenCount || passengers.childrenAges.length} Child (${(passengers.childrenAges || []).join(", ")} yrs)`
@@ -84,29 +87,31 @@ export default function QuickEmailShareModal({ quickQuote, isOpen, onClose }) {
       : [{ label: "Standard Accommodation", hotelStays: hotelStays }];
 
     const formattedHotelSection = options.length > 1
-      ? options.map((opt, i) =>
-          `[ ${opt.label || (i === 0 ? "Standard" : `Option ${i + 1}`)} ]\n` +
-          (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} (${s.nights || 1}N, Room: ${s.roomType || "Deluxe AC"}, Meal Plan: ${s.mealPlan || "CP"})`).join("\n")
-        ).join("\n\n")
-      : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Hotel"} [Room: ${s.roomType || "Deluxe AC"} | Meal Plan: ${s.mealPlan || "CP"}]`).join("\n");
+      ? options.map((opt, i) => {
+          const optPrice = Number(opt.finalPrice) || Number(opt.totalPrice) || finalPrice;
+          return `[ ${opt.label || (i === 0 ? "Romantic Standard" : `Romantic Option ${i + 1}`)} — ₹${optPrice.toLocaleString("en-IN")} ]\n` +
+            (opt.hotelStays || []).map((s) => `  • ${s.cityName || "Destination"}: ${s.hotelName || "Quality Romantic Hotel"} (${s.nights || 1}N, Room: ${s.roomType || "Deluxe AC / Honeymoon Suite"}, Meal Plan: ${s.mealPlan || "CP"})`).join("\n");
+        }).join("\n\n")
+      : hotelStays.map((s) => `• ${s.cityName || "Destination"}: ${s.hotelName || "Quality Romantic Hotel"} [Room: ${s.roomType || "Deluxe AC / Honeymoon Suite"} | Meal Plan: ${s.mealPlan || "CP"}]`).join("\n");
 
-    const body = `Dear ${client?.name || "Valued Traveler"},
+    const body = `Dear ${client?.name || "Valued Couple"},
 
-Greetings from Mande Holidays!
+Warm greetings from Plan My Honeymoon! ${EMOJI.HEARTS}
 
-Thank you for connecting with us regarding your upcoming holiday to ${tripDetails?.destination}. We are pleased to present your quick travel proposal:
+Thank you for connecting with us regarding your upcoming romantic getaway to ${tripDetails?.destination}. We are delighted to present your hand-crafted honeymoon travel proposal:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TRIP SUMMARY & PARAMETERS
+HONEYMOON ITINERARY & SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Tour Title: ${tripDetails?.title || "Custom Holiday Itinerary"}
-• Destination: ${tripDetails?.destination}
+• Tour Title: ${tripDetails?.title || `${tripDetails?.destination || "Romantic"} Honeymoon Experience`}
+• Romantic Destination: ${tripDetails?.destination}
 • Travel Dates: ${startDateStr} to ${endDateStr} (${tripDetails?.nights || 0} Nights / ${tripDetails?.days || 0} Days)
-• Party Size: ${numPax} Adults${childrenEmailText} (${passengers?.totalRooms || 1} Room)
-• Dedicated Transport: Private AC ${vehicle?.vehicleType || "Sedan"} (${vehicle?.model || "Commercial Cab"} with chauffeur, fuel, toll taxes & parking included)
+• Couple / Travelers: ${numPax} Adults${childrenEmailText} (${passengers?.totalRooms || 1} Private Room)
+• Dedicated Chauffeur & Cab: Private AC ${vehicle?.vehicleType || "Sedan"} (${vehicle?.model || "Commercial Cab"} with chauffeur, fuel, toll taxes & parking included)
+• Special Honeymoon Inclusions: Candlelight dinner / welcome special as per itinerary
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HOTEL ACCOMMODATION
+ROMANTIC HOTEL & RESORT ACCOMMODATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${formattedHotelSection}
 
@@ -122,16 +127,16 @@ ${discountBlock}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VIEW LIVE PROPOSAL & ACCEPT ONLINE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-You can view the full proposal details and accept your booking online at:
+You can explore the interactive day-wise itinerary, photos, and secure your honeymoon reservation online at:
 
 ${EMOJI.POINT_RIGHT} ${publicUrl}
 
-Please let us know if you would like any modifications. We look forward to hosting you!
+Please let us know if you would like any romantic customizations or special room upgrades. We look forward to creating unforgettable memories for you!
 
-Warm regards,
-Mande Holidays Travel Operations
-${EMOJI.PHONE} +91-9876543210 | ${EMOJI.MAIL} info@mandeholidays.com
-${EMOJI.GLOBE} https://mandeholidays.com`;
+Warmest regards,
+Plan My Honeymoon Romantic Concierge & Operations
+${EMOJI.PHONE} +91-9876543210 | ${EMOJI.MAIL} concierge@planmyhoneymoon.com
+${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
 
     setEmailBody(body);
   }
@@ -231,7 +236,7 @@ ${EMOJI.GLOBE} https://mandeholidays.com`;
                 type="email"
                 value={ccEmail}
                 onChange={(e) => setCcEmail(e.target.value)}
-                placeholder="operations@mandateholidays.com"
+                placeholder="concierge@planmyhoneymoon.com"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>

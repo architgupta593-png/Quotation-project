@@ -11,6 +11,70 @@ import {
   HOTEL_CATEGORIES,
   getCategoryBadgeClass,
 } from "@/components/packages/AccommodationPanel";
+import { HOTEL_FEATURES_LIST } from "@/data/activity";
+
+export const FEATURE_CATEGORIES = [
+  {
+    id: "all",
+    title: "Popular Couple Features",
+    icon: "✨",
+    features: [
+      { name: "Bathtub", label: "Bathtub", icon: "🛁" },
+      { name: "Mountain View Room", label: "Mountain View", icon: "🏔️" },
+      { name: "Swimming Pool", label: "Swimming Pool", icon: "🏊" },
+      { name: "Honeymoon Suite", label: "Honeymoon Suite", icon: "💑" },
+      { name: "Balcony", label: "Balcony", icon: "🌿" },
+      { name: "Jacuzzi", label: "Jacuzzi", icon: "♨️" },
+      { name: "Spa", label: "Spa & Wellness", icon: "💆" },
+      { name: "Private Pool Villa", label: "Private Pool", icon: "🏊‍♂️" },
+      { name: "Sea View Room", label: "Sea View", icon: "🌊" },
+      { name: "Valley View Room", label: "Valley View", icon: "🌄" },
+      { name: "Campfire", label: "Campfire", icon: "🔥" },
+    ],
+  },
+  {
+    id: "romantic",
+    title: "Romantic & Honeymoon",
+    icon: "💑",
+    features: [
+      { name: "Honeymoon Suite", label: "Honeymoon Suite", icon: "💑" },
+      { name: "Bathtub", label: "Bathtub", icon: "🛁" },
+      { name: "Jacuzzi", label: "Jacuzzi", icon: "♨️" },
+      { name: "Private Pool Villa", label: "Private Pool Villa", icon: "🏊‍♂️" },
+      { name: "Infinity Pool Villa", label: "Infinity Pool Villa", icon: "🌅" },
+      { name: "Hot Tub", label: "Hot Tub", icon: "🛁" },
+    ],
+  },
+  {
+    id: "views",
+    title: "Scenic Views & Balcony",
+    icon: "🏔️",
+    features: [
+      { name: "Mountain View Room", label: "Mountain View", icon: "🏔️" },
+      { name: "Valley View Room", label: "Valley View", icon: "🌄" },
+      { name: "Sea View Room", label: "Sea View", icon: "🌊" },
+      { name: "Balcony", label: "Private Balcony", icon: "🌿" },
+      { name: "Waterfall View", label: "Waterfall View", icon: "🌊" },
+      { name: "Lake View Room", label: "Lake View", icon: "🏞️" },
+      { name: "Sunset View Room", label: "Sunset View", icon: "🌇" },
+    ],
+  },
+  {
+    id: "luxury",
+    title: "Luxury, Wellness & Nature",
+    icon: "💆",
+    features: [
+      { name: "Swimming Pool", label: "Swimming Pool", icon: "🏊" },
+      { name: "Spa", label: "Spa & Massage", icon: "💆" },
+      { name: "Ayurvedic Spa", label: "Ayurvedic Spa", icon: "🌿" },
+      { name: "Campfire", label: "Campfire & Music", icon: "🔥" },
+      { name: "Tree House Stay", label: "Tree House", icon: "🏡" },
+      { name: "Heritage Property", label: "Heritage Stay", icon: "🏰" },
+    ],
+  },
+];
+
+export const POPULAR_FEATURE_CHIPS = FEATURE_CATEGORIES[0].features;
 
 export const MEAL_PLANS = [
   {
@@ -231,6 +295,10 @@ export default function HotelRateFinderDialog({
   const [selectedCategory, setSelectedCategory] = useState(category || "None");
   const [selectedMealPlan, setSelectedMealPlan] = useState(currentMealPlan || "CP");
   const [selectedStarFilter, setSelectedStarFilter] = useState("all");
+  const [selectedFeatures, setSelectedFeatures] = useState([]);
+  const [activeFeatureTab, setActiveFeatureTab] = useState("all");
+  const [featureDropdownOpen, setFeatureDropdownOpen] = useState(false);
+  const [featureSearchQuery, setFeatureSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [hotels, setHotels] = useState([]);
   const [hotelRoomsMap, setHotelRoomsMap] = useState({});
@@ -248,6 +316,10 @@ export default function HotelRateFinderDialog({
       setSelectedCategory(category || "None");
       setSelectedMealPlan(currentMealPlan || "CP");
       setSelectedStarFilter("all");
+      setSelectedFeatures([]);
+      setActiveFeatureTab("all");
+      setFeatureDropdownOpen(false);
+      setFeatureSearchQuery("");
       setViewMode("top5");
       setSortBy("price_asc");
       setNameSearch("");
@@ -255,8 +327,8 @@ export default function HotelRateFinderDialog({
     }
   }, [isOpen, cityName, category, currentMealPlan]);
 
-// In-memory cache to prevent redundant HTTP network requests when opening dialog
-const cityHotelsCache = new Map();
+  // In-memory cache to prevent redundant HTTP network requests when opening dialog
+  const cityHotelsCache = new Map();
 
   const fetchHotelsForCity = useCallback((targetCity, force = false) => {
     if (!targetCity) return;
@@ -291,6 +363,46 @@ const cityHotelsCache = new Map();
   const nights = Math.max(1, parseInt(stayNights, 10) || 1);
   const roomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
 
+  // Dynamic feature aggregator for currently loaded city properties
+  const availableCityFeatures = useMemo(() => {
+    const featureCountMap = {};
+    hotels.forEach((h) => {
+      const hotelFeats = h.features || [];
+      const roomFeats = (hotelRoomsMap[h._id] || []).flatMap((r) => r.features || []);
+      const allHotelFeats = Array.from(new Set([...hotelFeats, ...roomFeats]));
+      allHotelFeats.forEach((f) => {
+        if (f && typeof f === "string") {
+          const key = f.trim();
+          if (key) {
+            featureCountMap[key] = (featureCountMap[key] || 0) + 1;
+          }
+        }
+      });
+    });
+
+    return Object.entries(featureCountMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [hotels, hotelRoomsMap]);
+
+  function toggleFeature(featName) {
+    setSelectedFeatures((prev) => {
+      const exists = prev.some((f) => f.toLowerCase().trim() === featName.toLowerCase().trim());
+      if (exists) {
+        return prev.filter((f) => f.toLowerCase().trim() !== featName.toLowerCase().trim());
+      }
+      return [...prev, featName];
+    });
+    setSelectedRoomIndexMap({});
+    setViewMode("all");
+  }
+
+  function clearAllFeatures() {
+    setSelectedFeatures([]);
+    setSelectedRoomIndexMap({});
+    setViewMode("top5");
+  }
+
   // 1. Process and rank all matching hotels for the selected criteria
   const allMatchingHotels = useMemo(() => {
     if (!hotels || hotels.length === 0) return [];
@@ -310,12 +422,25 @@ const cityHotelsCache = new Map();
         const matchesLoc = (h.location || "").toLowerCase().includes(q);
         if (!matchesName && !matchesLoc) return false;
       }
+      // Feature Multi-Select Filter Match
+      if (selectedFeatures.length > 0) {
+        const hotelFeats = (h.features || []).map((f) => f.toLowerCase().trim());
+        const rooms = hotelRoomsMap[h._id] || [];
+        const roomFeats = rooms.flatMap((r) => r.features || []).map((f) => f.toLowerCase().trim());
+        const combinedFeats = [...hotelFeats, ...roomFeats];
+
+        const matchesAll = selectedFeatures.every((targetFeat) => {
+          const t = targetFeat.toLowerCase().trim();
+          return combinedFeats.some((cf) => cf === t || cf.includes(t) || t.includes(cf));
+        });
+        if (!matchesAll) return false;
+      }
       return true;
     });
 
     if (matchingHotels.length === 0 && !nameSearch.trim() && catNormalized !== "none") {
       matchingHotels = [];
-    } else if (matchingHotels.length === 0 && !nameSearch.trim()) {
+    } else if (matchingHotels.length === 0 && !nameSearch.trim() && selectedFeatures.length === 0) {
       matchingHotels = [...hotels];
     }
 
@@ -328,8 +453,9 @@ const cityHotelsCache = new Map();
     const processed = matchingHotels
       .map((h) => {
         const rooms = hotelRoomsMap[h._id] || [];
+        const hotelFeats = (h.features || []).map((f) => f.toLowerCase().trim());
 
-        // Calculate multi-night rates for every room
+        // Calculate multi-night rates for every room and check feature fulfillment per room
         const roomRates = rooms.map((r, rIdx) => {
           const multi = calculateMultiNightRoomRates(
             r,
@@ -337,18 +463,46 @@ const cityHotelsCache = new Map();
             startDate,
             nights
           );
-          return { roomIndex: rIdx, room: r, ...multi };
+
+          const roomFeats = (r.features || []).map((f) => f.toLowerCase().trim());
+          const roomName = (r.roomType || "").toLowerCase();
+          const roomDesc = (r.description || "").toLowerCase();
+
+          const satisfiesFeatures = selectedFeatures.length === 0 || selectedFeatures.every((targetFeat) => {
+            const t = targetFeat.toLowerCase().trim();
+            const matchesRoomFeat = roomFeats.some((rf) => rf === t || rf.includes(t) || t.includes(rf));
+            const matchesRoomName = roomName.includes(t);
+            const matchesRoomDesc = roomDesc.includes(t);
+            const matchesHotelFeat = hotelFeats.some((hf) => hf === t || hf.includes(t) || t.includes(hf));
+            return matchesRoomFeat || matchesRoomName || matchesRoomDesc || matchesHotelFeat;
+          });
+
+          return { roomIndex: rIdx, room: r, satisfiesFeatures, ...multi };
         });
 
-        // Find lowest valid room (> 0 and available for all nights)
+        // Find all available valid rooms (> 0 cost)
         const validRates = roomRates.filter((item) => item.isAvailable && item.totalCost > 0);
         if (validRates.length === 0) {
           // This hotel does NOT offer the selected meal plan on any room for these dates
           return null;
         }
 
-        validRates.sort((a, b) => a.totalCost - b.totalCost);
-        const lowestRoomIdx = validRates[0].roomIndex;
+        // Feature-Aware: If feature filters are selected, identify room categories offering the feature
+        const featureMatchingValidRates = selectedFeatures.length > 0
+          ? validRates.filter((item) => item.satisfiesFeatures)
+          : validRates;
+
+        // If feature filter is selected and no room in this hotel has it, exclude this hotel
+        if (selectedFeatures.length > 0 && featureMatchingValidRates.length === 0) {
+          return null;
+        }
+
+        // Determine target candidate rooms (feature-matching if filtered, else all valid)
+        const candidateRates = featureMatchingValidRates.length > 0 ? featureMatchingValidRates : validRates;
+        
+        // Sort candidate rates to find the minimum price room category
+        const sortedCandidateRates = [...candidateRates].sort((a, b) => a.totalCost - b.totalCost);
+        const lowestRoomIdx = sortedCandidateRates[0].roomIndex;
 
         // If user has explicitly selected a room index for this hotel AND it is available for all nights
         const userSelectedIdx = selectedRoomIndexMap[h._id];
@@ -359,12 +513,23 @@ const cityHotelsCache = new Map();
           (roomRates[userSelectedIdx]?.isAvailable || false);
 
         const activeRoomIdx = isUserSelectionValid ? userSelectedIdx : lowestRoomIdx;
-        const activeRoomData = roomRates[activeRoomIdx] || validRates[0];
+        const activeRoomData = roomRates[activeRoomIdx] || sortedCandidateRates[0];
         const selectedRoom = rooms[activeRoomIdx] || rooms[lowestRoomIdx] || null;
 
         const totalCost = activeRoomData.totalCost * roomsCount;
         const nightlyRate = activeRoomData.avgRate;
         const isSeasonal = activeRoomData.breakdown.some((b) => b.isSeasonal);
+
+        const rawHotelFeats = (h.features || []);
+        const rawRoomFeats = (selectedRoom?.features || []);
+        const allHotelFeats = Array.from(new Set([...rawHotelFeats, ...rawRoomFeats]));
+        const matchedFeatures = selectedFeatures.filter((sf) => {
+          const t = sf.toLowerCase().trim();
+          return allHotelFeats.some((hf) => {
+            const hfLower = hf.toLowerCase().trim();
+            return hfLower === t || hfLower.includes(t) || t.includes(hfLower);
+          });
+        });
 
         return {
           hotel: h,
@@ -373,6 +538,7 @@ const cityHotelsCache = new Map();
           activeRoomIdx,
           lowestRoomIdx,
           validRoomIndices: validRates.map((v) => v.roomIndex),
+          featureMatchingRoomIndices: featureMatchingValidRates.map((v) => v.roomIndex),
           roomRates,
           activeRoomData,
           nightlyRate,
@@ -381,6 +547,8 @@ const cityHotelsCache = new Map();
           splitSummary: activeRoomData.splitSummary,
           breakdown: activeRoomData.breakdown,
           totalCost,
+          allHotelFeats,
+          matchedFeatures,
         };
       })
       .filter(Boolean);
@@ -397,7 +565,7 @@ const cityHotelsCache = new Map();
     }
 
     return processed;
-  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, nameSearch, sortBy, startDate, nights, roomsCount, selectedRoomIndexMap]);
+  }, [hotels, hotelRoomsMap, selectedCategory, selectedMealPlan, selectedStarFilter, selectedFeatures, nameSearch, sortBy, startDate, nights, roomsCount, selectedRoomIndexMap]);
 
   // 2. Display slice depending on viewMode (top5 vs all)
   const displayedHotels = useMemo(() => {
@@ -427,6 +595,9 @@ const cityHotelsCache = new Map();
         splitSummary: item.splitSummary,
         rateGroups: item.activeRoomData?.rateGroups || [],
         breakdown: item.breakdown,
+        features: item.allHotelFeats || [],
+        matchedFeatures: item.matchedFeatures || [],
+        hotelActivities: item.hotel?.activities || [],
       });
     }
     onClose();
@@ -672,6 +843,221 @@ const cityHotelsCache = new Map();
               );
             })}
           </div>
+
+          {/* Hotel Features & Amenities Multi-Select Dropdown Filter */}
+          <div className="pt-2 border-t border-slate-200/80">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {/* Dropdown Selector Trigger */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setFeatureDropdownOpen((v) => !v)}
+                  className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold transition-all flex items-center gap-2 border shadow-2xs ${
+                    selectedFeatures.length > 0
+                      ? "bg-slate-950 text-amber-300 border-slate-900 ring-2 ring-amber-400/40 font-black shadow-xs"
+                      : "bg-white text-slate-800 hover:bg-slate-50 border-slate-300"
+                  }`}
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Filter by Hotel Features</span>
+                  {selectedFeatures.length > 0 ? (
+                    <span className="px-2 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                      {selectedFeatures.length} Selected
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-[10.5px]">
+                      ({availableCityFeatures.length} available)
+                    </span>
+                  )}
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 transition-transform ${
+                      featureDropdownOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Dropdown Menu Popover */}
+                {featureDropdownOpen && (
+                  <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 max-h-[26rem] bg-white rounded-2xl border border-slate-200 shadow-2xl z-40 p-3.5 flex flex-col gap-2.5 animate-in zoom-in-95">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <ListFilter className="w-4 h-4 text-amber-600" />
+                        <span className="text-[12px] font-black text-slate-900">
+                          Select Hotel &amp; Room Features
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFeatureDropdownOpen(false)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Search box */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={featureSearchQuery}
+                        onChange={(e) => setFeatureSearchQuery(e.target.value)}
+                        placeholder="Search 60+ features (e.g. Bathtub, View)..."
+                        className="w-full pl-8 pr-3 py-1.5 text-[11.5px] font-bold rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Categorized List of Features */}
+                    <div className="overflow-y-auto space-y-3 max-h-60 pr-1">
+                      {FEATURE_CATEGORIES.map((cat) => {
+                        const matchedInCat = cat.features.filter((f) => {
+                          if (!featureSearchQuery.trim()) return true;
+                          const q = featureSearchQuery.toLowerCase().trim();
+                          return (
+                            f.name.toLowerCase().includes(q) ||
+                            (f.label || "").toLowerCase().includes(q)
+                          );
+                        });
+                        if (matchedInCat.length === 0) return null;
+
+                        return (
+                          <div key={cat.id} className="space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 px-1">
+                              <span>{cat.icon}</span>
+                              <span>{cat.title}</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                              {matchedInCat.map((f) => {
+                                const isSel = selectedFeatures.some(
+                                  (sf) =>
+                                    sf.toLowerCase().trim() ===
+                                    f.name.toLowerCase().trim()
+                                );
+                                const cityMatch = availableCityFeatures.find(
+                                  (cf) =>
+                                    cf.name.toLowerCase().trim() ===
+                                    f.name.toLowerCase().trim()
+                                );
+                                const count = cityMatch ? cityMatch.count : 0;
+
+                                return (
+                                  <button
+                                    key={f.name}
+                                    type="button"
+                                    onClick={() => toggleFeature(f.name)}
+                                    className={`px-2 py-1.5 rounded-xl text-left text-[11px] font-medium transition-all flex items-center justify-between border ${
+                                      isSel
+                                        ? "bg-slate-900 text-amber-300 border-slate-900 font-black shadow-xs"
+                                        : count > 0
+                                        ? "bg-slate-50 hover:bg-amber-50/70 text-slate-800 border-slate-100"
+                                        : "bg-white text-slate-400 border-slate-100 opacity-60"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                      <div
+                                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                                          isSel
+                                            ? "bg-amber-400 border-amber-400 text-slate-950"
+                                            : "border-slate-300 bg-white"
+                                        }`}
+                                      >
+                                        {isSel && (
+                                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                        )}
+                                      </div>
+                                      <span className="truncate">
+                                        {f.icon} {f.label || f.name}
+                                      </span>
+                                    </div>
+                                    {count > 0 && (
+                                      <span
+                                        className={`text-[9.5px] font-mono px-1 rounded font-bold ml-1 flex-shrink-0 ${
+                                          isSel
+                                            ? "text-amber-300"
+                                            : "text-slate-400 bg-slate-200/60"
+                                        }`}
+                                      >
+                                        {count}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      {selectedFeatures.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={clearAllFeatures}
+                          className="text-[11px] font-black text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" /> Clear All ({selectedFeatures.length})
+                        </button>
+                      ) : (
+                        <span className="text-[10.5px] text-slate-400 font-medium">
+                          Select features to filter
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setFeatureDropdownOpen(false)}
+                        className="px-3.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-[11px] shadow-xs hover:from-amber-600 hover:to-orange-600 transition-all flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>Done {selectedFeatures.length > 0 ? `(${selectedFeatures.length})` : ""}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Side: Active Filter Pills / Counter Badge */}
+              <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
+                {selectedFeatures.length > 0 && (
+                  <>
+                    <div className="px-2.5 py-1 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 font-black text-[10.5px] flex items-center gap-1 shadow-2xs flex-shrink-0">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      <span>{allMatchingHotels.length} {allMatchingHotels.length === 1 ? "Hotel" : "Hotels"} Match</span>
+                    </div>
+
+                    {selectedFeatures.map((feat) => (
+                      <span
+                        key={feat}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-900 text-amber-300 text-[10.5px] font-black shadow-xs animate-in zoom-in-95"
+                      >
+                        <span>{feat}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleFeature(feat)}
+                          className="text-amber-400 hover:text-white p-0.5 rounded transition-colors"
+                          title="Remove filter"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={clearAllFeatures}
+                      className="text-[10.5px] font-black text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 ml-1"
+                    >
+                      <X className="w-2.5 h-2.5" /> Clear All
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── 3. Content Area: Ranked Cards or Manual ── */}
@@ -687,13 +1073,23 @@ const cityHotelsCache = new Map();
                 <AlertCircle className="w-7 h-7 text-slate-400 mx-auto" />
                 <h4 className="text-[14px] font-black text-slate-800">No matching hotels found</h4>
                 <p className="text-[12px] text-slate-500 max-w-sm mx-auto font-medium">
-                  No properties found in {searchCity || cityName} with {selectedMealPlan} meal plan {selectedCategory !== "None" ? `for ${selectedCategory} category` : ""}.
+                  No properties found in {searchCity || cityName} with {selectedMealPlan} meal plan {selectedCategory !== "None" ? `for ${selectedCategory} category` : ""} {selectedFeatures.length > 0 ? `matching features [${selectedFeatures.join(", ")}]` : ""}.
                 </p>
-                <div className="flex items-center justify-center gap-2 pt-1">
+                <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                  {selectedFeatures.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearAllFeatures}
+                      className="px-4 py-2 bg-amber-500 text-slate-950 rounded-xl text-[12px] font-black shadow-2xs hover:bg-amber-600"
+                    >
+                      Clear Features Filter
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedCategory("None");
+                      setSelectedFeatures([]);
                       setNameSearch("");
                       setViewMode("top5");
                     }}
@@ -714,13 +1110,19 @@ const cityHotelsCache = new Map();
               <div className="space-y-3">
                 {/* Result header info */}
                 <div className="flex items-center justify-between text-[11.5px] text-slate-500 px-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span>
                       Showing <strong className="text-slate-900 font-black">{displayedHotels.length}</strong> {viewMode === "top5" ? "top lowest-price hotels" : "hotels"} in {searchCity || cityName}
                     </span>
                     <span className="text-[10.5px] font-black text-amber-800 bg-amber-50 px-2 py-0.2 rounded-md border border-amber-200">
                       {selectedCategory} • {selectedMealPlan} Plan
                     </span>
+                    {selectedFeatures.length > 0 && (
+                      <span className="text-[10.5px] font-black text-indigo-800 bg-indigo-50 px-2 py-0.2 rounded-md border border-indigo-200 flex items-center gap-1">
+                        <Tag className="w-2.5 h-2.5" />
+                        {selectedFeatures.length} Feature{selectedFeatures.length > 1 ? "s" : ""}: {selectedFeatures.slice(0, 2).join(", ")}{selectedFeatures.length > 2 ? ` +${selectedFeatures.length - 2}` : ""}
+                      </span>
+                    )}
                   </div>
                   {viewMode === "top5" && totalMatchingCount > 5 ? (
                     <button
@@ -807,17 +1209,19 @@ const cityHotelsCache = new Map();
                                 className="text-[11.5px] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-2xs cursor-pointer"
                               >
                                 {item.rooms.map((r, rIdx) => {
-                                  const rMulti = calculateMultiNightRoomRates(
-                                    r,
-                                    selectedMealPlan,
-                                    startDate,
-                                    nights
-                                  );
-                                  if (!rMulti.isAvailable || rMulti.totalCost <= 0) return null;
+                                  const rData = item.roomRates[rIdx];
+                                  if (!rData || !rData.isAvailable || rData.totalCost <= 0) return null;
                                   const isLowest = rIdx === item.lowestRoomIdx && item.validRoomIndices.length > 1;
+                                  const isFeatureMatch = selectedFeatures.length > 0 && rData.satisfiesFeatures;
+                                  let tag = "";
+                                  if (isLowest) {
+                                    tag = isFeatureMatch ? ` • Lowest with ${selectedFeatures.slice(0, 2).join(", ")}` : " • Lowest";
+                                  } else if (isFeatureMatch) {
+                                    tag = ` • Matches ${selectedFeatures.slice(0, 2).join(", ")}`;
+                                  }
                                   return (
                                     <option key={r._id || rIdx} value={rIdx}>
-                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rMulti.totalCost.toLocaleString("en-IN")}{nights > 1 ? ` • ₹${Math.round(rMulti.avgRate)}/n` : ""}){isLowest ? " • Lowest" : ""}
+                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rData.totalCost.toLocaleString("en-IN")}{nights > 1 ? ` • ₹${Math.round(rData.avgRate)}/n` : ""}){tag}
                                     </option>
                                   );
                                 })}
@@ -833,6 +1237,38 @@ const cityHotelsCache = new Map();
                           <span className="text-slate-300">•</span>
                           <span className="text-amber-800 font-bold">{selectedMealPlan} Plan</span>
                         </div>
+
+                        {/* Features Tags on Hotel Card with Glowing Highlight for Matched Features */}
+                        {item.allHotelFeats && item.allHotelFeats.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                            {item.allHotelFeats.slice(0, 5).map((feat, fIdx) => {
+                              const isMatched = item.matchedFeatures?.some((mf) => {
+                                const t = mf.toLowerCase().trim();
+                                const h = feat.toLowerCase().trim();
+                                return h === t || h.includes(t) || t.includes(h);
+                              });
+
+                              return (
+                                <span
+                                  key={fIdx}
+                                  className={`text-[9.5px] px-2 py-0.5 rounded-md font-bold transition-all flex items-center gap-1 ${
+                                    isMatched
+                                      ? "bg-amber-100 text-amber-950 border border-amber-300 font-black shadow-2xs ring-1 ring-amber-400/50"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200/80"
+                                  }`}
+                                >
+                                  {isMatched && <Check className="w-2.5 h-2.5 text-amber-700" />}
+                                  <span>{feat}</span>
+                                </span>
+                              );
+                            })}
+                            {item.allHotelFeats.length > 5 && (
+                              <span className="text-[9.5px] text-slate-400 font-bold">
+                                +{item.allHotelFeats.length - 5} more
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Right rate & select action */}
