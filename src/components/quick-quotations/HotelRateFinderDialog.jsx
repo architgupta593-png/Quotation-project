@@ -13,28 +13,52 @@ import {
 } from "@/components/packages/AccommodationPanel";
 import { HOTEL_FEATURES_LIST } from "@/data/activity";
 
-export const FEATURE_CATEGORIES = [
+export function isRoomMatchingFeature(room, targetFeature) {
+  if (!room || !targetFeature) return false;
+  const target = String(targetFeature).toLowerCase().trim();
+  if (!target) return true;
+
+  // STRICT TAGS-ONLY MATCHING (Option 2):
+  // Checks ONLY the room.features array configured in Edit Hotel -> Room Features tags box.
+  // Room Type Name and Room Description are NOT used for feature matching.
+  const roomFeats = (room.features || [])
+    .filter(Boolean)
+    .map((f) => String(f).toLowerCase().trim());
+
+  if (roomFeats.length === 0) return false;
+
+  const targetTokens = target.split(/\s+/).filter((t) => t.length >= 3 && !["room", "stay", "villa"].includes(t));
+
+  return roomFeats.some((rf) => {
+    if (rf === target) return true;
+    if (rf.includes(target) || target.includes(rf)) return true;
+    if (targetTokens.length > 0 && targetTokens.some((tok) => rf.includes(tok))) return true;
+    return false;
+  });
+}
+
+export const ROOM_FEATURE_CATEGORIES = [
   {
-    id: "all",
-    title: "Popular Couple Features",
-    icon: "✨",
+    id: "popular",
+    title: "Popular Room Features",
+    icon: "🛏️",
     features: [
-      { name: "Bathtub", label: "Bathtub", icon: "🛁" },
-      { name: "Mountain View Room", label: "Mountain View", icon: "🏔️" },
-      { name: "Swimming Pool", label: "Swimming Pool", icon: "🏊" },
-      { name: "Honeymoon Suite", label: "Honeymoon Suite", icon: "💑" },
       { name: "Balcony", label: "Balcony", icon: "🌿" },
+      { name: "Bathtub", label: "Bathtub", icon: "🛁" },
       { name: "Jacuzzi", label: "Jacuzzi", icon: "♨️" },
-      { name: "Spa", label: "Spa & Wellness", icon: "💆" },
       { name: "Private Pool Villa", label: "Private Pool", icon: "🏊‍♂️" },
-      { name: "Sea View Room", label: "Sea View", icon: "🌊" },
+      { name: "Honeymoon Suite", label: "Honeymoon Suite", icon: "💑" },
+      { name: "Mountain View Room", label: "Mountain View", icon: "🏔️" },
       { name: "Valley View Room", label: "Valley View", icon: "🌄" },
-      { name: "Campfire", label: "Campfire", icon: "🔥" },
+      { name: "Sea View Room", label: "Sea View", icon: "🌊" },
+      { name: "Lake View Room", label: "Lake View", icon: "🏞️" },
+      { name: "Sunset View Room", label: "Sunset View", icon: "🌇" },
+      { name: "Tree House Stay", label: "Tree House", icon: "🏡" },
     ],
   },
   {
     id: "romantic",
-    title: "Romantic & Honeymoon",
+    title: "Romantic & Couple Special",
     icon: "💑",
     features: [
       { name: "Honeymoon Suite", label: "Honeymoon Suite", icon: "💑" },
@@ -50,10 +74,10 @@ export const FEATURE_CATEGORIES = [
     title: "Scenic Views & Balcony",
     icon: "🏔️",
     features: [
+      { name: "Balcony", label: "Private Balcony", icon: "🌿" },
       { name: "Mountain View Room", label: "Mountain View", icon: "🏔️" },
       { name: "Valley View Room", label: "Valley View", icon: "🌄" },
       { name: "Sea View Room", label: "Sea View", icon: "🌊" },
-      { name: "Balcony", label: "Private Balcony", icon: "🌿" },
       { name: "Waterfall View", label: "Waterfall View", icon: "🌊" },
       { name: "Lake View Room", label: "Lake View", icon: "🏞️" },
       { name: "Sunset View Room", label: "Sunset View", icon: "🌇" },
@@ -61,20 +85,20 @@ export const FEATURE_CATEGORIES = [
   },
   {
     id: "luxury",
-    title: "Luxury, Wellness & Nature",
-    icon: "💆",
+    title: "Luxury & In-Room Amenities",
+    icon: "✨",
     features: [
-      { name: "Swimming Pool", label: "Swimming Pool", icon: "🏊" },
-      { name: "Spa", label: "Spa & Massage", icon: "💆" },
-      { name: "Ayurvedic Spa", label: "Ayurvedic Spa", icon: "🌿" },
-      { name: "Campfire", label: "Campfire & Music", icon: "🔥" },
+      { name: "King Bed", label: "King Size Bed", icon: "🛏️" },
+      { name: "Air Conditioned", label: "AC Room", icon: "❄️" },
+      { name: "Mini Bar", label: "Mini Bar", icon: "🍸" },
+      { name: "Sitout / Terrace", label: "Sitout / Terrace", icon: "🪑" },
+      { name: "Living Room Suite", label: "Living Room Suite", icon: "🛋️" },
       { name: "Tree House Stay", label: "Tree House", icon: "🏡" },
-      { name: "Heritage Property", label: "Heritage Stay", icon: "🏰" },
     ],
   },
 ];
 
-export const POPULAR_FEATURE_CHIPS = FEATURE_CATEGORIES[0].features;
+export const POPULAR_FEATURE_CHIPS = ROOM_FEATURE_CATEGORIES[0].features;
 
 export const MEAL_PLANS = [
   {
@@ -363,20 +387,21 @@ export default function HotelRateFinderDialog({
   const nights = Math.max(1, parseInt(stayNights, 10) || 1);
   const roomsCount = Math.max(1, parseInt(totalRooms, 10) || 1);
 
-  // Dynamic feature aggregator for currently loaded city properties
-  const availableCityFeatures = useMemo(() => {
+  // Dynamic feature aggregator strictly for loaded room features in this city
+  const availableCityRoomFeatures = useMemo(() => {
     const featureCountMap = {};
     hotels.forEach((h) => {
-      const hotelFeats = h.features || [];
-      const roomFeats = (hotelRoomsMap[h._id] || []).flatMap((r) => r.features || []);
-      const allHotelFeats = Array.from(new Set([...hotelFeats, ...roomFeats]));
-      allHotelFeats.forEach((f) => {
-        if (f && typeof f === "string") {
-          const key = f.trim();
-          if (key) {
-            featureCountMap[key] = (featureCountMap[key] || 0) + 1;
+      const rooms = hotelRoomsMap[h._id] || [];
+      rooms.forEach((r) => {
+        const rFeats = r.features || [];
+        rFeats.forEach((f) => {
+          if (f && typeof f === "string") {
+            const key = f.trim();
+            if (key) {
+              featureCountMap[key] = (featureCountMap[key] || 0) + 1;
+            }
           }
-        }
+        });
       });
     });
 
@@ -422,18 +447,13 @@ export default function HotelRateFinderDialog({
         const matchesLoc = (h.location || "").toLowerCase().includes(q);
         if (!matchesName && !matchesLoc) return false;
       }
-      // Feature Multi-Select Filter Match
+      // Room Feature Multi-Select Filter Match (Strictly Room-Level)
       if (selectedFeatures.length > 0) {
-        const hotelFeats = (h.features || []).map((f) => f.toLowerCase().trim());
         const rooms = hotelRoomsMap[h._id] || [];
-        const roomFeats = rooms.flatMap((r) => r.features || []).map((f) => f.toLowerCase().trim());
-        const combinedFeats = [...hotelFeats, ...roomFeats];
-
-        const matchesAll = selectedFeatures.every((targetFeat) => {
-          const t = targetFeat.toLowerCase().trim();
-          return combinedFeats.some((cf) => cf === t || cf.includes(t) || t.includes(cf));
+        const hasMatchingRoom = rooms.some((r) => {
+          return selectedFeatures.every((feat) => isRoomMatchingFeature(r, feat));
         });
-        if (!matchesAll) return false;
+        if (!hasMatchingRoom) return false;
       }
       return true;
     });
@@ -453,9 +473,8 @@ export default function HotelRateFinderDialog({
     const processed = matchingHotels
       .map((h) => {
         const rooms = hotelRoomsMap[h._id] || [];
-        const hotelFeats = (h.features || []).map((f) => f.toLowerCase().trim());
 
-        // Calculate multi-night rates for every room and check feature fulfillment per room
+        // Calculate multi-night rates for every room and check strict room-level feature fulfillment
         const roomRates = rooms.map((r, rIdx) => {
           const multi = calculateMultiNightRoomRates(
             r,
@@ -464,20 +483,12 @@ export default function HotelRateFinderDialog({
             nights
           );
 
-          const roomFeats = (r.features || []).map((f) => f.toLowerCase().trim());
-          const roomName = (r.roomType || "").toLowerCase();
-          const roomDesc = (r.description || "").toLowerCase();
-
-          const satisfiesFeatures = selectedFeatures.length === 0 || selectedFeatures.every((targetFeat) => {
-            const t = targetFeat.toLowerCase().trim();
-            const matchesRoomFeat = roomFeats.some((rf) => rf === t || rf.includes(t) || t.includes(rf));
-            const matchesRoomName = roomName.includes(t);
-            const matchesRoomDesc = roomDesc.includes(t);
-            const matchesHotelFeat = hotelFeats.some((hf) => hf === t || hf.includes(t) || t.includes(hf));
-            return matchesRoomFeat || matchesRoomName || matchesRoomDesc || matchesHotelFeat;
+          // STRICT ROOM FEATURE MATCH
+          const satisfiesRoomFeatures = selectedFeatures.length === 0 || selectedFeatures.every((feat) => {
+            return isRoomMatchingFeature(r, feat);
           });
 
-          return { roomIndex: rIdx, room: r, satisfiesFeatures, ...multi };
+          return { roomIndex: rIdx, room: r, satisfiesRoomFeatures, ...multi };
         });
 
         // Find all available valid rooms (> 0 cost)
@@ -487,30 +498,31 @@ export default function HotelRateFinderDialog({
           return null;
         }
 
-        // Feature-Aware: If feature filters are selected, identify room categories offering the feature
+        // Feature-Aware: Strictly filter to rooms that satisfy the chosen room features
         const featureMatchingValidRates = selectedFeatures.length > 0
-          ? validRates.filter((item) => item.satisfiesFeatures)
+          ? validRates.filter((item) => item.satisfiesRoomFeatures)
           : validRates;
 
-        // If feature filter is selected and no room in this hotel has it, exclude this hotel
+        // If room feature filter is selected and no room in this hotel has it, exclude this hotel
         if (selectedFeatures.length > 0 && featureMatchingValidRates.length === 0) {
           return null;
         }
 
-        // Determine target candidate rooms (feature-matching if filtered, else all valid)
+        // Determine target candidate rooms (strictly matching rooms if filtered, else all valid)
         const candidateRates = featureMatchingValidRates.length > 0 ? featureMatchingValidRates : validRates;
         
-        // Sort candidate rates to find the minimum price room category
+        // Sort candidate rates to find the minimum price matching room category
         const sortedCandidateRates = [...candidateRates].sort((a, b) => a.totalCost - b.totalCost);
         const lowestRoomIdx = sortedCandidateRates[0].roomIndex;
 
-        // If user has explicitly selected a room index for this hotel AND it is available for all nights
+        // If user has explicitly selected a room index for this hotel, ensure it satisfies feature filters & is available
         const userSelectedIdx = selectedRoomIndexMap[h._id];
         const isUserSelectionValid =
           userSelectedIdx !== undefined &&
           userSelectedIdx >= 0 &&
           userSelectedIdx < rooms.length &&
-          (roomRates[userSelectedIdx]?.isAvailable || false);
+          (roomRates[userSelectedIdx]?.isAvailable || false) &&
+          (selectedFeatures.length === 0 || roomRates[userSelectedIdx]?.satisfiesRoomFeatures);
 
         const activeRoomIdx = isUserSelectionValid ? userSelectedIdx : lowestRoomIdx;
         const activeRoomData = roomRates[activeRoomIdx] || sortedCandidateRates[0];
@@ -524,11 +536,7 @@ export default function HotelRateFinderDialog({
         const rawRoomFeats = (selectedRoom?.features || []);
         const allHotelFeats = Array.from(new Set([...rawHotelFeats, ...rawRoomFeats]));
         const matchedFeatures = selectedFeatures.filter((sf) => {
-          const t = sf.toLowerCase().trim();
-          return allHotelFeats.some((hf) => {
-            const hfLower = hf.toLowerCase().trim();
-            return hfLower === t || hfLower.includes(t) || t.includes(hfLower);
-          });
+          return isRoomMatchingFeature(selectedRoom, sf);
         });
 
         return {
@@ -553,7 +561,7 @@ export default function HotelRateFinderDialog({
       })
       .filter(Boolean);
 
-    // Sorting
+    // Sorting: price_asc ranks hotels by the lowest matching room price across destination!
     if (sortBy === "price_asc") {
       processed.sort((a, b) => a.totalCost - b.totalCost);
     } else if (sortBy === "price_desc") {
@@ -844,8 +852,37 @@ export default function HotelRateFinderDialog({
             })}
           </div>
 
-          {/* Hotel Features & Amenities Multi-Select Dropdown Filter */}
-          <div className="pt-2 border-t border-slate-200/80">
+          {/* Room Features Multi-Select Filter Toolbar */}
+          <div className="pt-2 border-t border-slate-200/80 space-y-2">
+            {/* Quick 1-Tap Popular Room Category & Feature Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex-shrink-0 flex items-center gap-1 mr-0.5">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Room Features:
+              </span>
+              {POPULAR_FEATURE_CHIPS.map((chip) => {
+                const isSel = selectedFeatures.some(
+                  (sf) => sf.toLowerCase().trim() === chip.name.toLowerCase().trim()
+                );
+                return (
+                  <button
+                    key={chip.name}
+                    type="button"
+                    onClick={() => toggleFeature(chip.name)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap flex items-center gap-1 border shadow-2xs ${
+                      isSel
+                        ? "bg-slate-950 text-amber-300 font-black border-slate-900 ring-2 ring-amber-400/40 shadow-xs scale-[1.02]"
+                        : "bg-white text-slate-700 hover:bg-amber-50/70 border-slate-200"
+                    }`}
+                  >
+                    <span>{chip.icon}</span>
+                    <span>{chip.label}</span>
+                    {isSel && <Check className="w-2.5 h-2.5 text-amber-400" />}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="flex items-center justify-between gap-2 flex-wrap">
               {/* Dropdown Selector Trigger */}
               <div className="relative">
@@ -859,14 +896,14 @@ export default function HotelRateFinderDialog({
                   }`}
                 >
                   <Tag className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Filter by Hotel Features</span>
+                  <span>Filter by Room Features</span>
                   {selectedFeatures.length > 0 ? (
                     <span className="px-2 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
-                      {selectedFeatures.length} Selected
+                      {selectedFeatures.length} Active
                     </span>
                   ) : (
                     <span className="text-slate-400 text-[10.5px]">
-                      ({availableCityFeatures.length} available)
+                      ({availableCityRoomFeatures.length} available)
                     </span>
                   )}
                   <ChevronRight
@@ -884,7 +921,7 @@ export default function HotelRateFinderDialog({
                       <div className="flex items-center gap-1.5">
                         <ListFilter className="w-4 h-4 text-amber-600" />
                         <span className="text-[12px] font-black text-slate-900">
-                          Select Hotel &amp; Room Features
+                          Select Room Features &amp; Amenities
                         </span>
                       </div>
                       <button
@@ -903,7 +940,7 @@ export default function HotelRateFinderDialog({
                         type="text"
                         value={featureSearchQuery}
                         onChange={(e) => setFeatureSearchQuery(e.target.value)}
-                        placeholder="Search 60+ features (e.g. Bathtub, View)..."
+                        placeholder="Search room features (e.g. Balcony, Jacuzzi, View)..."
                         className="w-full pl-8 pr-3 py-1.5 text-[11.5px] font-bold rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                         autoFocus
                       />
@@ -911,7 +948,7 @@ export default function HotelRateFinderDialog({
 
                     {/* Categorized List of Features */}
                     <div className="overflow-y-auto space-y-3 max-h-60 pr-1">
-                      {FEATURE_CATEGORIES.map((cat) => {
+                      {ROOM_FEATURE_CATEGORIES.map((cat) => {
                         const matchedInCat = cat.features.filter((f) => {
                           if (!featureSearchQuery.trim()) return true;
                           const q = featureSearchQuery.toLowerCase().trim();
@@ -935,7 +972,7 @@ export default function HotelRateFinderDialog({
                                     sf.toLowerCase().trim() ===
                                     f.name.toLowerCase().trim()
                                 );
-                                const cityMatch = availableCityFeatures.find(
+                                const cityMatch = availableCityRoomFeatures.find(
                                   (cf) =>
                                     cf.name.toLowerCase().trim() ===
                                     f.name.toLowerCase().trim()
@@ -1003,7 +1040,7 @@ export default function HotelRateFinderDialog({
                         </button>
                       ) : (
                         <span className="text-[10.5px] text-slate-400 font-medium">
-                          Select features to filter
+                          Select room features to filter
                         </span>
                       )}
 
@@ -1073,7 +1110,7 @@ export default function HotelRateFinderDialog({
                 <AlertCircle className="w-7 h-7 text-slate-400 mx-auto" />
                 <h4 className="text-[14px] font-black text-slate-800">No matching hotels found</h4>
                 <p className="text-[12px] text-slate-500 max-w-sm mx-auto font-medium">
-                  No properties found in {searchCity || cityName} with {selectedMealPlan} meal plan {selectedCategory !== "None" ? `for ${selectedCategory} category` : ""} {selectedFeatures.length > 0 ? `matching features [${selectedFeatures.join(", ")}]` : ""}.
+                  No properties found in {searchCity || cityName} with {selectedMealPlan} meal plan {selectedCategory !== "None" ? `for ${selectedCategory} category` : ""} {selectedFeatures.length > 0 ? `matching room features [${selectedFeatures.join(", ")}]` : ""}.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
                   {selectedFeatures.length > 0 && (
@@ -1082,7 +1119,7 @@ export default function HotelRateFinderDialog({
                       onClick={clearAllFeatures}
                       className="px-4 py-2 bg-amber-500 text-slate-950 rounded-xl text-[12px] font-black shadow-2xs hover:bg-amber-600"
                     >
-                      Clear Features Filter
+                      Clear Room Features Filter
                     </button>
                   )}
                   <button
@@ -1118,9 +1155,9 @@ export default function HotelRateFinderDialog({
                       {selectedCategory} • {selectedMealPlan} Plan
                     </span>
                     {selectedFeatures.length > 0 && (
-                      <span className="text-[10.5px] font-black text-indigo-800 bg-indigo-50 px-2 py-0.2 rounded-md border border-indigo-200 flex items-center gap-1">
+                      <span className="text-[10.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.2 rounded-md border border-emerald-200 flex items-center gap-1">
                         <Tag className="w-2.5 h-2.5" />
-                        {selectedFeatures.length} Feature{selectedFeatures.length > 1 ? "s" : ""}: {selectedFeatures.slice(0, 2).join(", ")}{selectedFeatures.length > 2 ? ` +${selectedFeatures.length - 2}` : ""}
+                        Room Feature{selectedFeatures.length > 1 ? "s" : ""}: {selectedFeatures.slice(0, 2).join(", ")}{selectedFeatures.length > 2 ? ` +${selectedFeatures.length - 2}` : ""}
                       </span>
                     )}
                   </div>
@@ -1194,6 +1231,16 @@ export default function HotelRateFinderDialog({
                           {item.hotel.name}
                         </h4>
 
+                        {/* Active Room Feature Matching Badge */}
+                        {selectedFeatures.length > 0 && item.matchedFeatures?.length > 0 && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-950 border border-emerald-300 text-[10.5px] font-black shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                            <span>
+                              Lowest {selectedFeatures.join(" + ")} Room: <strong className="text-emerald-900 underline decoration-emerald-500 font-black">{item.selectedRoom?.roomType}</strong> (₹{Math.round(item.nightlyRate).toLocaleString("en-IN")}/n)
+                            </span>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 text-[11.5px] text-slate-600 flex-wrap font-medium">
                           {item.validRoomIndices?.length > 1 ? (
                             <div className="flex items-center gap-1.5">
@@ -1211,17 +1258,19 @@ export default function HotelRateFinderDialog({
                                 {item.rooms.map((r, rIdx) => {
                                   const rData = item.roomRates[rIdx];
                                   if (!rData || !rData.isAvailable || rData.totalCost <= 0) return null;
-                                  const isLowest = rIdx === item.lowestRoomIdx && item.validRoomIndices.length > 1;
-                                  const isFeatureMatch = selectedFeatures.length > 0 && rData.satisfiesFeatures;
+                                  const isLowest = rIdx === item.lowestRoomIdx;
+                                  const isFeatureMatch = selectedFeatures.length > 0 && rData.satisfiesRoomFeatures;
                                   let tag = "";
-                                  if (isLowest) {
-                                    tag = isFeatureMatch ? ` • Lowest with ${selectedFeatures.slice(0, 2).join(", ")}` : " • Lowest";
+                                  if (isLowest && isFeatureMatch) {
+                                    tag = ` • 🏆 Lowest ${selectedFeatures.slice(0, 2).join(", ")} Option`;
+                                  } else if (isLowest) {
+                                    tag = " • 🏆 Lowest Rate";
                                   } else if (isFeatureMatch) {
-                                    tag = ` • Matches ${selectedFeatures.slice(0, 2).join(", ")}`;
+                                    tag = ` • ✓ Matches ${selectedFeatures.slice(0, 2).join(", ")}`;
                                   }
                                   return (
                                     <option key={r._id || rIdx} value={rIdx}>
-                                      {r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rData.totalCost.toLocaleString("en-IN")}{nights > 1 ? ` • ₹${Math.round(rData.avgRate)}/n` : ""}){tag}
+                                      {isFeatureMatch ? "⭐ " : ""}{r.roomType || "Standard Room"} {r.maxOccupancy ? `[Max ${r.maxOccupancy}] ` : ""}(₹{rData.totalCost.toLocaleString("en-IN")}{nights > 1 ? ` • ₹${Math.round(rData.avgRate)}/n` : ""}){tag}
                                     </option>
                                   );
                                 })}
