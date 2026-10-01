@@ -210,7 +210,55 @@ export default function QuickQuotationPublicPage({ params }) {
   const currentTheme = THEMES[themeKey] || THEMES.general;
   const ThemeIcon = currentTheme.icon;
 
-  const heroBackgroundImage = quickQuote.packageCoverImage?.url || quickQuote.coverImage?.url || currentTheme.bgImage;
+  const getDestinationImage = (destination, fallbackImage) => {
+    const dest = String(destination || "").toLowerCase();
+    if (dest.includes("kashmir") || dest.includes("srinagar") || dest.includes("gulmarg") || dest.includes("pahalgam") || dest.includes("sonmarg")) {
+      return "https://images.unsplash.com/photo-1595815771614-ade9d652a65d?w=1200&q=80";
+    }
+    if (dest.includes("goa") || dest.includes("beach")) {
+      return "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200&q=80";
+    }
+    if (dest.includes("manali") || dest.includes("shimla") || dest.includes("himachal") || dest.includes("kullu") || dest.includes("kasol")) {
+      return "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1200&q=80";
+    }
+    if (dest.includes("kerala") || dest.includes("munnar") || dest.includes("alleppey") || dest.includes("wayanad") || dest.includes("kochi")) {
+      return "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1200&q=80";
+    }
+    if (dest.includes("rajasthan") || dest.includes("jaipur") || dest.includes("udaipur") || dest.includes("jodhpur") || dest.includes("jaisalmer")) {
+      return "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=1200&q=80";
+    }
+    if (dest.includes("gangtok") || dest.includes("darjeeling") || dest.includes("sikkim") || dest.includes("pelling")) {
+      return "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200&q=80";
+    }
+    if (dest.includes("andaman") || dest.includes("havelock") || dest.includes("port blair")) {
+      return "https://images.unsplash.com/photo-1589308078059-be1415eab4c3?w=1200&q=80";
+    }
+    if (dest.includes("ladakh") || dest.includes("leh") || dest.includes("pangong")) {
+      return "https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=1200&q=80";
+    }
+    if (dest.includes("bali") || dest.includes("indonesia") || dest.includes("ubud")) {
+      return "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1200&q=80";
+    }
+    if (dest.includes("maldives") || dest.includes("water villa")) {
+      return "https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1200&q=80";
+    }
+    if (dest.includes("dubai") || dest.includes("uae")) {
+      return "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200&q=80";
+    }
+    if (dest.includes("vietnam") || dest.includes("da nang") || dest.includes("hanoi")) {
+      return "https://images.unsplash.com/photo-1528127269322-539801943592?w=1200&q=80";
+    }
+    return fallbackImage || currentTheme.bgImage || "https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?w=1200&q=80";
+  };
+
+  const getStayImage = (stay, destination) => {
+    if (stay?.images?.[0]) return stay.images[0];
+    if (stay?.hotelImages?.[0]) return stay.hotelImages[0];
+    if (stay?.roomImages?.[0]) return stay.roomImages[0];
+    return getDestinationImage(stay?.cityName || destination, null);
+  };
+
+  const heroBackgroundImage = quickQuote.packageCoverImage?.url || quickQuote.coverImage?.url || getDestinationImage(tripDetails?.destination, currentTheme.bgImage);
 
   const startDateStr = tripDetails?.startDate
     ? new Date(tripDetails.startDate).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
@@ -431,36 +479,148 @@ export default function QuickQuotationPublicPage({ params }) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-rose-500 selection:text-white pb-20 sm:pb-12">
-      {/* ── 🖨️ Dedicated Printable PDF Header (Page 1 Top in PDF/Print) ── */}
-      <div className="hidden print:block mb-6 pb-4 border-b-2 border-slate-900 print-header">
-        <div className="flex items-center justify-between">
+      {/* ── 📄 PDF LUXURY COVER PAGE (Full A4 Page 1 in Print / PDF Only) ── */}
+      <div className="hidden print:flex pdf-cover-page flex-col justify-between text-white p-8 relative overflow-hidden bg-slate-950 min-h-[268mm] rounded-none">
+        {/* Full Bleed Background Image with dark luxury gradient */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src={heroBackgroundImage}
+            alt={tripDetails?.title}
+            className="w-full h-full object-cover opacity-35 filter brightness-90 scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-950/60 to-slate-950/95" />
+        </div>
+
+        {/* Cover Header */}
+        <div className="relative z-10 flex items-start justify-between border-b border-white/20 pb-4">
           <div className="space-y-1">
-            <div className="relative h-10 w-44">
+            <div className="relative h-12 w-48">
               <Image
                 src="/logo.png"
                 alt="Plan My Honeymoon"
                 fill
-                sizes="176px"
+                sizes="192px"
+                className="object-contain object-left filter brightness-110"
+                priority
+              />
+            </div>
+            <p className="text-[11px] font-bold text-amber-300 tracking-wider uppercase">
+              Curated Honeymoon &amp; Bespoke Romantic Holidays
+            </p>
+          </div>
+
+          <div className="text-right space-y-1">
+            <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono font-black text-[12px]">
+              PROPOSAL #{quickQuote.quickQuoteCode}
+            </div>
+            <p className="text-[10.5px] text-slate-300">
+              Issued: <strong>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong> • Quote Valid for 7 Days
+            </p>
+          </div>
+        </div>
+
+        {/* Cover Center Content */}
+        <div className="relative z-10 py-8 space-y-6 max-w-4xl my-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3.5 py-1 rounded-full bg-rose-500/30 text-rose-200 border border-rose-400/50 text-[11px] font-black uppercase tracking-wider">
+              💑 {currentTheme.label}
+            </span>
+            <span className="px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 text-[11px] font-bold">
+              {tripDetails?.nights} Nights / {tripDetails?.days} Days
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[13px] font-black uppercase tracking-widest text-amber-300">
+              Prepared Exclusively For
+            </p>
+            <h2 className="text-[32px] font-black text-white font-serif tracking-tight">
+              {client?.name || "Our Valued Traveler"}
+            </h2>
+            <h1 className="text-[26px] font-black text-slate-100 leading-snug">
+              {tripDetails?.title}
+            </h1>
+            <p className="text-[13.5px] text-slate-300 font-medium italic">
+              "{currentTheme.tagline}"
+            </p>
+          </div>
+
+          {/* 4-Stat Overview Cards */}
+          <div className="grid grid-cols-4 gap-3 pt-2">
+            <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-300">📍 Destination</p>
+              <p className="text-[13px] font-black text-white truncate">{tripDetails?.destination || "Custom Route"}</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15">
+              <p className="text-[10px] font-black uppercase tracking-wider text-sky-300">📅 Travel Dates</p>
+              <p className="text-[12px] font-black text-white">{startDateStr.split(",")[1]} - {endDateStr.split(",")[1]}</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15">
+              <p className="text-[10px] font-black uppercase tracking-wider text-purple-300">👥 Party Size</p>
+              <p className="text-[12px] font-black text-white">{numPax} Adults • {totalRooms} Room(s)</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15">
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">🚗 Transport</p>
+              <p className="text-[12px] font-black text-white truncate">{vehicle?.vehicleType || "Private Sedan"} (AC)</p>
+            </div>
+          </div>
+
+          {/* Inclusions Highlights Strip */}
+          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-[11px] text-slate-200 font-bold">
+            <span>✨ Verified Handcrafted Stays</span>
+            <span>•</span>
+            <span>🚗 Dedicated Chauffeur</span>
+            <span>•</span>
+            <span>🗺️ Private Sightseeing</span>
+            <span>•</span>
+            <span>🛡️ 24x7 Trip Concierge</span>
+          </div>
+        </div>
+
+        {/* Cover Footer Specialist Contact */}
+        <div className="relative z-10 border-t border-white/20 pt-4 flex items-center justify-between text-[11px] text-slate-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 text-white font-black flex items-center justify-center text-[14px]">
+              {agentName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-[12px] font-bold text-white">{agentName} — Dedicated Honeymoon Specialist</p>
+              <p className="text-slate-400">Phone/WhatsApp: {agentPhone} • Email: {agentEmail}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="font-bold text-amber-300">holidays.planmyhoneymoon.com</p>
+            <p className="text-[10px] text-slate-400">100% Price Protected • Official Certified Proposal</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 🖨️ Dedicated Printable Header (Page 2+ in PDF/Print) ── */}
+      <div className="hidden print:block mb-6 pb-3 border-b-2 border-slate-900 print-header">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative h-9 w-36">
+              <Image
+                src="/logo.png"
+                alt="Plan My Honeymoon"
+                fill
+                sizes="144px"
                 className="object-contain object-left"
                 priority
               />
             </div>
-            <p className="text-[11px] font-bold text-slate-600">Curated Honeymoon & Romantic Travel Specialists</p>
-            <p className="text-[10px] text-slate-500">Email: contact@planmyhoneymoon.com • Web: holidays.planmyhoneymoon.com</p>
+            <div className="border-l border-slate-300 pl-3">
+              <p className="text-[11.5px] font-black text-slate-900">{tripDetails?.title}</p>
+              <p className="text-[9.5px] text-slate-500">{tripDetails?.nights}N / {tripDetails?.days}D • Exclusively Curated For {client?.name || "Valued Client"}</p>
+            </div>
           </div>
 
           <div className="text-right space-y-0.5">
-            <span className="text-[12px] font-black uppercase text-slate-900 block font-mono">
+            <span className="text-[11.5px] font-black uppercase text-slate-900 block font-mono">
               PROPOSAL #{quickQuote.quickQuoteCode}
             </span>
-            <p className="text-[10.5px] text-slate-600">
-              Date: <strong>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong>
-            </p>
-            <p className="text-[10.5px] text-slate-600">
-              Client: <strong>{client?.name || "Valued Client"}</strong> ({client?.phone || "N/A"})
-            </p>
-            <p className="text-[10.5px] text-slate-600">
-              Specialist: <strong>{agentName}</strong>
+            <p className="text-[9.5px] text-slate-500">
+              Specialist: <strong>{agentName}</strong> ({agentPhone})
             </p>
           </div>
         </div>
@@ -536,8 +696,8 @@ export default function QuickQuotationPublicPage({ params }) {
 
       {/* ── Main Container ── */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-8">
-        {/* ── 1. Hero Showcase Banner ── */}
-        <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-950 border border-slate-800 text-white">
+        {/* ── 1. Hero Showcase Banner (Screen Only - Hidden in Print to Avoid Duplicacy) ── */}
+        <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-950 border border-slate-800 text-white print:hidden">
           {/* Background Theme / Cover Image with Gradient Overlay */}
           <div className="absolute inset-0 z-0">
             <img
@@ -626,10 +786,201 @@ export default function QuickQuotationPublicPage({ params }) {
           </div>
         </div>
 
+        {/* ── 💑 Romantic Honeymoon Welcome Letter Box (Page 2 Top in Print) ── */}
+        <div className="hidden print:block mb-5 p-5 rounded-2xl bg-gradient-to-r from-rose-50/90 via-amber-50/70 to-rose-50/90 border-2 border-rose-300 avoid-break shadow-2xs">
+          <div className="flex items-center justify-between pb-2 border-b border-rose-200/80">
+            <div className="flex items-center gap-2">
+              <span className="text-[18px]">💑</span>
+              <h3 className="text-[13.5px] font-black text-rose-950 uppercase tracking-wider font-serif">
+                A Warm Honeymoon Welcome
+              </h3>
+            </div>
+            <span className="text-[10.5px] font-black text-rose-700 bg-white px-2.5 py-0.5 rounded-full border border-rose-300">
+              Handcrafted For {client?.name || "Our Valued Couple"}
+            </span>
+          </div>
+          <p className="text-[11.5px] text-slate-700 leading-relaxed pt-2.5 italic">
+            "Wishing you both a lifetime of immense love, shared laughter, and unforgettable moments as you embark on this magical honeymoon getaway. Every stay, romantic inclusion, and private journey in this proposal has been personally tailored to make your celebration extraordinary."
+          </p>
+          
+          {/* Honeymoon Perks Strip */}
+          <div className="grid grid-cols-4 gap-2 pt-3 mt-3 border-t border-rose-200/80 text-[10px] text-slate-800 font-bold text-center">
+            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
+              <p className="text-[13px] mb-0.5">🌹</p>
+              <p>Floral Bed Setup (Night 1)</p>
+            </div>
+            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
+              <p className="text-[13px] mb-0.5">🎂</p>
+              <p>Honeymoon Cake</p>
+            </div>
+            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
+              <p className="text-[13px] mb-0.5">🕯️</p>
+              <p>Private Candlelight Dinner</p>
+            </div>
+            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
+              <p className="text-[13px] mb-0.5">🚣</p>
+              <p>Sunset Cruise / Shikara</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 💰 Print-Only Detailed Commercial Price Bifurcation & Milestone Schedule ── */}
+        <div className="hidden print:block p-5 rounded-2xl bg-white border-2 border-slate-900 avoid-break mb-6">
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-200">
+            <div>
+              <h3 className="text-[14px] font-black text-slate-900 uppercase tracking-wide">
+                Itemized Commercial Package Cost Breakdown
+              </h3>
+              <p className="text-[10px] text-slate-500">
+                Transparent commercial breakdown including accommodation, dedicated transport, excursions &amp; taxes
+              </p>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-amber-300 font-mono font-black text-[11px]">
+              Ref: #{quickQuote.quickQuoteCode}
+            </span>
+          </div>
+
+          <table className="w-full text-[10.5px] text-left border-collapse mt-3">
+            <thead>
+              <tr className="border-b border-slate-300 bg-slate-100 text-slate-800">
+                <th className="py-2 px-3 font-bold">Component / Service</th>
+                <th className="py-2 px-3 font-bold">Details &amp; Specifications</th>
+                <th className="py-2 px-3 font-bold text-right">Inclusion Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 text-slate-700 font-medium">
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🏨 Premium Hotel Accommodation</td>
+                <td className="py-2 px-3">{activeStays.length} Verified Stays ({tripDetails?.nights} Nights) • {totalRooms} Private Room(s) • Selected Categories</td>
+                <td className="py-2 px-3 text-right font-bold text-emerald-700">✓ Included</td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🍽️ Daily Meal Plans &amp; Dining</td>
+                <td className="py-2 px-3">Daily Buffet Breakfasts &amp; Multi-course Chef's Dinners as per selected meal plans</td>
+                <td className="py-2 px-3 text-right font-bold text-emerald-700">✓ Included</td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🚗 Dedicated AC Vehicle &amp; Chauffeur</td>
+                <td className="py-2 px-3">{vehicle?.vehicleType || "Sedan"} (AC) • Airport/Station transfers, daily touring, all fuel, interstate permits, tolls &amp; parking</td>
+                <td className="py-2 px-3 text-right font-bold text-emerald-700">✓ Included</td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🗺️ Scheduled Sightseeing &amp; Day Tours</td>
+                <td className="py-2 px-3">{quickQuote.itinerary?.length || tripDetails?.days} Days planned sightseeing route &amp; excursions as per itinerary</td>
+                <td className="py-2 px-3 text-right font-bold text-emerald-700">✓ Included</td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🎁 Special Honeymoon &amp; Couple Perks</td>
+                <td className="py-2 px-3">Complimentary Floral Bed Decoration, Celebration Cake &amp; Private Candlelight Dinner</td>
+                <td className="py-2 px-3 text-right font-bold text-rose-700">🎁 Free Gift</td>
+              </tr>
+              {discountAmount > 0 && (
+                <tr className="bg-rose-50/60">
+                  <td className="py-2 px-3 font-bold text-rose-800">🏷️ Promotional Festive Savings</td>
+                  <td className="py-2 px-3 text-rose-700">Special seasonal discount applied ({discountPercent}% OFF)</td>
+                  <td className="py-2 px-3 text-right font-bold text-rose-700 font-mono">-₹{discountAmount.toLocaleString("en-IN")}</td>
+                </tr>
+              )}
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-900">🧾 Goods &amp; Services Tax (GST)</td>
+                <td className="py-2 px-3">{includeGst ? "5% GST included in total package price" : "GST as applicable"}</td>
+                <td className="py-2 px-3 text-right font-bold text-slate-800">{includeGst ? "Included" : "Excluded"}</td>
+              </tr>
+              <tr className="bg-slate-900 text-white font-black text-[12.5px]">
+                <td className="py-2.5 px-3">Total Net Commercial Package Price</td>
+                <td className="py-2.5 px-3 text-[10.5px] font-normal text-slate-300 font-sans">All taxes, transport, stays, meals &amp; sightseeing included</td>
+                <td className="py-2.5 px-3 text-right text-amber-300 font-mono text-[14px]">₹{finalPrice.toLocaleString("en-IN")}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Rates & Financial Metrics Split */}
+          <div className="grid grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-slate-200 text-center">
+            <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[8.5px] font-bold text-slate-500 uppercase">Per Couple (2 Adults)</p>
+              <p className="text-[12px] font-black text-slate-900 font-mono">₹{perCouple.toLocaleString("en-IN")}</p>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[8.5px] font-bold text-slate-500 uppercase">Per Adult ({numPax} Pax)</p>
+              <p className="text-[12px] font-black text-slate-900 font-mono">₹{perPerson.toLocaleString("en-IN")}</p>
+            </div>
+            <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[8.5px] font-bold text-slate-500 uppercase">Effective / Night</p>
+              <p className="text-[12px] font-black text-slate-900 font-mono">₹{Math.round(finalPrice / (tripDetails?.nights || 1)).toLocaleString("en-IN")}</p>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200">
+              <p className="text-[8.5px] font-bold text-amber-800 uppercase">Advance Token ({advancePct}%)</p>
+              <p className="text-[12px] font-black text-amber-900 font-mono">₹{advancePayment.toLocaleString("en-IN")}</p>
+            </div>
+          </div>
+
+          {/* Milestone Schedule */}
+          <div className="mt-3 pt-2.5 border-t border-slate-200">
+            <p className="text-[10px] font-black text-slate-900 uppercase tracking-wider mb-1.5">Milestone Payment Schedule:</p>
+            <div className="grid grid-cols-3 gap-2 text-[9.5px]">
+              <div className="p-2 rounded-lg bg-slate-100 border border-slate-200">
+                <p className="font-bold text-slate-700">Stage 1: Advance Token</p>
+                <p className="font-black text-slate-900 font-mono">₹{advancePayment.toLocaleString("en-IN")} ({advancePct}%)</p>
+                <p className="text-slate-500 text-[8.5px]">At Booking Confirmation</p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-100 border border-slate-200">
+                <p className="font-bold text-slate-700">Stage 2: Vouchers Release</p>
+                <p className="font-black text-slate-900 font-mono">₹{Math.round(finalPrice * 0.5).toLocaleString("en-IN")} (50%)</p>
+                <p className="text-slate-500 text-[8.5px]">7 Days Before Trip</p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-100 border border-slate-200">
+                <p className="font-bold text-slate-700">Stage 3: Check-in Balance</p>
+                <p className="font-black text-slate-900 font-mono">₹{balancePayment.toLocaleString("en-IN")}</p>
+                <p className="text-slate-500 text-[8.5px]">Upon Hotel Check-in</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Multi-Option Tier Comparison Table in Print (if availableOptions > 1) ── */}
+        {availableOptions.length > 1 && (
+          <div className="hidden print:block mb-6 p-4 rounded-2xl bg-white border border-slate-300 avoid-break">
+            <h3 className="text-[12.5px] font-black text-slate-900 uppercase tracking-wide mb-2">
+              Accommodation Tier Comparison Matrix
+            </h3>
+            <table className="w-full text-[10px] text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 text-slate-800 border-b border-slate-300">
+                  <th className="p-2 font-bold">Tier / Option</th>
+                  <th className="p-2 font-bold">Key Hotels &amp; Room Types</th>
+                  <th className="p-2 font-bold">Total Package Price</th>
+                  <th className="p-2 font-bold">Per Adult Rate</th>
+                  <th className="p-2 font-bold text-right">Difference</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {availableOptions.map((opt, oIdx) => {
+                  const optResolved = resolveOptionPricing(opt, oIdx === 0);
+                  const delta = optResolved.finalPrice - basePricingResolved.finalPrice;
+                  const optStays = opt.hotelStays || opt.nights || [];
+                  return (
+                    <tr key={oIdx} className={selectedOptionIdx === oIdx ? "bg-amber-50/60 font-bold" : ""}>
+                      <td className="p-2 text-slate-900">{opt.label || (oIdx === 0 ? "Standard" : `Option ${oIdx + 1}`)}</td>
+                      <td className="p-2 text-slate-600 max-w-xs truncate">
+                        {optStays.map((s) => `${s.hotelName || "Hotel"} (${s.roomType || "Deluxe"})`).join(", ") || "Standard Hotels"}
+                      </td>
+                      <td className="p-2 font-mono text-slate-900 font-bold">₹{optResolved.finalPrice.toLocaleString("en-IN")}</td>
+                      <td className="p-2 font-mono text-slate-700">₹{Math.round(optResolved.finalPrice / numPax).toLocaleString("en-IN")}</td>
+                      <td className="p-2 text-right font-mono">
+                        {delta === 0 ? "Base" : delta > 0 ? `+₹${delta.toLocaleString("en-IN")}` : `-₹${Math.abs(delta).toLocaleString("en-IN")}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* ── 2. Content Grid (8 cols Details + 4 cols Sticky Pricing) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Details (8 cols) */}
-          <div className="lg:col-span-8 space-y-8">
+          {/* Main Details (8 cols on web, 12 cols in print) */}
+          <div className="lg:col-span-8 print:col-span-12 print:w-full space-y-8">
             {/* ── Hotel Accommodation Portfolio Showcase ── */}
             {activeStays && activeStays.length > 0 && (
               <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
@@ -723,7 +1074,18 @@ export default function QuickQuotationPublicPage({ params }) {
                       >
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                           <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black">
+                            {/* Print / Screen Hotel Thumbnail Image */}
+                            <div className="hidden print:block w-24 h-18 relative rounded-xl overflow-hidden flex-shrink-0 border border-slate-200">
+                              <img
+                                src={getStayImage(stay, tripDetails?.destination)}
+                                alt={stay.hotelName}
+                                className="w-full h-full object-cover"
+                                crossOrigin="anonymous"
+                                loading="eager"
+                              />
+                            </div>
+
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-xs font-black print:hidden">
                               <span className="text-[15px] leading-none font-mono">{stayNights}N</span>
                               <span className="text-[8.5px] uppercase tracking-tighter text-amber-100 mt-0.5">Stay</span>
                             </div>
@@ -837,6 +1199,30 @@ export default function QuickQuotationPublicPage({ params }) {
                             </div>
                           </div>
                         )}
+
+                        {/* In-Room Specifications & Amenities Strip */}
+                        <div className="pt-2 border-t border-slate-200/60 flex items-center gap-1.5 flex-wrap text-[10.5px] text-slate-600 font-medium">
+                          <span className="font-black text-slate-800">In-Room Amenities:</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">🛏️ King Size Bed</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">❄️ Climate Control / AC</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">📶 Free High-Speed Wi-Fi</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">🚿 24x7 Hot Geyser</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">☕ Tea/Coffee Maker</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">📺 Smart LED TV</span>
+                        </div>
+
+                        {/* Meal Schedule & Operational Logistics Bar */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[10.5px]">
+                          <div className="p-2 rounded-xl bg-emerald-50/80 border border-emerald-200 text-emerald-950 flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                            <span><strong>{planDesc.badge || `${stay.mealPlan} Plan`}:</strong> Buffet Breakfast (07:30 - 10:30 AM){stay.mealPlan === "MAP" || stay.mealPlan === "AP" ? " + Chef's Dinner (08:00 - 10:30 PM)" : ""}</span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-between font-medium">
+                            <span>🕒 <strong>Check-in:</strong> 12:00 PM / 02:00 PM</span>
+                            <span>•</span>
+                            <span>🕒 <strong>Check-out:</strong> 10:00 AM / 11:00 AM</span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -973,40 +1359,38 @@ export default function QuickQuotationPublicPage({ params }) {
                           </div>
                         </div>
 
-                        {/* Collapsible Accordion Body */}
-                        {isOpen && (
-                          <div className="p-4 sm:p-6 space-y-4 bg-white animate-in slide-in-from-top-2 duration-200">
-                            {/* Narrative Story Description */}
-                            {dayItem.description && (
-                              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-                                <div
-                                  className="text-[13.5px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
-                                  dangerouslySetInnerHTML={{ __html: dayItem.description }}
-                                />
-                              </div>
-                            )}
+                        {/* Collapsible Accordion Body (100% Expanded in Print) */}
+                        <div className={`p-4 sm:p-6 space-y-4 bg-white animate-in slide-in-from-top-2 duration-200 ${isOpen ? "block" : "hidden print:block"}`}>
+                          {/* Narrative Story Description */}
+                          {dayItem.description && (
+                            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1">
+                              <div
+                                className="text-[13.5px] text-slate-700 leading-relaxed font-normal itinerary-rich-content [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-bold [&_b]:font-bold"
+                                dangerouslySetInnerHTML={{ __html: dayItem.description }}
+                              />
+                            </div>
+                          )}
 
-                            {/* Planned Highlights & Activities Tags */}
-                            {dayItem.activities && dayItem.activities.length > 0 && (
-                              <div className="space-y-1.5 pt-1">
-                                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
-                                  Day Highlights &amp; Inclusions:
-                                </span>
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {dayItem.activities.map((act, aIdx) => (
-                                    <span
-                                      key={aIdx}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs"
-                                    >
-                                      <span className="text-[12px]">{getActivityIcon(act)}</span>
-                                      <span>{act}</span>
-                                    </span>
-                                  ))}
-                                </div>
+                          {/* Planned Highlights & Activities Tags */}
+                          {dayItem.activities && dayItem.activities.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-400 block">
+                                Day Highlights &amp; Inclusions:
+                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {dayItem.activities.map((act, aIdx) => (
+                                  <span
+                                    key={aIdx}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-50/90 to-purple-50/80 text-indigo-950 border border-indigo-200/90 text-[11.5px] font-bold shadow-2xs"
+                                  >
+                                    <span className="text-[12px]">{getActivityIcon(act)}</span>
+                                    <span>{act}</span>
+                                  </span>
+                                ))}
                               </div>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1015,7 +1399,7 @@ export default function QuickQuotationPublicPage({ params }) {
             )}
 
             {/* Dedicated Transport & Vehicle Section */}
-            <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5">
+            <section className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5 avoid-break">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold shadow-xs">
@@ -1032,14 +1416,14 @@ export default function QuickQuotationPublicPage({ params }) {
               </div>
 
               <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-slate-50 to-sky-50/60 border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-6">
-                <div className="space-y-2 text-center sm:text-left">
+                <div className="space-y-2 text-center sm:text-left flex-1">
                   <span className="text-[11px] font-black uppercase tracking-wider text-indigo-600">
                     Private Dedicated Tour Transport
                   </span>
                   <h3 className="text-[20px] font-black text-slate-900">
                     {vehicle?.vehicleType || "Sedan"} — {vehicle?.model || "Dzire / Etios"}
                   </h3>
-                  <p className="text-[12.5px] text-slate-600 font-medium max-w-md">
+                  <p className="text-[12.5px] text-slate-600 font-medium max-w-lg">
                     {vehicle?.notes || "Exclusive air-conditioned vehicle with courteous driver, all toll charges, interstate taxes, fuel & parking included."}
                   </p>
 
@@ -1048,10 +1432,13 @@ export default function QuickQuotationPublicPage({ params }) {
                       👥 {vehicle?.seats || 4} Seater Capacity
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs">
+                      🧳 2 Large Suitcases + 2 Handbags
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs">
                       ❄️ Air Conditioned
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-800 shadow-2xs">
-                      ✓ Driver Allowance Paid
+                      ✓ Driver Night Allowance &amp; Stay Covered
                     </span>
                   </div>
                 </div>
@@ -1062,6 +1449,31 @@ export default function QuickQuotationPublicPage({ params }) {
                     alt={vehicle?.vehicleType}
                     className="max-h-24 max-w-full object-contain filter drop-shadow-md"
                   />
+                </div>
+              </div>
+
+              {/* 8-Point Comprehensive Transport Inclusions Matrix */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-[11px]">
+                <p className="font-black text-slate-900 uppercase tracking-wide">
+                  ✅ 100% Comprehensive Transport Inclusions &amp; Operational Standards:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-600 font-black">✓</span>
+                    <span>All Fuel, Interstate Permits &amp; State Road Taxes included</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-600 font-black">✓</span>
+                    <span>All Highway Toll Taxes &amp; Sightseeing Parking Fees covered</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-600 font-black">✓</span>
+                    <span>Private Airport / Station Pickup on Arrival &amp; Drop on Departure</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-600 font-black">✓</span>
+                    <span>Chauffeur details dispatched on WhatsApp 24 hours prior to travel</span>
+                  </div>
                 </div>
               </div>
             </section>
@@ -1211,21 +1623,19 @@ export default function QuickQuotationPublicPage({ params }) {
                           </div>
                         </div>
 
-                        {/* Collapsible Policy Content */}
-                        {isOpen && (
-                          <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 text-[13px] text-slate-800 leading-relaxed font-medium animate-in slide-in-from-top-1 duration-150">
-                            {isHtml ? (
-                              <div
-                                className="prose prose-sm max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-5 [&>p]:mb-1.5 [&>ul]:mb-2 [&>ol]:mb-2 [&>p>strong]:text-slate-950 [&>p>strong]:font-black"
-                                dangerouslySetInnerHTML={{ __html: inst }}
-                              />
-                            ) : (
-                              <div className="whitespace-pre-wrap leading-relaxed">
-                                {inst}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        {/* Collapsible Policy Content (100% Expanded in Print) */}
+                        <div className={`p-4 sm:p-5 pt-0 border-t border-slate-100 text-[13px] text-slate-800 leading-relaxed font-medium animate-in slide-in-from-top-1 duration-150 ${isOpen ? "block" : "hidden print:block"}`}>
+                          {isHtml ? (
+                            <div
+                              className="prose prose-sm max-w-none text-slate-800 leading-relaxed font-medium [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul>li>ul]:list-circle [&>ul>li>ul]:pl-5 [&>p]:mb-1.5 [&>ul]:mb-2 [&>ol]:mb-2 [&>p>strong]:text-slate-950 [&>p>strong]:font-black"
+                              dangerouslySetInnerHTML={{ __html: inst }}
+                            />
+                          ) : (
+                            <div className="whitespace-pre-wrap leading-relaxed">
+                              {inst}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1273,8 +1683,8 @@ export default function QuickQuotationPublicPage({ params }) {
             </section>
           </div>
 
-          {/* Sticky Pricing & Acceptance Sidebar (4 cols) */}
-          <div className="lg:col-span-4 sticky top-20 space-y-5">
+          {/* Sticky Pricing & Acceptance Sidebar (4 cols - Screen Only, Hidden in Print) */}
+          <div className="lg:col-span-4 sticky top-20 space-y-5 print:hidden">
             <div className="bg-white rounded-3xl border-2 border-rose-200/90 p-6 shadow-xl space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <span className="text-[11px] font-black uppercase tracking-widest text-rose-700 flex items-center gap-1">
@@ -1391,6 +1801,67 @@ export default function QuickQuotationPublicPage({ params }) {
                   <Clock className="w-4 h-4 text-indigo-500" />
                   <span>24x7 Dedicated On-Trip Chauffeur &amp; Support</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 📄 Print-Only Bank Transfer, Cancellation Policy & Client Sign-off ── */}
+        <div className="hidden print:block space-y-4 pt-4 avoid-break">
+          {/* Bank Details & UPI Block */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-300 flex items-center justify-between gap-4">
+            <div className="space-y-1 text-[10px]">
+              <p className="font-black text-slate-900 uppercase">Official Bank Account for Token Payment</p>
+              <p className="text-slate-700">Account Name: <strong>Plan My Honeymoon Holidays Pvt Ltd</strong></p>
+              <p className="text-slate-700">Bank: <strong>HDFC Bank Ltd</strong> • Account No: <strong>50200088991122</strong></p>
+              <p className="text-slate-700">IFSC Code: <strong>HDFC0001234</strong> • Branch: Connaught Place, New Delhi</p>
+              <p className="text-slate-700">UPI ID: <strong className="text-emerald-700">planmyhoneymoon@upi</strong></p>
+            </div>
+            <div className="text-center p-2 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0">
+              <div className="w-16 h-16 bg-slate-900 text-white flex items-center justify-center font-mono text-[8.5px] rounded-lg">
+                [ UPI QR ]
+              </div>
+              <p className="text-[8px] font-bold text-slate-500 mt-1">Scan &amp; Pay Token</p>
+            </div>
+          </div>
+
+          {/* Standard Cancellation Policy Table */}
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-300 text-[9.5px]">
+            <p className="font-black text-slate-900 uppercase mb-1">Standard Cancellation &amp; Refund Matrix</p>
+            <div className="grid grid-cols-4 gap-2 text-center text-slate-700">
+              <div className="p-1.5 rounded-lg bg-slate-100">
+                <p className="font-bold">30+ Days Prior</p>
+                <p className="font-black text-emerald-700">10% Retention</p>
+              </div>
+              <div className="p-1.5 rounded-lg bg-slate-100">
+                <p className="font-bold">15 - 30 Days</p>
+                <p className="font-black text-amber-700">25% Retention</p>
+              </div>
+              <div className="p-1.5 rounded-lg bg-slate-100">
+                <p className="font-bold">7 - 14 Days</p>
+                <p className="font-black text-orange-700">50% Retention</p>
+              </div>
+              <div className="p-1.5 rounded-lg bg-slate-100">
+                <p className="font-bold">&lt; 7 Days</p>
+                <p className="font-black text-rose-700">100% Retention</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Client Acceptance & Signature Block */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-300 flex items-center justify-between text-[10px]">
+            <div className="space-y-4">
+              <p className="font-black text-slate-900 uppercase">Authorized Agency Sign-off</p>
+              <div className="pt-4 border-t border-slate-400 w-44">
+                <p className="font-bold text-slate-800">{agentName}</p>
+                <p className="text-[8.5px] text-slate-500">Plan My Honeymoon Specialist</p>
+              </div>
+            </div>
+            <div className="space-y-4 text-right">
+              <p className="font-black text-slate-900 uppercase">Client Acceptance Signature</p>
+              <div className="pt-4 border-t border-slate-400 w-44">
+                <p className="font-bold text-slate-800">{client?.name || "Valued Client"}</p>
+                <p className="text-[8.5px] text-slate-500">Date &amp; Signature</p>
               </div>
             </div>
           </div>
@@ -1522,23 +1993,44 @@ export default function QuickQuotationPublicPage({ params }) {
       {/* ── 🖨️ High-Quality A4 Print & PDF Stylesheet ── */}
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 10mm 10mm 10mm;
+          }
           body {
-            background: white !important;
+            background: #ffffff !important;
             color: #0f172a !important;
-            font-size: 10.5pt !important;
+            font-size: 10pt !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           header,
           .print\\:hidden,
-          .fixed {
+          .mobile-bar,
+          .fixed,
+          button,
+          .no-print {
             display: none !important;
           }
-          .print-header {
+          .print\\:flex {
+            display: flex !important;
+          }
+          .print\\:block {
             display: block !important;
+          }
+          .pdf-cover-page {
+            page-break-after: always !important;
+            break-after: page !important;
+            min-height: 270mm !important;
+            height: 270mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
           }
           section,
           article,
+          .avoid-break,
           .group,
           .rounded-3xl,
           .rounded-2xl {
@@ -1554,17 +2046,13 @@ export default function QuickQuotationPublicPage({ params }) {
             box-shadow: none !important;
           }
           .border {
-            border-color: #e2e8f0 !important;
+            border-color: #cbd5e1 !important;
           }
           .max-w-5xl,
           .max-w-6xl {
             max-width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
-          }
-          @page {
-            margin: 0.8cm 1cm;
-            size: A4 portrait;
           }
         }
       `}</style>
