@@ -20,17 +20,25 @@ import User from "@/models/User";
  */
 export async function GET(request) {
   try {
+    // ── Check if setup endpoint is explicitly disabled ─────────────────
+    if (process.env.DISABLE_SETUP_ENDPOINT === "true") {
+      return Response.json(
+        { error: "Setup endpoint has been disabled for security." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get("secret");
 
     // ── Check setup secret ──────────────────────────────────────────────
     const SETUP_SECRET = process.env.SETUP_SECRET;
 
-    if (!SETUP_SECRET) {
+    if (!SETUP_SECRET || SETUP_SECRET.length < 12 || SETUP_SECRET === "my-super-secret-key-12345") {
       return Response.json(
         {
-          error: "SETUP_SECRET is not configured.",
-          help: "Add SETUP_SECRET=your-secret-key to your environment variables.",
+          error: "SETUP_SECRET must be configured with a strong secret (min 12 characters).",
+          help: "Add SETUP_SECRET=<secure-random-secret> to your environment variables.",
         },
         { status: 500 }
       );
@@ -55,10 +63,20 @@ export async function GET(request) {
       );
     }
 
-    // ── Read credentials from env or use defaults ───────────────────────
+    // ── Read credentials from env (strictly require secure credentials) ─
     const name = process.env.SUPERUSER_NAME || "Super Admin";
-    const email = process.env.SUPERUSER_EMAIL || "admin@planmyhoneymoon.com";
-    const password = process.env.SUPERUSER_PASSWORD || "Admin@123";
+    const email = process.env.SUPERUSER_EMAIL;
+    const password = process.env.SUPERUSER_PASSWORD;
+
+    if (!email || !password) {
+      return Response.json(
+        {
+          error: "SUPERUSER_EMAIL and SUPERUSER_PASSWORD environment variables must be defined.",
+          help: "Set SUPERUSER_EMAIL and SUPERUSER_PASSWORD in your environment variables.",
+        },
+        { status: 400 }
+      );
+    }
 
     // Check if this email already exists
     const existingUser = await User.findOne({ email });

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import { requireSuperuser } from "@/lib/authorize";
 
 /**
  * PUT /api/users/[id]/reset-password
@@ -12,13 +11,8 @@ import User from "@/models/User";
  */
 export async function PUT(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "superuser") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireSuperuser();
+    if (!auth.ok) return auth.response;
 
     const { newPassword } = await request.json();
 

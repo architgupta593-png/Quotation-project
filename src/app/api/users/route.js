@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { createUserSchema } from "@/lib/validations";
+import { requireRole, requireSuperuser } from "@/lib/authorize";
 
 /**
  * GET /api/users — List all users.
@@ -11,13 +10,8 @@ import { createUserSchema } from "@/lib/validations";
  */
 export async function GET(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (!["superuser", "admin"].includes(session.user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireRole(["superuser", "admin"]);
+    if (!auth.ok) return auth.response;
 
     await connectDB();
 
@@ -31,6 +25,7 @@ export async function GET(request) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -55,17 +50,12 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "superuser") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireSuperuser();
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
 
-    // Validate with the createUserSchema (includes role)
+    // Validate with the createUserSchema (includes role and optional phone)
     const parsed = createUserSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -77,7 +67,7 @@ export async function POST(request) {
       );
     }
 
-    const { name, email, password, role } = parsed.data;
+    const { name, email, password, role, phone } = parsed.data;
 
     await connectDB();
 
@@ -91,7 +81,14 @@ export async function POST(request) {
     }
 
     // Create user — the pre-validate hook will enforce the superuser limit
-    const user = await User.create({ name, email, password, role });
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role,
+      phone: phone || "",
+      isPhoneVerified: false,
+    });
 
     return NextResponse.json(
       {
@@ -100,6 +97,8 @@ export async function POST(request) {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
+          phone: user.phone,
+          isPhoneVerified: user.isPhoneVerified,
           role: user.role,
           isActive: user.isActive,
         },

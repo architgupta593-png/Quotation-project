@@ -36,6 +36,28 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+    phoneOtp: {
+      type: String,
+      select: false,
+    },
+    phoneOtpExpiry: {
+      type: Date,
+      select: false,
+    },
+    phoneOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
   },
   {
     timestamps: true, // adds createdAt and updatedAt

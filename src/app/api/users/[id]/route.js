@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { updateUserSchema } from "@/lib/validations";
+import { requireRole, requireSuperuser } from "@/lib/authorize";
 
 /**
  * GET /api/users/[id] — Get a single user.
@@ -11,13 +10,8 @@ import { updateUserSchema } from "@/lib/validations";
  */
 export async function GET(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (!["superuser", "admin"].includes(session.user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireRole(["superuser", "admin"]);
+    if (!auth.ok) return auth.response;
 
     await connectDB();
     const { id } = await params;
@@ -40,13 +34,8 @@ export async function GET(request, { params }) {
  */
 export async function PUT(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "superuser") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireSuperuser();
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
 
@@ -72,11 +61,17 @@ export async function PUT(request, { params }) {
     }
 
     // Apply changes
-    const { name, email, role, isActive } = parsed.data;
+    const { name, email, role, isActive, phone } = parsed.data;
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (isActive !== undefined) user.isActive = isActive;
+    if (phone !== undefined) {
+      if (user.phone !== phone) {
+        user.phone = phone;
+        user.isPhoneVerified = false; // Reset verification status when phone number changes
+      }
+    }
 
     await user.save();
 
@@ -85,6 +80,8 @@ export async function PUT(request, { params }) {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        isPhoneVerified: user.isPhoneVerified,
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
@@ -114,14 +111,10 @@ export async function PUT(request, { params }) {
  */
 export async function DELETE(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "superuser") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireSuperuser();
+    if (!auth.ok) return auth.response;
 
+    const session = auth.session;
     await connectDB();
     const { id } = await params;
 

@@ -724,11 +724,11 @@ export default function InstructionsEditorModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 px-6 flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="bg-slate-50 border-t border-slate-200 p-3 sm:p-4 px-4 sm:px-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-2xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[13px] transition-colors"
+            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[12px] sm:text-[13px] transition-colors text-center order-2 sm:order-1"
           >
             Cancel
           </button>
@@ -736,10 +736,10 @@ export default function InstructionsEditorModal({
           <button
             type="button"
             onClick={handleSaveAndClose}
-            className="flex items-center gap-2 px-7 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-black text-[13.5px] shadow-md shadow-amber-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 px-5 sm:px-7 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-black text-[12.5px] sm:text-[13.5px] shadow-md shadow-amber-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] order-1 sm:order-2"
           >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Apply {sections.length} Policy Sections to Quote</span>
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>Apply {sections.length} Policy Sections<span className="hidden xs:inline"> to Quote</span></span>
           </button>
         </div>
       </div>

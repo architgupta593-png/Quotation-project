@@ -816,65 +816,75 @@ export default function EditQuickQuotationPage({ params }) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans pb-28">
       {/* ── Top Header ── */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200/80 px-6 py-4 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard/quick-quotations"
-            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2 text-[13px] font-bold"
-          >
-            <ArrowLeft className="w-4 h-4" /> Quick Quotes
-          </Link>
-          <div className="h-6 w-px bg-slate-200 hidden sm:block" />
-          <div className="hidden sm:block">
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 w-fit">
-              <Zap className="w-3 h-3 text-amber-500" /> Edit Quick Quote • {form.quickQuoteCode}
-            </span>
-            <h1 className="text-[15px] font-black text-slate-900 leading-snug mt-0.5 truncate max-w-sm">
-              {form.tripDetails.title}
-            </h1>
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2 sm:py-2.5 shadow-2xs">
+        <div className="flex items-center justify-between gap-2.5 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+            <Link
+              href="/dashboard/quick-quotations"
+              className="h-9 px-2 sm:px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 text-[12px] font-bold flex-shrink-0"
+              title="Back to Quick Quotes"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden xs:inline">Quick Quotes</span>
+            </Link>
+            <div className="h-5 w-px bg-slate-200 hidden sm:block flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 w-fit">
+                <Zap className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                <span className="hidden sm:inline">Edit Quick Quote • </span>#{form.quickQuoteCode}
+              </span>
+              <h1 className="text-[13px] sm:text-[15px] font-black text-slate-900 leading-snug mt-0.5 truncate max-w-[180px] xs:max-w-xs md:max-w-sm">
+                {form.tripDetails?.title || "Quick Quote"}
+              </h1>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setPackageModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[12.5px] font-black transition-all shadow-2xs hover:scale-105 active:scale-95"
-          >
-            <PackageIcon className="w-4 h-4 text-indigo-600" />
-            <span>Fetch Package</span>
-          </button>
-
-          {form.status !== "converted" && (
+          <div className="flex items-center gap-1.5 sm:gap-2.5 justify-end flex-shrink-0">
             <button
               type="button"
-              onClick={handleConvert}
-              disabled={converting}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-extrabold text-[12.5px] transition-all disabled:opacity-50"
+              onClick={() => setPackageModalOpen(true)}
+              className="h-9 px-2.5 sm:px-3.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[12px] font-bold transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
+              title="Fetch Package from catalog"
             >
-              {converting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5 text-purple-600" />}
-              <span>Upgrade to Full Quote</span>
+              <PackageIcon className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+              <span>Fetch<span className="hidden sm:inline"> Package</span></span>
             </button>
-          )}
 
-          <a
-            href={`/quick-quote/${form.quickQuoteCode}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-[12.5px] transition-all"
-          >
-            <Eye className="w-3.5 h-3.5" /> View Proposal
-          </a>
+            {form.status !== "converted" && (
+              <button
+                type="button"
+                onClick={handleConvert}
+                disabled={converting}
+                className="h-9 px-2.5 sm:px-3.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[12px] transition-all disabled:opacity-50 whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+                title="Upgrade to Full Detailed Quotation"
+              >
+                {converting ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> : <Layers className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />}
+                <span>Upgrade<span className="hidden md:inline"> to Full Quote</span></span>
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={() => handleUpdate(form.status)}
-            disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white text-[13px] font-black shadow-md shadow-amber-500/25 transition-all disabled:opacity-50"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save &amp; Update
-          </button>
+            <a
+              href={`/quick-quote/${form.quickQuoteCode}`}
+              target="_blank"
+              rel="noreferrer"
+              className="h-9 px-2.5 sm:px-3.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-[12px] transition-all flex items-center gap-1.5 whitespace-nowrap"
+              title="View Public Proposal"
+            >
+              <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">View Proposal</span>
+              <span className="sm:hidden">View</span>
+            </a>
+
+            <button
+              type="button"
+              onClick={() => handleUpdate(form.status)}
+              disabled={saving}
+              className="h-9 px-3 sm:px-4.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white text-[12px] font-black shadow-sm shadow-amber-500/25 transition-all disabled:opacity-50 whitespace-nowrap active:scale-95 flex items-center gap-1.5"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> : <Save className="w-3.5 h-3.5 flex-shrink-0" />}
+              <span>Save<span className="hidden xs:inline"> &amp; Update</span></span>
+            </button>
+          </div>
         </div>
       </header>
 

@@ -173,46 +173,47 @@ export default function QuickQuotationsPipelinePage() {
       {/* ── Romantic Studio Header ── */}
       <div className="bg-white/90 backdrop-blur-md border-b border-rose-100 px-4 sm:px-8 py-5 sm:py-6 shadow-2xs">
         <div className="max-w-6xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-rose-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-rose-600 transition-colors flex-shrink-0"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
+              <ArrowLeft className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Back to</span> Dashboard
             </Link>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Link
                 href="/dashboard/quotations"
-                className="px-3.5 py-1.5 rounded-xl bg-rose-50/70 hover:bg-rose-100/80 text-rose-800 font-medium text-[11.5px] border border-rose-200/60 transition-all flex items-center gap-1.5"
+                className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-rose-50/70 hover:bg-rose-100/80 text-rose-800 font-medium text-[11px] sm:text-[11.5px] border border-rose-200/60 transition-all flex items-center gap-1.5 whitespace-nowrap"
               >
-                <FileText className="w-3.5 h-3.5 text-rose-500" /> Full Detailed Quotations
+                <FileText className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                <span><span className="hidden sm:inline">Full </span>Detailed Quotations</span>
               </Link>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
               <div className="flex items-center gap-2.5">
-                <span className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-500 via-rose-600 to-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-rose-200">
-                  <Heart className="w-4.5 h-4.5 fill-white text-white" />
+                <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-rose-500 via-rose-600 to-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-rose-200 flex-shrink-0">
+                  <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-white text-white" />
                 </span>
-                <div>
-                  <h1 className="text-[20px] sm:text-[23px] font-black text-slate-900 tracking-tight leading-none">
-                    Plan My Honeymoon <span className="font-normal text-rose-600 text-[18px]">Studio</span>
+                <div className="min-w-0">
+                  <h1 className="text-[18px] sm:text-[23px] font-black text-slate-900 tracking-tight leading-none truncate">
+                    Plan My Honeymoon <span className="font-normal text-rose-600 text-[16px] sm:text-[18px]">Studio</span>
                   </h1>
                 </div>
               </div>
-              <p className="text-[12.5px] text-slate-500 font-medium mt-1.5 flex items-center gap-1.5">
-                <span>Curate enchanting honeymoon packages & romantic couple getaways in 60 seconds.</span>
+              <p className="text-[11.5px] sm:text-[12.5px] text-slate-500 font-medium mt-1.5 flex items-center gap-1.5">
+                <span>Curate enchanting honeymoon packages &amp; romantic couple getaways in 60 seconds.</span>
               </p>
             </div>
 
             <Link
               href="/dashboard/quick-quotations/new"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white text-[12.5px] font-bold shadow-md shadow-rose-200 transition-all hover:scale-[1.02] active:scale-[0.98] self-start sm:self-auto border border-rose-400/30"
+              className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white text-[12px] sm:text-[12.5px] font-bold shadow-md shadow-rose-200 transition-all hover:scale-[1.02] active:scale-[0.98] self-stretch sm:self-auto border border-rose-400/30 flex-shrink-0"
             >
-              <Heart className="w-4 h-4 fill-amber-300 text-amber-300" />
+              <Heart className="w-4 h-4 fill-amber-300 text-amber-300 flex-shrink-0" />
               <span>Create Couple Quote</span>
             </Link>
           </div>

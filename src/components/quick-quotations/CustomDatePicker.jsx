@@ -163,7 +163,7 @@ export default function CustomDatePicker({ value, onChange }) {
 
       {/* ── 📅 Luxury Custom Month Calendar Dropdown ── */}
       {isOpen && (
-        <div className="absolute top-[102%] left-0 z-50 w-full sm:w-[320px] bg-white rounded-3xl border-2 border-amber-300 shadow-2xl p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute top-[102%] left-0 sm:left-auto sm:right-0 md:left-0 md:right-auto z-50 w-full min-w-[280px] sm:w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-3xl border-2 border-amber-300 shadow-2xl p-3.5 sm:p-5 animate-in fade-in zoom-in-95 duration-150">
           {/* Header Month / Year Switcher */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
             <button

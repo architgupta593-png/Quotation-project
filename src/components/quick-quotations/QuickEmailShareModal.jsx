@@ -191,32 +191,32 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
+      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 p-6 text-white flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
-              <Mail className="w-5 h-5" />
+        <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 p-4 sm:p-6 text-white flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner flex-shrink-0">
+              <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-100">⚡ Email Quick Proposal</p>
-              <h3 className="text-[17px] font-black text-white leading-tight">Send to {client?.name || "Client"}</h3>
+            <div className="min-w-0">
+              <p className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-widest text-indigo-100">⚡ Email Quick Proposal</p>
+              <h3 className="text-[15px] sm:text-[17px] font-black text-white leading-tight truncate">Send to {client?.name || "Client"}</h3>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-[13px]">
+        <div className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 text-[13px]">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11.5px] font-bold text-slate-700 mb-1">
+              <label className="block text-[11px] sm:text-[11.5px] font-bold text-slate-700 mb-1">
                 To (Client Email)
               </label>
               <input
@@ -224,12 +224,12 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
                 placeholder="client@example.com"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[12.5px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
 
             <div>
-              <label className="block text-[11.5px] font-bold text-slate-700 mb-1">
+              <label className="block text-[11px] sm:text-[11.5px] font-bold text-slate-700 mb-1">
                 CC (Agency / Manager Copy)
               </label>
               <input
@@ -237,32 +237,32 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
                 value={ccEmail}
                 onChange={(e) => setCcEmail(e.target.value)}
                 placeholder="concierge@planmyhoneymoon.com"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[12.5px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11.5px] font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] sm:text-[11.5px] font-bold text-slate-700 mb-1">
               Email Subject Line
             </label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-[12.5px] sm:text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11.5px] font-bold text-slate-700">
+              <label className="block text-[11px] sm:text-[11.5px] font-bold text-slate-700">
                 Email Proposal Message
               </label>
               <button
                 type="button"
                 onClick={generateDefaultContent}
-                className="text-[11.5px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                className="text-[11px] sm:text-[11.5px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
               >
                 <RefreshCw className="w-3 h-3" /> Reset to Default
               </button>
@@ -270,18 +270,18 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
             <textarea
               value={emailBody}
               onChange={(e) => setEmailBody(e.target.value)}
-              rows={10}
-              className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 text-[12.5px] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white resize-none"
+              rows={7}
+              className="w-full p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-200 text-slate-800 text-[12px] sm:text-[12.5px] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white resize-none"
             />
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 px-6 flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="bg-slate-50 border-t border-slate-200 p-3 sm:p-4 px-4 sm:px-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-[13px] transition-colors shadow-xs"
+            className="flex items-center justify-center gap-1.5 px-4 py-2 sm:py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-[12px] sm:text-[13px] transition-colors shadow-xs"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
             <span>{copied ? "Copied Email!" : "Copy Email Text"}</span>
@@ -291,7 +291,7 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[13px]"
+              className="px-4 py-2 sm:py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[12px] sm:text-[13px] flex-1 sm:flex-initial text-center"
             >
               Cancel
             </button>
@@ -299,10 +299,10 @@ ${EMOJI.GLOBE} https://holidays.planmyhoneymoon.com`;
             <button
               type="button"
               onClick={handleOpenMailClient}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-[13px] transition-all shadow-md shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-[12px] sm:text-[13px] transition-all shadow-md shadow-indigo-500/25 hover:scale-[1.02] active:scale-[0.98] flex-1 sm:flex-initial"
             >
               <Send className="w-4 h-4" />
-              <span>Launch Mail Client</span>
+              <span>Launch Mail<span className="hidden xs:inline"> Client</span></span>
             </button>
           </div>
         </div>

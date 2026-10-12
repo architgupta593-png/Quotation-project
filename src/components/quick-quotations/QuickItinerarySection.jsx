@@ -451,8 +451,8 @@ export default function QuickItinerarySection({
 
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* Meal Plan Connection Badge (Only shown when a meal plan is selected) */}
-                        {mealInfo.mealPlan && (
+                        {/* Meal Plan Connection Badge (Hidden on Day 1 for CP/EP since guest arrives in afternoon/evening) */}
+                        {mealInfo.mealPlan && !(idx === 0 && (mealInfo.mealPlan === "CP" || mealInfo.mealPlan === "EP")) && (
                           <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 border border-emerald-200/90 font-black text-[10.5px] flex items-center gap-1.5 shadow-2xs">
                             <Utensils className="w-3 h-3 text-emerald-600 flex-shrink-0" />
                             <span className="text-emerald-900 font-extrabold">{mealInfo.planDesc?.badge || `${mealInfo.mealPlan} Plan`}</span>
@@ -618,9 +618,9 @@ export default function QuickItinerarySection({
           />
 
           {/* Modal Container */}
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh] animate-in zoom-in-95">
+          <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90dvh] animate-in zoom-in-95">
             {/* Modal Header */}
-            <div className="bg-slate-950 p-4 px-6 text-white flex items-center justify-between flex-shrink-0">
+            <div className="bg-slate-950 p-3.5 sm:p-4 px-4 sm:px-6 text-white flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-mono font-black text-[13px]">
                   D{editingDay.day || editingDayIndex + 1}

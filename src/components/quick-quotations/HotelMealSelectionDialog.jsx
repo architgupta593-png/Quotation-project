@@ -331,19 +331,19 @@ export default function HotelMealSelectionDialog({
       <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity" onClick={onClose} />
 
       {/* Dialog Shell */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 flex flex-col max-h-[88vh] animate-in zoom-in-95">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 flex flex-col max-h-[90dvh] animate-in zoom-in-95">
         
         {/* ── Dialog Header ── */}
-        <div className="p-4 px-5 bg-white border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+        <div className="p-3.5 sm:p-4 px-4 sm:px-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 flex-shrink-0">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <h3 className="text-sm font-bold text-slate-900">
                 Hotels in {cityName}
               </h3>
-              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+              <span className="text-[10.5px] sm:text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                 {activeCategory}
               </span>
-              <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+              <span className="text-[10.5px] sm:text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                 {activeMealPlan} Plan
               </span>
             </div>

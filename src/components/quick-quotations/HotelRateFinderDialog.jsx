@@ -632,44 +632,44 @@ export default function HotelRateFinderDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-5xl lg:max-w-6xl mx-auto overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[90dvh] animate-in zoom-in-95">
         
         {/* ── 1. Luxury Header ── */}
-        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 p-5 sm:p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0 border-b border-white/10 relative overflow-hidden">
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
+        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 px-4 sm:px-6 py-3 sm:py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0 border-b border-white/10 relative overflow-hidden">
+          <div className="flex items-center gap-3 relative z-10 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 flex-shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                <span className="text-[9.5px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 font-mono">
                   Rate Finder
                 </span>
-                <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[9.5px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 font-mono">
                   Live Rates
                 </span>
               </div>
-              <h3 className="text-[17px] font-black text-white leading-snug mt-0.5">
+              <h3 className="text-[15px] sm:text-[16px] font-black text-white leading-snug mt-0.5 truncate">
                 Hotel Rate Finder &amp; Catalog
               </h3>
-              <p className="text-[11.5px] text-slate-300 font-medium">
+              <p className="text-[11px] text-slate-300 font-medium truncate">
                 {nights}N in {searchCity || cityName || "Destination"} • {roomsCount} {roomsCount === 1 ? "Room" : "Rooms"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 relative z-10">
+          <div className="flex items-center gap-2 relative z-10 w-full sm:w-auto justify-between sm:justify-end flex-shrink-0">
             {/* View Mode Switcher: Top 5 vs All Hotels */}
-            <div className="bg-white/10 p-1 rounded-2xl flex items-center gap-1 border border-white/15 text-[11.5px] font-bold">
+            <div className="bg-white/10 p-1 rounded-2xl flex items-center gap-1 border border-white/15 text-[11px] font-bold overflow-x-auto scrollbar-none flex-nowrap">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab("catalog");
                   setViewMode("top5");
                 }}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  activeTab === "catalog" && viewMode === "top5" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "catalog" && viewMode === "top5" ? "bg-amber-500 text-slate-950 shadow-xs font-black" : "text-white/80 hover:text-white"
                 }`}
               >
                 <span>🏆 Top 5 Lowest</span>
@@ -685,8 +685,8 @@ export default function HotelRateFinderDialog({
                   setActiveTab("catalog");
                   setViewMode("all");
                 }}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  activeTab === "catalog" && viewMode === "all" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "catalog" && viewMode === "all" ? "bg-amber-500 text-slate-950 shadow-xs font-black" : "text-white/80 hover:text-white"
                 }`}
               >
                 <span>📋 All {selectedCategory !== "None" ? selectedCategory : "Hotels"}</span>
@@ -699,8 +699,8 @@ export default function HotelRateFinderDialog({
               <button
                 type="button"
                 onClick={() => setActiveTab("manual")}
-                className={`px-3 py-1.5 rounded-xl transition-all ${
-                  activeTab === "manual" ? "bg-amber-500 text-slate-950 shadow-sm font-black" : "text-white/80 hover:text-white"
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                  activeTab === "manual" ? "bg-amber-500 text-slate-950 shadow-xs font-black" : "text-white/80 hover:text-white"
                 }`}
               >
                 + Custom
@@ -710,7 +710,7 @@ export default function HotelRateFinderDialog({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors flex-shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -718,7 +718,7 @@ export default function HotelRateFinderDialog({
         </div>
 
         {/* ── 2. Search & Filter Toolbar ── */}
-        <div className="px-6 py-3.5 bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border-b border-slate-200/80 space-y-3 flex-shrink-0">
+        <div className="px-3.5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border-b border-slate-200/80 space-y-2.5 sm:space-y-3 flex-shrink-0">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
             {/* City Search */}
             <div className="sm:col-span-4 relative">
@@ -915,7 +915,7 @@ export default function HotelRateFinderDialog({
 
                 {/* Dropdown Menu Popover */}
                 {featureDropdownOpen && (
-                  <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 max-h-[26rem] bg-white rounded-2xl border border-slate-200 shadow-2xl z-40 p-3.5 flex flex-col gap-2.5 animate-in zoom-in-95">
+                  <div className="absolute left-0 top-full mt-2 w-[calc(100vw-2.5rem)] sm:w-96 max-w-md max-h-[24rem] sm:max-h-[26rem] bg-white rounded-2xl border border-slate-200 shadow-2xl z-40 p-3.5 flex flex-col gap-2.5 animate-in zoom-in-95">
                     {/* Header */}
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-1.5">

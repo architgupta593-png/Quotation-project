@@ -9,6 +9,8 @@ import { loginSchema } from "@/lib/validations";
  *
  * @see https://next-auth.js.org/configuration/options
  */
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
+
 export const authOptions = {
   // ── Providers ──────────────────────────────────────────────────────────────
   providers: [
@@ -23,8 +25,8 @@ export const authOptions = {
        * Verify user credentials against the MongoDB User collection.
        * Return a user object on success, or null on failure.
        *
-       * Wrapped in a timeout to prevent hanging on shared hosting (Hostinger)
-       * where MongoDB connections can stall and cause 504 Gateway Timeout.
+       * Includes rate limiting against brute force password guessing.
+       * Wrapped in a timeout to prevent hanging on shared hosting (Hostinger).
        */
       async authorize(credentials) {
         try {
@@ -33,6 +35,14 @@ export const authOptions = {
           if (!parsed.success) return null;
 
           const { email, password } = parsed.data;
+          const rateKey = `login:${email.toLowerCase()}`;
+
+          // Check brute-force limit (max 5 attempts per 15 minutes)
+          const rate = checkRateLimit(rateKey, { limit: 5, windowMs: 15 * 60 * 1000 });
+          if (!rate.success) {
+            console.warn(`[NextAuth authorize] Rate limit exceeded for ${email}`);
+            throw new Error("Too many failed login attempts. Please try again after 15 minutes.");
+          }
 
           // 2. Connect to DB (with timeout protection)
           const connectPromise = connectDB();
@@ -48,6 +58,9 @@ export const authOptions = {
           // 4. Compare password using bcrypt instance method
           const isValid = await user.comparePassword(password);
           if (!isValid) return null;
+
+          // Success: reset failed rate limit attempts
+          resetRateLimit(rateKey);
 
           // 5. Return a plain serialisable object (not a Mongoose document)
           return {

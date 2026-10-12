@@ -40,6 +40,7 @@ export const createUserSchema = z.object({
     .trim(),
   email: z.email({ message: "Please enter a valid email address." }).trim(),
   password: passwordSchema,
+  phone: z.string().trim().optional(),
   role: z.enum(["superuser", "admin", "member"], {
     message: "Please select a valid role.",
   }),
@@ -56,6 +57,7 @@ export const updateUserSchema = z.object({
     .email({ message: "Please enter a valid email address." })
     .trim()
     .optional(),
+  phone: z.string().trim().optional(),
   role: z
     .enum(["superuser", "admin", "member"], {
       message: "Please select a valid role.",

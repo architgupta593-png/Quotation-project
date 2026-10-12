@@ -70,23 +70,23 @@ export default function QuickPackageFetchModal({
       <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-md" onClick={onClose} />
 
       {/* Modal Box */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 flex flex-col max-h-[88vh] animate-in zoom-in-95">
+      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 flex flex-col max-h-[90dvh] animate-in zoom-in-95">
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 p-6 text-white flex items-center justify-between flex-shrink-0 border-b border-slate-800">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20">
-              <PackageIcon className="w-5 h-5" />
+        <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 p-4 sm:p-6 text-white flex items-center justify-between flex-shrink-0 border-b border-slate-800">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 flex-shrink-0">
+              <PackageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
                   Auto-Fill Studio
                 </span>
-                <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[9.5px] sm:text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
                   1-Click Fetch
                 </span>
               </div>
-              <h3 className="text-[18px] font-black text-white leading-tight mt-0.5">
+              <h3 className="text-[15px] sm:text-[18px] font-black text-white leading-tight mt-0.5 truncate">
                 Fetch Package Data into Quick Quotation
               </h3>
             </div>
@@ -95,14 +95,14 @@ export default function QuickPackageFetchModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Search & Filter Toolbar */}
-        <div className="p-4 px-6 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 flex-shrink-0">
+        <div className="p-3 sm:p-4 px-4 sm:px-6 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 flex-shrink-0">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -110,17 +110,17 @@ export default function QuickPackageFetchModal({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by package name, destination..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 bg-white font-medium text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 bg-white font-medium text-[12px] sm:text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
             {["all", "honeymoon", "mountain", "beach", "heritage", "safari", "adventure"].map((th) => (
               <button
                 key={th}
                 type="button"
                 onClick={() => setSelectedTheme(th)}
-                className={`px-3 py-1 rounded-xl text-[11.5px] font-bold capitalize whitespace-nowrap transition-all border ${
+                className={`px-2.5 sm:px-3 py-1 rounded-xl text-[11px] sm:text-[11.5px] font-bold capitalize whitespace-nowrap transition-all border ${
                   selectedTheme === th
                     ? "bg-slate-900 text-white border-slate-900 shadow-xs"
                     : "bg-white text-slate-600 hover:bg-slate-100 border-slate-200"
@@ -133,7 +133,7 @@ export default function QuickPackageFetchModal({
         </div>
 
         {/* Package Grid / List */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-3">
+        <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-3">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400 space-y-3">
               <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />

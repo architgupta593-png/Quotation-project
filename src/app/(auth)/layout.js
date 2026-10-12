@@ -1,8 +1,10 @@
+import AuthSessionProvider from "@/components/providers/AuthSessionProvider";
+
 /**
  * Auth route-group layout.
- * Wraps /login and /signup in a clean full-screen shell
- * without the default app navigation.
+ * Wraps /login, /signup, etc. with AuthSessionProvider so client components
+ * can safely access NextAuth session context.
  */
 export default function AuthLayout({ children }) {
-  return <>{children}</>;
+  return <AuthSessionProvider>{children}</AuthSessionProvider>;
 }

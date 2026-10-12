@@ -648,14 +648,14 @@ export default function QuickAccommodationSection({
                   </span>
 
                   {/* City Input */}
-                  <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
-                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs flex-1 sm:flex-initial">
+                    <MapPin className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                     <input
                       type="text"
                       value={stay.cityName || ""}
                       onChange={(e) => handleStayChange(idx, "cityName", e.target.value)}
                       placeholder="Destination City"
-                      className="bg-transparent text-[12.5px] font-black text-slate-900 focus:outline-none w-28"
+                      className="bg-transparent text-[12.5px] font-black text-slate-900 focus:outline-none w-full sm:w-28 min-w-[90px]"
                     />
                   </div>
 
@@ -748,7 +748,7 @@ export default function QuickAccommodationSection({
                 <button
                   type="button"
                   onClick={() => handleOpenFinderDialog(idx)}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white text-[12px] font-black flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-sm border border-indigo-900/50 flex-shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white text-[12px] font-black flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-sm border border-indigo-900/50 w-full sm:w-auto flex-shrink-0"
                 >
                   <Search className="w-3.5 h-3.5 text-amber-400" />
                   <span>Find Lowest Rates</span>
