@@ -11,7 +11,6 @@ import {
   HOTEL_CATEGORIES,
   getCategoryBadgeClass,
 } from "@/components/packages/AccommodationPanel";
-import { HOTEL_FEATURES_LIST } from "@/data/activity";
 
 export function isRoomMatchingFeature(room, targetFeature) {
   if (!room || !targetFeature) return false;
@@ -98,7 +97,6 @@ export const ROOM_FEATURE_CATEGORIES = [
   },
 ];
 
-export const POPULAR_FEATURE_CHIPS = ROOM_FEATURE_CATEGORIES[0].features;
 
 export const MEAL_PLANS = [
   {
@@ -149,12 +147,9 @@ function getSingleNightRate(room, mealPlan = "CP", targetDate = null) {
   const isValidDate = tripDate && !isNaN(tripDate.getTime());
   const seasons = Array.isArray(room.seasonalPricing) ? room.seasonalPricing : [];
 
-  // 1. Check Date-Matched Season in room.seasonalPricing
+  // 1. Check Date-Matched Season in room.seasonalPricing (Strict year & date window check)
   if (isValidDate && seasons.length > 0) {
-    const tripTime = tripDate.getTime();
-    const tripMonth = tripDate.getMonth();
-    const tripDay = tripDate.getDate();
-    const tripMMDD = (tripMonth + 1) * 100 + tripDay;
+    const tripDateNum = tripDate.getFullYear() * 10000 + (tripDate.getMonth() + 1) * 100 + tripDate.getDate();
 
     const matchedSeason = seasons.find((season) => {
       return (season.dateRanges || []).some((range) => {
@@ -163,19 +158,12 @@ function getSingleNightRate(room, mealPlan = "CP", targetDate = null) {
         const end = new Date(range.endDate);
         if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
 
-        // Exact timestamp window check
-        if (tripTime >= start.getTime() && tripTime <= end.getTime()) {
-          return true;
-        }
+        const startDateNum = start.getFullYear() * 10000 + (start.getMonth() + 1) * 100 + start.getDate();
+        const endDateNum = end.getFullYear() * 10000 + (end.getMonth() + 1) * 100 + end.getDate();
 
-        // Annual recurring month/day matching
-        const startMMDD = (start.getMonth() + 1) * 100 + start.getDate();
-        const endMMDD = (end.getMonth() + 1) * 100 + end.getDate();
-        if (startMMDD <= endMMDD) {
-          return tripMMDD >= startMMDD && tripMMDD <= endMMDD;
-        } else {
-          return tripMMDD >= startMMDD || tripMMDD <= endMMDD;
-        }
+        return startDateNum <= endDateNum
+          ? tripDateNum >= startDateNum && tripDateNum <= endDateNum
+          : tripDateNum >= startDateNum || tripDateNum <= endDateNum;
       });
     });
 
@@ -189,8 +177,8 @@ function getSingleNightRate(room, mealPlan = "CP", targetDate = null) {
     }
   }
 
-  // 2. If no season matched by date (or no travel date), check all seasons for the exact meal plan
-  if (targetRate === 0 && seasons.length > 0) {
+  // 2. If no travel date was provided, fallback to first configured season's meal plan
+  if (targetRate === 0 && !isValidDate && seasons.length > 0) {
     for (const season of seasons) {
       if (Array.isArray(season.meals)) {
         const mealObj = season.meals.find((m) => m.plan === mealPlan);
@@ -208,6 +196,13 @@ function getSingleNightRate(room, mealPlan = "CP", targetDate = null) {
     isSeasonal,
     seasonLabel,
   };
+}
+
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDeterministicDate(d) {
+  if (!d || isNaN(d.getTime())) return "";
+  return `${String(d.getDate()).padStart(2, "0")} ${SHORT_MONTHS[d.getMonth()]}`;
 }
 
 /**
@@ -247,7 +242,7 @@ function calculateMultiNightRoomRates(room, mealPlan = "CP", startDateStr = null
       nightNumber: n + 1,
       date: currentNightDate ? currentNightDate.toISOString().slice(0, 10) : "",
       dateLabel: currentNightDate
-        ? currentNightDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+        ? formatDeterministicDate(currentNightDate)
         : `Night ${n + 1}`,
       rate,
       isSeasonal,
@@ -311,6 +306,7 @@ export default function HotelRateFinderDialog({
   currentMealPlan = "CP",
   onSelectHotel,
 }) {
+  const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("catalog"); // "catalog" | "manual"
   const [viewMode, setViewMode] = useState("top5"); // "top5" | "all"
   const [sortBy, setSortBy] = useState("price_asc"); // "price_asc" | "price_desc" | "stars_desc" | "name_asc"
@@ -324,6 +320,11 @@ export default function HotelRateFinderDialog({
   const [featureDropdownOpen, setFeatureDropdownOpen] = useState(false);
   const [featureSearchQuery, setFeatureSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [hotels, setHotels] = useState([]);
   const [hotelRoomsMap, setHotelRoomsMap] = useState({});
   const [selectedRoomIndexMap, setSelectedRoomIndexMap] = useState({});
@@ -629,11 +630,11 @@ export default function HotelRateFinderDialog({
     onClose();
   }
 
-  if (!isOpen) return null;
+  if (!isMounted || !isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-5xl lg:max-w-6xl mx-auto overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[90dvh] animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 lg:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-5xl lg:max-w-6xl mx-auto overflow-hidden flex flex-col max-h-[92dvh] animate-in zoom-in-95">
         
         {/* ── 1. Luxury Header ── */}
         <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 px-4 sm:px-6 py-3 sm:py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0 border-b border-white/10 relative overflow-hidden">
@@ -717,179 +718,126 @@ export default function HotelRateFinderDialog({
           </div>
         </div>
 
-        {/* ── 2. Search & Filter Toolbar ── */}
-        <div className="px-3.5 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border-b border-slate-200/80 space-y-2.5 sm:space-y-3 flex-shrink-0">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+        {/* ── 2. Unified Compact Search & Filter Toolbar ── */}
+        <div className="px-3.5 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50 via-amber-50/20 to-slate-50 border-b border-slate-200/80 space-y-2 flex-shrink-0">
+          {/* Row 1: City, Name, Category Select, Meal Select, Sort Select */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-end">
             {/* City Search */}
-            <div className="sm:col-span-4 relative">
-              <MapPin className="w-3.5 h-3.5 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchCity}
-                onChange={(e) => setSearchCity(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") fetchHotelsForCity(searchCity);
-                }}
-                placeholder="City (e.g. Munnar)..."
-                className="w-full pl-8 pr-7 py-1.5 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
-              />
-              <button
-                type="button"
-                onClick={() => fetchHotelsForCity(searchCity, true)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
-                title="Refresh"
-              >
-                <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-amber-500" : ""}`} />
-              </button>
+            <div className="lg:col-span-3">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                City / Destination
+              </label>
+              <div className="relative">
+                <MapPin className="w-3.5 h-3.5 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchCity}
+                  onChange={(e) => setSearchCity(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") fetchHotelsForCity(searchCity);
+                  }}
+                  placeholder="City (e.g. Munnar)..."
+                  className="w-full pl-8 pr-7 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => fetchHotelsForCity(searchCity, true)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors"
+                  title="Refresh hotels list"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-amber-500" : ""}`} />
+                </button>
+              </div>
             </div>
 
             {/* In-Line Hotel Name Filter */}
-            <div className="sm:col-span-4 relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={nameSearch}
-                onChange={(e) => setNameSearch(e.target.value)}
-                placeholder="Filter hotel by name..."
-                className="w-full pl-8 pr-3 py-1.5 text-[12.5px] font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
-              />
+            <div className="lg:col-span-3">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Hotel Name
+              </label>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={nameSearch}
+                  onChange={(e) => setNameSearch(e.target.value)}
+                  placeholder="Filter hotel by name..."
+                  className="w-full pl-8 pr-3 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
+                />
+              </div>
+            </div>
+
+            {/* Category Select Component (Default: None) */}
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setSelectedRoomIndexMap({});
+                  setViewMode("top5");
+                }}
+                className="w-full px-2.5 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs cursor-pointer"
+              >
+                <option value="None">None (All Categories)</option>
+                {HOTEL_CATEGORIES.filter((c) => c !== "None").map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Meal Plan Select Component (Default: CP) */}
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Meal Plan
+              </label>
+              <select
+                value={selectedMealPlan}
+                onChange={(e) => {
+                  setSelectedMealPlan(e.target.value);
+                  setSelectedRoomIndexMap({});
+                }}
+                className="w-full px-2.5 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs cursor-pointer"
+              >
+                {MEAL_PLANS.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.id} ({plan.title})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Sort Dropdown */}
-            <div className="sm:col-span-4 flex items-center gap-1.5">
-              <div className="relative flex-1">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full px-3 py-1.5 text-[11.5px] font-black rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-amber-500 shadow-2xs cursor-pointer"
-                >
-                  <option value="price_asc">Price: Low to High</option>
-                  <option value="price_desc">Price: High to Low</option>
-                  <option value="stars_desc">Star Rating: 5★ to 1★</option>
-                  <option value="name_asc">Alphabetical (A - Z)</option>
-                </select>
-              </div>
-
-              {/* Star Filters */}
-              <div className="flex items-center gap-0.5">
-                {["all", "3", "4", "5"].map((sf) => (
-                  <button
-                    key={sf}
-                    type="button"
-                    onClick={() => setSelectedStarFilter(sf)}
-                    className={`px-2 py-1 rounded-xl text-[10.5px] font-bold transition-all ${
-                      selectedStarFilter === sf
-                        ? "bg-slate-900 text-amber-400 font-black shadow-2xs"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-                    }`}
-                  >
-                    {sf === "all" ? "All" : `${sf}★+`}
-                  </button>
-                ))}
-              </div>
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-[12px] font-bold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs cursor-pointer"
+              >
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="stars_desc">Stars: 5★ to 1★</option>
+                <option value="name_asc">Alphabetical (A - Z)</option>
+              </select>
             </div>
           </div>
 
-          {/* Category Horizontal Scroll Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-            <span className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider mr-1 flex-shrink-0">
-              Category:
-            </span>
-            {HOTEL_CATEGORIES.map((cat) => {
-              const isSel = selectedCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    setSelectedRoomIndexMap({});
-                    setViewMode("top5");
-                  }}
-                  className={`px-3 py-1 rounded-xl text-[11.5px] font-bold transition-all whitespace-nowrap border ${
-                    isSel
-                      ? "bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs scale-[1.02]"
-                      : "bg-white text-slate-700 hover:bg-amber-50/60 border-slate-200"
-                  }`}
-                >
-                  {cat}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Meal Plan Segmented Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-200/80">
-            {MEAL_PLANS.map((plan) => {
-              const isSel = selectedMealPlan === plan.id;
-              return (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedMealPlan(plan.id);
-                    setSelectedRoomIndexMap({});
-                  }}
-                  className={`px-3 py-1.5 rounded-xl border text-left transition-all flex items-center justify-between ${
-                    isSel
-                      ? "bg-gradient-to-r from-slate-950 to-indigo-950 border-slate-900 text-white shadow-xs"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-amber-50/50"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[12px] font-black ${isSel ? "text-amber-400" : "text-slate-900"}`}>
-                        {plan.id}
-                      </span>
-                      <span className={`text-[10.5px] font-medium ${isSel ? "text-slate-300" : "text-slate-500"}`}>
-                        • {plan.title}
-                      </span>
-                    </div>
-                  </div>
-                  {isSel && <Check className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Room Features Multi-Select Filter Toolbar */}
-          <div className="pt-2 border-t border-slate-200/80 space-y-2">
-            {/* Quick 1-Tap Popular Room Category & Feature Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex-shrink-0 flex items-center gap-1 mr-0.5">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Room Features:
-              </span>
-              {POPULAR_FEATURE_CHIPS.map((chip) => {
-                const isSel = selectedFeatures.some(
-                  (sf) => sf.toLowerCase().trim() === chip.name.toLowerCase().trim()
-                );
-                return (
-                  <button
-                    key={chip.name}
-                    type="button"
-                    onClick={() => toggleFeature(chip.name)}
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap flex items-center gap-1 border shadow-2xs ${
-                      isSel
-                        ? "bg-slate-950 text-amber-300 font-black border-slate-900 ring-2 ring-amber-400/40 shadow-xs scale-[1.02]"
-                        : "bg-white text-slate-700 hover:bg-amber-50/70 border-slate-200"
-                    }`}
-                  >
-                    <span>{chip.icon}</span>
-                    <span>{chip.label}</span>
-                    {isSel && <Check className="w-2.5 h-2.5 text-amber-400" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Row 2: Room Features Filter & Star Rating Pills */}
+          <div className="pt-1.5 border-t border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Dropdown Selector Trigger */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setFeatureDropdownOpen((v) => !v)}
-                  className={`px-3 py-1.5 rounded-xl text-[11.5px] font-bold transition-all flex items-center gap-2 border shadow-2xs ${
+                  className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border shadow-2xs ${
                     selectedFeatures.length > 0
                       ? "bg-slate-950 text-amber-300 border-slate-900 ring-2 ring-amber-400/40 font-black shadow-xs"
                       : "bg-white text-slate-800 hover:bg-slate-50 border-slate-300"
@@ -898,11 +846,11 @@ export default function HotelRateFinderDialog({
                   <Tag className="w-3.5 h-3.5 text-amber-500" />
                   <span>Filter by Room Features</span>
                   {selectedFeatures.length > 0 ? (
-                    <span className="px-2 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
                       {selectedFeatures.length} Active
                     </span>
                   ) : (
-                    <span className="text-slate-400 text-[10.5px]">
+                    <span className="text-slate-400 text-[10px]">
                       ({availableCityRoomFeatures.length} available)
                     </span>
                   )}
@@ -933,16 +881,15 @@ export default function HotelRateFinderDialog({
                       </button>
                     </div>
 
-                    {/* Search box */}
+                    {/* Search box (no autoFocus for hydration safety) */}
                     <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
                         value={featureSearchQuery}
                         onChange={(e) => setFeatureSearchQuery(e.target.value)}
                         placeholder="Search room features (e.g. Balcony, Jacuzzi, View)..."
                         className="w-full pl-8 pr-3 py-1.5 text-[11.5px] font-bold rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                        autoFocus
                       />
                     </div>
 
@@ -1057,48 +1004,66 @@ export default function HotelRateFinderDialog({
                 )}
               </div>
 
-              {/* Right Side: Active Filter Pills / Counter Badge */}
-              <div className="flex items-center gap-1.5 flex-wrap flex-1 justify-end">
-                {selectedFeatures.length > 0 && (
-                  <>
-                    <div className="px-2.5 py-1 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 font-black text-[10.5px] flex items-center gap-1 shadow-2xs flex-shrink-0">
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      <span>{allMatchingHotels.length} {allMatchingHotels.length === 1 ? "Hotel" : "Hotels"} Match</span>
-                    </div>
-
-                    {selectedFeatures.map((feat) => (
-                      <span
-                        key={feat}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-900 text-amber-300 text-[10.5px] font-black shadow-xs animate-in zoom-in-95"
-                      >
-                        <span>{feat}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleFeature(feat)}
-                          className="text-amber-400 hover:text-white p-0.5 rounded transition-colors"
-                          title="Remove filter"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={clearAllFeatures}
-                      className="text-[10.5px] font-black text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 ml-1"
-                    >
-                      <X className="w-2.5 h-2.5" /> Clear All
-                    </button>
-                  </>
-                )}
+              {/* Star Rating Filters */}
+              <div className="flex items-center gap-0.5 bg-white p-0.5 rounded-xl border border-slate-200">
+                {["all", "3", "4", "5"].map((sf) => (
+                  <button
+                    key={sf}
+                    type="button"
+                    onClick={() => setSelectedStarFilter(sf)}
+                    className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      selectedStarFilter === sf
+                        ? "bg-slate-900 text-amber-400 font-black shadow-2xs"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {sf === "all" ? "All Stars" : `${sf}★+`}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            {/* Right Side: Active Filter Pills / Counter Badge */}
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              {selectedFeatures.length > 0 && (
+                <>
+                  <div className="px-2.5 py-0.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 font-black text-[10.5px] flex items-center gap-1 shadow-2xs flex-shrink-0">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    <span>{allMatchingHotels.length} {allMatchingHotels.length === 1 ? "Hotel" : "Hotels"} Match</span>
+                  </div>
+
+                  {selectedFeatures.map((feat) => (
+                    <span
+                      key={feat}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-900 text-amber-300 text-[10px] font-black shadow-xs animate-in zoom-in-95"
+                    >
+                      <span>{feat}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFeature(feat)}
+                        className="text-amber-400 hover:text-white p-0.5 rounded transition-colors"
+                        title="Remove filter"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={clearAllFeatures}
+                    className="text-[10px] font-black text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 ml-1"
+                  >
+                    <X className="w-2.5 h-2.5" /> Clear All
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* ── 3. Content Area: Ranked Cards or Manual ── */}
-        <div className="p-5 overflow-y-auto flex-1 space-y-3">
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2 sm:space-y-2.5">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
               <div className="w-7 h-7 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
@@ -1144,18 +1109,18 @@ export default function HotelRateFinderDialog({
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-2.5">
                 {/* Result header info */}
-                <div className="flex items-center justify-between text-[11.5px] text-slate-500 px-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span>
                       Showing <strong className="text-slate-900 font-black">{displayedHotels.length}</strong> {viewMode === "top5" ? "top lowest-price hotels" : "hotels"} in {searchCity || cityName}
                     </span>
-                    <span className="text-[10.5px] font-black text-amber-800 bg-amber-50 px-2 py-0.2 rounded-md border border-amber-200">
+                    <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2 py-0.2 rounded-md border border-amber-200">
                       {selectedCategory} • {selectedMealPlan} Plan
                     </span>
                     {selectedFeatures.length > 0 && (
-                      <span className="text-[10.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.2 rounded-md border border-emerald-200 flex items-center gap-1">
+                      <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.2 rounded-md border border-emerald-200 flex items-center gap-1">
                         <Tag className="w-2.5 h-2.5" />
                         Room Feature{selectedFeatures.length > 1 ? "s" : ""}: {selectedFeatures.slice(0, 2).join(", ")}{selectedFeatures.length > 2 ? ` +${selectedFeatures.length - 2}` : ""}
                       </span>
@@ -1187,14 +1152,14 @@ export default function HotelRateFinderDialog({
                   return (
                     <div
                       key={item.hotel._id}
-                      className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
                         isLowest
                           ? "bg-gradient-to-br from-amber-50 via-white to-amber-50/40 border-amber-400/90 shadow-xs ring-2 ring-amber-500/20"
                           : "bg-gradient-to-br from-slate-50 via-white to-amber-50/10 border-slate-200/90 hover:border-amber-300 shadow-2xs"
                       }`}
                     >
                       {/* Left info */}
-                      <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           {isLowest ? (
                             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-2xs">
@@ -1240,6 +1205,7 @@ export default function HotelRateFinderDialog({
                             </span>
                           </div>
                         )}
+
 
                         <div className="flex items-center gap-2 text-[11.5px] text-slate-600 flex-wrap font-medium">
                           {item.validRoomIndices?.length > 1 ? (
@@ -1366,7 +1332,7 @@ export default function HotelRateFinderDialog({
                         <button
                           type="button"
                           onClick={() => handleApplyHotel(item)}
-                          className={`px-4 py-2 rounded-xl font-black text-[12px] transition-all flex items-center gap-1.5 shadow-2xs hover:scale-105 active:scale-95 ${
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-[11.5px] transition-all flex items-center gap-1.5 shadow-2xs hover:scale-105 active:scale-95 ${
                             isLowest
                               ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black shadow-amber-500/25 shadow-md"
                               : "bg-gradient-to-r from-slate-950 to-indigo-950 hover:from-slate-900 hover:to-indigo-900 text-white"

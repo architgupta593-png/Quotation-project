@@ -91,10 +91,7 @@ export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
 
     let matchedSeason = null;
     if (isValidDate && Array.isArray(r.seasonalPricing) && r.seasonalPricing.length > 0) {
-      const tripTime = tripDate.getTime();
-      const tripMonth = tripDate.getMonth();
-      const tripDay = tripDate.getDate();
-      const tripMMDD = (tripMonth + 1) * 100 + tripDay;
+      const tripDateNum = tripDate.getFullYear() * 10000 + (tripDate.getMonth() + 1) * 100 + tripDate.getDate();
 
       matchedSeason = r.seasonalPricing.find((season) => {
         return (season.dateRanges || []).some((range) => {
@@ -103,20 +100,12 @@ export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
           const end = new Date(range.endDate);
           if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
 
-          // Direct timestamp window check
-          if (tripTime >= start.getTime() && tripTime <= end.getTime()) {
-            return true;
-          }
+          const startDateNum = start.getFullYear() * 10000 + (start.getMonth() + 1) * 100 + start.getDate();
+          const endDateNum = end.getFullYear() * 10000 + (end.getMonth() + 1) * 100 + end.getDate();
 
-          // Annual month/day match for recurring seasons
-          const startMMDD = (start.getMonth() + 1) * 100 + start.getDate();
-          const endMMDD = (end.getMonth() + 1) * 100 + end.getDate();
-          if (startMMDD <= endMMDD) {
-            return tripMMDD >= startMMDD && tripMMDD <= endMMDD;
-          } else {
-            // Season spans across new year (e.g. Nov 1 to Jan 15)
-            return tripMMDD >= startMMDD || tripMMDD <= endMMDD;
-          }
+          return startDateNum <= endDateNum
+            ? tripDateNum >= startDateNum && tripDateNum <= endDateNum
+            : tripDateNum >= startDateNum || tripDateNum <= endDateNum;
         });
       });
     }
@@ -127,8 +116,8 @@ export function getHotelAllPricesForDate(hotel, rooms = [], travelDate = "") {
           mealPrices[m.plan] = Number(m.price);
         }
       });
-    } else {
-      // Fallback: collect first valid rates
+    } else if (!isValidDate) {
+      // Fallback: collect first valid rates only if no travel date was provided
       (r.seasonalPricing || []).forEach((season) => {
         (season.meals || []).forEach((m) => {
           if (m.plan && Number(m.price) > 0 && !mealPrices[m.plan]) {

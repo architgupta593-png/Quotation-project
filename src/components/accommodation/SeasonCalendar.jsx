@@ -19,22 +19,22 @@ const MON_F = ["January","February","March","April","May","June","July","August"
 const WDAY  = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function mmdd(dateIn) {
+function toDateNum(dateIn) {
   if (!dateIn) return -1;
   const d = dateIn instanceof Date ? dateIn : new Date(dateIn);
   if (isNaN(d)) return -1;
-  return (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
 function getSeasonIdx(checkDate, seasons) {
-  const md = mmdd(checkDate);
-  if (md === -1) return -1;
+  const cd = toDateNum(checkDate);
+  if (cd === -1) return -1;
   return seasons.findIndex(s =>
     (s.dateRanges || []).some(r => {
       if (!r.startDate || !r.endDate) return false;
-      const s0 = mmdd(r.startDate), e0 = mmdd(r.endDate);
+      const s0 = toDateNum(r.startDate), e0 = toDateNum(r.endDate);
       if (s0 === -1 || e0 === -1) return false;
-      return s0 <= e0 ? md >= s0 && md <= e0 : md >= s0 || md <= e0;
+      return s0 <= e0 ? cd >= s0 && cd <= e0 : cd >= s0 || cd <= e0;
     })
   );
 }
