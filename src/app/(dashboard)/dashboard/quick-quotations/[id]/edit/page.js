@@ -8,7 +8,7 @@ import {
   MapPin, Calendar, Users, Hotel, Car, Check, AlertCircle, Eye,
   Tag, ShieldCheck, Heart, Mountain, Compass, Waves, Trees,
   Baby, CheckCircle2, Layers, FileText, Info, Building, Star,
-  CheckCheck, Edit3, Package as PackageIcon, Percent, X,
+  CheckCheck, Edit3, Package as PackageIcon, Percent, X, Save,
   ChevronDown, ChevronUp,
 } from "lucide-react";
 import { getVehicleImage } from "@/components/packages/VehiclePanel";

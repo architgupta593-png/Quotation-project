@@ -490,30 +490,19 @@ export default function QuickQuotationPublicPage({ params }) {
         </div>
 
         {/* Cover Header */}
-        <div className="relative z-10 flex items-start justify-between border-b border-white/20 pb-4">
-          <div className="space-y-1.5">
-            <img
-              src="/logo.png"
-              alt="Plan My Honeymoon"
-              className="h-20 sm:h-24 md:h-28 w-auto max-w-[340px] sm:max-w-[460px] object-contain object-left filter brightness-110"
-            />
-            <p className="text-[12px] font-bold text-amber-300 tracking-wider uppercase">
-              Curated Honeymoon &amp; Bespoke Romantic Holidays
-            </p>
-          </div>
-
-          <div className="text-right space-y-1">
-            <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono font-black text-[12px]">
-              PROPOSAL #{quickQuote.quickQuoteCode}
-            </div>
-            <p className="text-[10.5px] text-slate-300">
-              Issued: <strong>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong> • Quote Valid for 7 Days
-            </p>
-          </div>
+        <div className="relative z-10 w-full flex flex-col items-center justify-center pt-0 pb-1 text-center">
+          <img
+            src="/logo-trimmed.png"
+            alt="Plan My Honeymoon"
+            className="w-1/2 max-w-[50%] h-auto object-contain filter brightness-110 drop-shadow-xl mx-auto"
+          />
+          <p className="text-[11.5px] sm:text-[12.5px] font-bold text-amber-300 tracking-wider uppercase mt-1.5 drop-shadow-sm">
+            India’s Leading Honeymoon Travel Company
+          </p>
         </div>
 
         {/* Cover Center Content */}
-        <div className="relative z-10 py-8 space-y-6 max-w-4xl my-auto">
+        <div className="relative z-10 pt-2 pb-6 space-y-5 sm:space-y-6 max-w-4xl mt-auto mb-8">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3.5 py-1 rounded-full bg-rose-500/30 text-rose-200 border border-rose-400/50 text-[11px] font-black uppercase tracking-wider">
               💑 {currentTheme.label}
@@ -580,12 +569,16 @@ export default function QuickQuotationPublicPage({ params }) {
             </div>
             <div>
               <p className="text-[12px] font-bold text-white">{agentName} — Dedicated Honeymoon Specialist</p>
-              <p className="text-slate-400">Phone/WhatsApp: {agentPhone} • Email: {agentEmail}</p>
+              <p className="text-slate-400">Phone/WhatsApp: {agentPhone}</p>
             </div>
           </div>
-          <div className="sm:text-right">
-            <p className="font-bold text-amber-300">holidays.planmyhoneymoon.com</p>
-            <p className="text-[10px] text-slate-400">100% Price Protected • Official Certified Proposal</p>
+          <div className="sm:text-right space-y-1">
+            <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono font-black text-[12px]">
+              PROPOSAL #{quickQuote.quickQuoteCode}
+            </div>
+            <p className="text-[10.5px] text-slate-300">
+              Issued: <strong>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong> • Quote Valid for 7 Days
+            </p>
           </div>
         </div>
       </div>
@@ -667,19 +660,7 @@ export default function QuickQuotationPublicPage({ params }) {
               <td className="p-0 border-0 print:px-[16mm] space-y-8 print:space-y-6">
                 {/* ── 🖨️ Dedicated Printable Header (Page 2+ in PDF/Print) ── */}
                 <div className="hidden print:block mb-6 pb-3 border-b-2 border-slate-900 print-header">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src="/logo.png"
-                        alt="Plan My Honeymoon"
-                        className="h-14 sm:h-16 w-auto max-w-[240px] object-contain object-left"
-                      />
-                      <div className="border-l border-slate-300 pl-3">
-                        <p className="text-[11.5px] font-black text-slate-900">{tripDetails?.title}</p>
-                        <p className="text-[9.5px] text-slate-500">{tripDetails?.nights}N / {tripDetails?.days}D • Exclusively Curated For {client?.name || "Valued Client"}</p>
-                      </div>
-                    </div>
-
+                  <div className="flex items-center justify-end">
                     <div className="text-right space-y-0.5">
                       <span className="text-[11.5px] font-black uppercase text-slate-900 block font-mono">
                         PROPOSAL #{quickQuote.quickQuoteCode}
@@ -801,26 +782,6 @@ export default function QuickQuotationPublicPage({ params }) {
           <p className="text-[11.5px] text-slate-700 leading-relaxed pt-2.5 italic">
             "Wishing you both a lifetime of immense love, shared laughter, and unforgettable moments as you embark on this magical honeymoon getaway. Every stay, romantic inclusion, and private journey in this proposal has been personally tailored to make your celebration extraordinary."
           </p>
-          
-          {/* Honeymoon Perks Strip */}
-          <div className="grid grid-cols-4 gap-2 pt-3 mt-3 border-t border-rose-200/80 text-[10px] text-slate-800 font-bold text-center">
-            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
-              <p className="text-[13px] mb-0.5">🌹</p>
-              <p>Floral Bed Setup (Night 1)</p>
-            </div>
-            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
-              <p className="text-[13px] mb-0.5">🎂</p>
-              <p>Honeymoon Cake</p>
-            </div>
-            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
-              <p className="text-[13px] mb-0.5">🕯️</p>
-              <p>Private Candlelight Dinner</p>
-            </div>
-            <div className="p-2 rounded-xl bg-white border border-rose-200 shadow-2xs">
-              <p className="text-[13px] mb-0.5">🚣</p>
-              <p>Sunset Cruise / Shikara</p>
-            </div>
-          </div>
         </div>
 
 
@@ -2063,7 +2024,7 @@ export default function QuickQuotationPublicPage({ params }) {
             height: 296.5mm !important;
             max-height: 296.5mm !important;
             margin: 0 !important;
-            padding: 16mm 18mm !important;
+            padding: 8mm 18mm 14mm !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
